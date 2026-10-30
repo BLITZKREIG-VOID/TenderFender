@@ -52,7 +52,7 @@ synth/ → data/*.csv ─► graph/ (screens + GraphSAGE) ─► artifacts/graph
 
 ## 5. Stack and conventions
 
-- Python 3.11, `z3-solver`, `pydantic`, `torch` + `torch_geometric` (CPU), `networkx`, `scikit-learn`, `pandas`, `numpy`, `sentence-transformers`, `jsonschema`, `pytest`, FastAPI + `uvicorn`.
+- Python 3.14, `z3-solver`, `pydantic`, `torch` + `torch_geometric` (CPU), `networkx`, `scikit-learn`, `pandas`, `numpy`, `sentence-transformers`, `jsonschema`, `pytest`, FastAPI + `uvicorn`.
 - LLM: Anthropic API via env `ANTHROPIC_API_KEY`. The demo must run offline from cached IR and cached decisions.
 - Embeddings: a small local sentence-transformers model (suggested all-MiniLM-L6-v2; confirm it downloads by H6 and cache it).
 - UI: Vite + React + TypeScript + Cytoscape.js (P4 may change this before H4; log it in section 13).
