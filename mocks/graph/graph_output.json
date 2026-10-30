@@ -1,0 +1,76 @@
+{
+  "vendor_scores": {
+    "V-045": 0.88,
+    "V-046": 0.85,
+    "V-047": 0.93,
+    "V-100": 0.72,
+    "V-101": 0.70,
+    "V-102": 0.68,
+    "V-103": 0.65
+  },
+  "rings": [
+    {
+      "ring_id": "R-1",
+      "vendor_ids": ["V-045", "V-046", "V-047"],
+      "link_types": ["shared_director", "shared_address"],
+      "score": 0.91
+    },
+    {
+      "ring_id": "R-2",
+      "vendor_ids": ["V-100", "V-101", "V-102", "V-103"],
+      "link_types": ["bid_rotation"],
+      "score": 0.74
+    }
+  ],
+  "paths": [
+    {
+      "from": "V-047",
+      "to": "V-045",
+      "nodes": ["V-047", "P-010", "V-045"],
+      "edge_types": ["directed_by", "directed_by"]
+    },
+    {
+      "from": "V-047",
+      "to": "V-046",
+      "nodes": ["V-047", "A-007", "V-046"],
+      "edge_types": ["located_at", "located_at"]
+    }
+  ],
+  "graph": {
+    "nodes": [
+      { "id": "V-045", "type": "vendor", "label": "Vertex Infra Pvt Ltd", "flagged": true },
+      { "id": "V-046", "type": "vendor", "label": "Horizon Builders LLC", "flagged": true },
+      { "id": "V-047", "type": "vendor", "label": "Apex Constructions Ltd", "flagged": true },
+      { "id": "P-010", "type": "person", "label": "Rajesh Mehta (Director)", "flagged": false },
+      { "id": "A-007", "type": "address", "label": "42 MG Road, Bengaluru", "flagged": false },
+      { "id": "V-100", "type": "vendor", "label": "Nova Projects", "flagged": true },
+      { "id": "V-101", "type": "vendor", "label": "Delta Engineering", "flagged": true },
+      { "id": "V-102", "type": "vendor", "label": "Sigma Works", "flagged": true },
+      { "id": "V-103", "type": "vendor", "label": "Omega Infra", "flagged": true },
+      { "id": "B-005", "type": "buyer", "label": "Municipal Corp Dept-12", "flagged": false },
+      { "id": "V-010", "type": "vendor", "label": "Reliable Contractors", "flagged": false },
+      { "id": "V-022", "type": "vendor", "label": "Sunshine Infra", "flagged": false }
+    ],
+    "edges": [
+      { "source": "V-047", "target": "P-010", "type": "directed_by" },
+      { "source": "V-045", "target": "P-010", "type": "directed_by" },
+      { "source": "V-046", "target": "P-010", "type": "directed_by" },
+      { "source": "V-047", "target": "A-007", "type": "located_at" },
+      { "source": "V-046", "target": "A-007", "type": "located_at" },
+      { "source": "V-045", "target": "A-007", "type": "located_at" },
+      { "source": "V-100", "target": "B-005", "type": "bid_to" },
+      { "source": "V-101", "target": "B-005", "type": "bid_to" },
+      { "source": "V-102", "target": "B-005", "type": "bid_to" },
+      { "source": "V-103", "target": "B-005", "type": "bid_to" },
+      { "source": "V-010", "target": "V-047", "type": "subcontracted_by" },
+      { "source": "V-022", "target": "V-045", "type": "subcontracted_by" }
+    ]
+  },
+  "metrics": {
+    "baseline": { "pr_auc": 0.82, "precision_at_10": 0.70 },
+    "gnn": { "pr_auc": 0.0, "precision_at_10": 0.0 },
+    "gnn_status": "skipped",
+    "note": "synthetic data"
+  }
+}
+
