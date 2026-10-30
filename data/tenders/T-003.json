@@ -1,0 +1,13 @@
+{
+  "tender_id": "T-003",
+  "title": "Annual Maintenance of Government Office Buildings",
+  "clauses": [
+    {"clause_id": "CL1", "text": "This tender invites sealed bids for the annual maintenance of government office buildings, covering civil repairs, painting and minor electrical works."},
+    {"clause_id": "CL2", "text": "Contractors registered in Class-A, Class-B or Class-C are eligible to bid."},
+    {"clause_id": "CL3", "text": "The bidder must have an annual turnover of at least ₹5 crore."},
+    {"clause_id": "CL4", "text": "The bidder must have at least 3 years of experience in building maintenance works."},
+    {"clause_id": "CL5", "text": "Bids must be submitted within 30 days from the date of publication of this notice."},
+    {"clause_id": "CL6", "text": "An Earnest Money Deposit of 2% of the estimated contract value must accompany the bid."},
+    {"clause_id": "CL7", "text": "The contract period shall be 24 months from the date of award, with work orders issued as required."}
+  ]
+}

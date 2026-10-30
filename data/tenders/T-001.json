@@ -1,0 +1,13 @@
+{
+  "tender_id": "T-001",
+  "title": "Supply, Installation and Commissioning of Water Treatment Equipment at the Municipal Water Works",
+  "clauses": [
+    {"clause_id": "CL1", "text": "This tender invites sealed bids for the supply, installation and commissioning of water treatment equipment at the municipal water works."},
+    {"clause_id": "CL2", "text": "The bidder must have an annual turnover of at least ₹50 crore."},
+    {"clause_id": "CL3", "text": "The bidder must have at least 5 years of experience in executing similar works."},
+    {"clause_id": "CL4", "text": "Bids must be submitted within 21 days from the date of publication of this notice."},
+    {"clause_id": "CL5", "text": "To encourage participation by smaller firms, only bidders whose annual turnover does not exceed ₹10 crore are eligible to bid."},
+    {"clause_id": "CL6", "text": "An Earnest Money Deposit of 2% of the estimated contract value must accompany the bid."},
+    {"clause_id": "CL7", "text": "The successful bidder shall complete the work within 12 months of the award of contract."}
+  ]
+}
