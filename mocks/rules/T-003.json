@@ -1,0 +1,34 @@
+{
+  "tender_id": "T-003",
+  "formalization_status": "unconfirmed",
+  "atoms": [
+    {
+      "id": "CL1.1",
+      "clause_id": "CL1",
+      "field": "registration_class",
+      "op": "in",
+      "value": ["Class-A", "Class-B"],
+      "source_text": "Bidders must be registered as Class-A or Class-B contractors."
+    },
+    {
+      "id": "CL2.1",
+      "clause_id": "CL2",
+      "field": "turnover_cr",
+      "op": ">=",
+      "value": 10,
+      "source_text": "Minimum annual turnover of ₹10 crore is required."
+    },
+    {
+      "id": "CL3.1",
+      "clause_id": "CL3",
+      "field": "years_experience",
+      "op": ">=",
+      "value": 3,
+      "source_text": "At least 3 years of relevant project experience."
+    }
+  ],
+  "findings": [],
+  "qualifying_vendors": ["V-003", "V-012", "V-028", "V-055", "V-089", "V-112", "V-156"],
+  "vendors_evaluated": 200
+}
+

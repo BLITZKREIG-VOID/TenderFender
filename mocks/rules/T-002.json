@@ -1,0 +1,51 @@
+{
+  "tender_id": "T-002",
+  "formalization_status": "unconfirmed",
+  "atoms": [
+    {
+      "id": "CL1.1",
+      "clause_id": "CL1",
+      "field": "registration_class",
+      "op": "in",
+      "value": ["Class-A"],
+      "source_text": "Only Class-A registered contractors are eligible to bid."
+    },
+    {
+      "id": "CL2.1",
+      "clause_id": "CL2",
+      "field": "turnover_cr",
+      "op": ">=",
+      "value": 100,
+      "source_text": "The bidder must demonstrate annual turnover of at least ₹100 crore."
+    },
+    {
+      "id": "CL3.1",
+      "clause_id": "CL3",
+      "field": "years_experience",
+      "op": ">=",
+      "value": 15,
+      "source_text": "Minimum 15 years of experience in similar projects is required."
+    }
+  ],
+  "findings": [
+    {
+      "finding_id": "F-1",
+      "type": "tailored_eligibility",
+      "severity": "high",
+      "clause_ids": ["CL1", "CL2", "CL3"],
+      "source_texts": [
+        "Only Class-A registered contractors are eligible to bid.",
+        "The bidder must demonstrate annual turnover of at least ₹100 crore.",
+        "Minimum 15 years of experience in similar projects is required."
+      ],
+      "proof": {
+        "method": "z3_unsat_core",
+        "detail": "satisfiable; exactly 1 of 200 vendors qualifies: V-047"
+      },
+      "explanation": "The combination of Class-A registration, turnover >= 100 cr, and experience >= 15 years is satisfied by exactly one vendor (V-047), indicating potentially tailored eligibility criteria."
+    }
+  ],
+  "qualifying_vendors": ["V-047"],
+  "vendors_evaluated": 200
+}
+

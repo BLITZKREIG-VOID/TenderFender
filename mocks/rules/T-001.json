@@ -1,0 +1,42 @@
+{
+  "tender_id": "T-001",
+  "formalization_status": "unconfirmed",
+  "atoms": [
+    {
+      "id": "CL2.1",
+      "clause_id": "CL2",
+      "field": "turnover_cr",
+      "op": ">=",
+      "value": 50,
+      "source_text": "The bidder must have an annual turnover of at least ₹50 crore in each of the last three financial years."
+    },
+    {
+      "id": "CL5.1",
+      "clause_id": "CL5",
+      "field": "turnover_cr",
+      "op": "<=",
+      "value": 10,
+      "source_text": "Only bidders with turnover not exceeding ₹10 crore are eligible under this micro-enterprise reservation."
+    }
+  ],
+  "findings": [
+    {
+      "finding_id": "F-1",
+      "type": "contradiction",
+      "severity": "high",
+      "clause_ids": ["CL2", "CL5"],
+      "source_texts": [
+        "The bidder must have an annual turnover of at least ₹50 crore in each of the last three financial years.",
+        "Only bidders with turnover not exceeding ₹10 crore are eligible under this micro-enterprise reservation."
+      ],
+      "proof": {
+        "method": "z3_unsat_core",
+        "detail": "unsat core: CL2.1, CL5.1"
+      },
+      "explanation": "Clauses CL2 and CL5 cannot both hold: CL2 requires turnover >= 50 cr while CL5 requires turnover <= 10 cr."
+    }
+  ],
+  "qualifying_vendors": [],
+  "vendors_evaluated": 200
+}
+

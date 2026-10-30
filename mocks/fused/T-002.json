@@ -1,0 +1,32 @@
+{
+  "tender_id": "T-002",
+  "title": "Smart City Infrastructure – Phase II, Bengaluru",
+  "risk_level": "high",
+  "rule_finding_ids": ["F-1"],
+  "graph_flag_ring_ids": ["R-1"],
+  "linked_vendors": [
+    {
+      "vendor_id": "V-047",
+      "reason": "unique_qualifier_in_flagged_ring",
+      "ring_id": "R-1",
+      "path": ["V-047", "P-010", "V-045"]
+    }
+  ],
+  "summary": "Tailored eligibility criteria allow exactly one vendor (V-047) to qualify. V-047 is a member of flagged ring R-1 (shared director P-010 and shared address A-007 with V-045 and V-046). High risk of bid rigging.",
+  "decision": "escalate",
+  "reasoning": "The Z3 solver confirms that the eligibility criteria (Class-A, turnover >= 100 cr, experience >= 15 yrs) are satisfiable by exactly one of 200 registered vendors: V-047 (Apex Constructions Ltd). Graph analysis reveals V-047 shares director Rajesh Mehta (P-010) and registered address 42 MG Road, Bengaluru (A-007) with V-045 and V-046, forming ring R-1 with a collusion score of 0.91. Per CVC Circular 03/01/2012 (KB-004), 'where the conditions of contract appear tailored to suit a particular firm, the matter should be examined by the CVO'. The convergence of tailored criteria and network collusion indicators warrants immediate escalation.",
+  "citations": [
+    { "ref": "KB-004", "kind": "guideline" },
+    { "ref": "F-1", "kind": "finding" },
+    { "ref": "R-1", "kind": "ring" }
+  ],
+  "recommended_actions": [
+    "Escalate to the Chief Vigilance Officer (CVO) for examination of eligibility criteria.",
+    "Investigate the relationship between the tender-issuing authority and V-047 / director P-010.",
+    "Cross-check past tenders won by V-045, V-046, V-047 for patterns of rotation or cover bidding.",
+    "Suspend tender evaluation pending investigation outcome."
+  ],
+  "decision_source": "cache",
+  "disclaimer": "Risk indicators only; not a finding of wrongdoing. Recommendation requires human review."
+}
+
