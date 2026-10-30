@@ -1,4 +1,5 @@
-import { FusedData } from "../api/client";
+import React from 'react';
+import type { FusedData } from "../api/client";
 import { ShieldAlert, AlertTriangle, CheckCircle2, Info } from "lucide-react";
 
 interface Props {
@@ -7,7 +8,7 @@ interface Props {
 
 const riskConfig: Record<
   string,
-  { color: string; bg: string; border: string; icon: JSX.Element }
+  { color: string; bg: string; border: string; icon: React.ReactNode }
 > = {
   high: {
     color: "text-red-700",
@@ -43,13 +44,12 @@ export default function RiskCard({ fused }: Props) {
               Risk: {fused.risk_level}
             </span>
             <span
-              className={`px-2 py-0.5 rounded text-xs font-semibold uppercase ${
-                fused.decision === "escalate"
+              className={`px-2 py-0.5 rounded text-xs font-semibold uppercase ${fused.decision === "escalate"
                   ? "bg-red-600 text-white"
                   : fused.decision === "review"
-                  ? "bg-yellow-500 text-white"
-                  : "bg-green-600 text-white"
-              }`}
+                    ? "bg-yellow-500 text-white"
+                    : "bg-green-600 text-white"
+                }`}
             >
               {fused.decision}
             </span>

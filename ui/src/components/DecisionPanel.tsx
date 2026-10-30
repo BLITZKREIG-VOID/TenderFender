@@ -1,4 +1,4 @@
-import { FusedData } from "../api/client";
+import type { FusedData } from "../api/client";
 import { FileText, Lightbulb, Quote } from "lucide-react";
 
 interface Props {
@@ -38,9 +38,8 @@ export default function DecisionPanel({ fused }: Props) {
             {fused.citations.map((cite, i) => (
               <span
                 key={i}
-                className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-mono font-medium cursor-pointer hover:opacity-80 transition-opacity ${
-                  citationStyle[cite.kind] ?? "bg-gray-100 text-gray-800"
-                }`}
+                className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-mono font-medium cursor-pointer hover:opacity-80 transition-opacity ${citationStyle[cite.kind] ?? "bg-gray-100 text-gray-800"
+                  }`}
                 title={`${cite.kind}: ${cite.ref}`}
               >
                 {cite.ref}

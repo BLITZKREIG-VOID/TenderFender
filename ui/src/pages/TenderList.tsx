@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type JSX } from "react";
 import { Link } from "react-router-dom";
-import { api, TenderSummary } from "../api/client";
+import { api } from "../api/client";
+import type { TenderSummary } from "../api/client";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -44,9 +45,8 @@ const decisionBadge = (decision: string) => {
   };
   return (
     <span
-      className={`px-2 py-0.5 rounded text-xs font-semibold uppercase ${
-        map[decision] ?? "bg-gray-200 text-gray-800"
-      }`}
+      className={`px-2 py-0.5 rounded text-xs font-semibold uppercase ${map[decision] ?? "bg-gray-200 text-gray-800"
+        }`}
     >
       {decision}
     </span>

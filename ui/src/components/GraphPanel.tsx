@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import cytoscape from "cytoscape";
-import { GraphResponse } from "../api/client";
+import type { GraphResponse } from "../api/client";
 import { Network } from "lucide-react";
 
 interface Props {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { api, AnalysisResponse, GraphResponse } from "../api/client";
+import { api } from "../api/client";
+import type { AnalysisResponse, GraphResponse } from "../api/client";
 import RiskCard from "../components/RiskCard";
 import ClausePanel from "../components/ClausePanel";
 import GraphPanel from "../components/GraphPanel";

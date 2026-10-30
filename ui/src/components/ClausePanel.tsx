@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { RulesData, Clause, Finding } from "../api/client";
+import type { RulesData, Clause, Finding } from "../api/client";
 import { CheckCircle, Circle, AlertTriangle } from "lucide-react";
 
 interface Props {
@@ -8,7 +8,7 @@ interface Props {
   onConfirm: (atomId: string) => void;
 }
 
-export default function ClausePanel({ rules, clauses, onConfirm }: Props) {
+export default function ClausePanel({ rules, onConfirm }: Props) {
   const [confirming, setConfirming] = useState<string | null>(null);
 
   // Collect clause IDs that appear in findings (bad clauses)
@@ -37,11 +37,10 @@ export default function ClausePanel({ rules, clauses, onConfirm }: Props) {
       {/* Status badge */}
       <div className="mb-4">
         <span
-          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-            rules.formalization_status === "confirmed"
+          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${rules.formalization_status === "confirmed"
               ? "bg-green-100 text-green-700"
               : "bg-yellow-100 text-yellow-700"
-          }`}
+            }`}
         >
           {rules.formalization_status === "confirmed" ? (
             <CheckCircle size={12} />
@@ -89,11 +88,10 @@ export default function ClausePanel({ rules, clauses, onConfirm }: Props) {
           return (
             <div
               key={atom.id}
-              className={`p-3 rounded-lg border ${
-                isFlagged
+              className={`p-3 rounded-lg border ${isFlagged
                   ? "border-red-300 bg-red-50"
                   : "border-gray-200 bg-gray-50"
-              }`}
+                }`}
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1">
@@ -124,11 +122,10 @@ export default function ClausePanel({ rules, clauses, onConfirm }: Props) {
                     confirming === atom.id ||
                     rules.formalization_status === "confirmed"
                   }
-                  className={`shrink-0 p-1.5 rounded-lg transition-colors ${
-                    rules.formalization_status === "confirmed"
+                  className={`shrink-0 p-1.5 rounded-lg transition-colors ${rules.formalization_status === "confirmed"
                       ? "text-green-600 bg-green-100"
                       : "text-gray-400 hover:text-green-600 hover:bg-green-50"
-                  }`}
+                    }`}
                   title="Confirm formalization"
                 >
                   {rules.formalization_status === "confirmed" ? (
