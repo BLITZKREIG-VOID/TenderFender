@@ -1,0 +1,201 @@
+vendor_id,name,turnover_cr,years_experience,registration_class,address_id,contact_id
+V-001,Horizon Contractors,79.95,5,Class-A,A-011,CT-002
+V-002,United Infra Pvt Ltd,46.57,11,Class-B,A-012,CT-003
+V-003,Sunshine Systems,15.14,17,Class-C,A-013,CT-004
+V-004,Delta Infrastructure,77.23,20,Class-A,A-014,CT-005
+V-005,National Infra Pvt Ltd,52.65,6,Class-B,A-015,CT-006
+V-006,Vertex Builders LLC,45.99,10,Class-C,A-016,CT-007
+V-007,United Projects,53.68,12,Class-A,A-017,CT-008
+V-008,Strategic Services,17.58,7,Class-B,A-018,CT-009
+V-009,Sunshine Enterprises,61.55,12,Class-C,A-019,CT-010
+V-010,National Builders LLC,56.96,19,Class-A,A-020,CT-011
+V-011,Horizon Infrastructure,55.38,8,Class-B,A-021,CT-012
+V-012,Premier Solutions Ltd,72.26,12,Class-C,A-022,CT-013
+V-013,Benchmark Constructions Ltd,69.19,14,Class-A,A-023,CT-014
+V-014,Sunshine Projects,21.73,9,Class-B,A-024,CT-015
+V-015,Global Infrastructure,50.96,13,Class-C,A-025,CT-016
+V-016,Allied Holdings,56.23,13,Class-A,A-026,CT-017
+V-017,Vertex Constructions Ltd,56.23,13,Class-B,A-027,CT-018
+V-018,Sigma Systems,56.41,13,Class-C,A-028,CT-019
+V-019,Delta Infra Pvt Ltd,15.63,7,Class-A,A-029,CT-020
+V-020,Vertex Solutions Ltd,24.63,9,Class-B,A-030,CT-021
+V-021,Nova Industries,28.65,12,Class-C,A-031,CT-022
+V-022,Sigma Works,25.05,12,Class-A,A-032,CT-023
+V-023,Strategic Contractors,62.88,15,Class-B,A-033,CT-024
+V-024,Vertex Holdings,60.58,17,Class-C,A-034,CT-025
+V-025,Reliable Contractors,68.08,19,Class-A,A-035,CT-026
+V-026,Horizon Development Corp,80.9,11,MSE,A-036,CT-027
+V-027,National Constructions Ltd,4.42,20,Class-C,A-037,CT-028
+V-028,Benchmark Associates,116.96,11,MSE,A-038,CT-029
+V-029,Nova Enterprises,2.92,19,Class-B,A-039,CT-030
+V-030,Premier Associates,5.33,1,Class-B,A-040,CT-031
+V-031,Nova Solutions Ltd,1.76,30,Class-C,A-041,CT-032
+V-032,Strategic Enterprises,3.29,20,Class-B,A-042,CT-033
+V-033,Global Solutions Ltd,84.18,1,Class-B,A-043,CT-034
+V-034,Pioneer Systems,132.67,2,Class-C,A-044,CT-035
+V-035,Allied Services,133.48,2,Class-A,A-045,CT-036
+V-036,Omega Engineering,135.21,10,MSE,A-046,CT-037
+V-037,Horizon Systems,196.82,22,MSE,A-047,CT-038
+V-038,Frontier Enterprises,144.23,15,MSE,A-048,CT-039
+V-039,Vertex Contractors,6.08,1,Class-C,A-049,CT-040
+V-040,Pioneer Associates,160.68,24,MSE,A-050,CT-041
+V-041,Sunshine Holdings,1.54,10,Class-B,A-051,CT-042
+V-042,Sunshine Services,143.28,10,MSE,A-052,CT-043
+V-043,Horizon Associates,31.86,15,MSE,A-053,CT-044
+V-044,Superior Constructions Ltd,0.75,29,Class-B,A-054,CT-045
+V-045,Strategic Systems,20.0,8,Class-B,A-007,CT-045
+V-046,Vertex Projects,35.0,10,Class-B,A-007,CT-046
+V-047,Vertex Enterprises,150.0,20,Class-A,A-007,CT-047
+V-048,Frontier Contractors,3.51,30,Class-B,A-055,CT-046
+V-049,United Works,78.99,24,MSE,A-056,CT-047
+V-050,Delta Systems,181.85,1,Class-A,A-057,CT-048
+V-051,National Services,1.81,17,Class-B,A-058,CT-049
+V-052,Apex Infra Pvt Ltd,3.84,18,Class-B,A-059,CT-050
+V-053,Reliable Infrastructure,156.68,23,MSE,A-060,CT-051
+V-054,Nova Infrastructure,49.23,18,MSE,A-061,CT-052
+V-055,Nova Works,2.92,26,Class-A,A-062,CT-053
+V-056,United Enterprises,185.92,21,MSE,A-063,CT-054
+V-057,Benchmark Projects,52.36,2,Class-C,A-064,CT-055
+V-058,Apex Associates,134.0,1,Class-B,A-065,CT-056
+V-059,Delta Associates,4.07,17,Class-C,A-066,CT-057
+V-060,Superior Development Corp,57.67,2,Class-C,A-067,CT-058
+V-061,Superior Enterprises,1.48,17,Class-B,A-068,CT-059
+V-062,Sunshine Development Corp,2.45,14,Class-A,A-069,CT-060
+V-063,Frontier Holdings,49.79,16,MSE,A-070,CT-061
+V-064,Global Industries,2.12,10,Class-A,A-071,CT-062
+V-065,National Industries,4.49,20,Class-B,A-072,CT-063
+V-066,Consolidated Works,0.98,9,Class-A,A-073,CT-064
+V-067,Global Contractors,58.92,2,Class-B,A-074,CT-065
+V-068,Sunshine Infra Pvt Ltd,142.19,7,MSE,A-075,CT-066
+V-069,Frontier Projects,4.28,23,Class-C,A-076,CT-067
+V-070,Sigma Infra Pvt Ltd,2.41,13,Class-B,A-077,CT-068
+V-071,Superior Infra Pvt Ltd,81.34,5,MSE,A-078,CT-069
+V-072,Nova Associates,21.61,1,Class-B,A-079,CT-070
+V-073,Global Associates,92.85,2,Class-B,A-080,CT-071
+V-074,Omega Development Corp,122.71,26,MSE,A-081,CT-072
+V-075,Pioneer Holdings,111.29,8,MSE,A-082,CT-073
+V-076,Pioneer Builders LLC,1.63,30,Class-C,A-083,CT-074
+V-077,Strategic Projects,133.93,1,Class-C,A-084,CT-075
+V-078,Pioneer Solutions Ltd,0.79,8,Class-A,A-085,CT-076
+V-079,Benchmark Development Corp,90.36,1,Class-B,A-086,CT-077
+V-080,Sigma Holdings,192.46,29,MSE,A-087,CT-078
+V-081,Frontier Builders LLC,199.4,16,MSE,A-088,CT-079
+V-082,Sigma Services,3.18,30,Class-B,A-089,CT-080
+V-083,Consolidated Infra Pvt Ltd,4.28,29,Class-C,A-090,CT-081
+V-084,United Constructions Ltd,0.96,27,Class-B,A-091,CT-082
+V-085,Benchmark Holdings,39.14,14,MSE,A-092,CT-083
+V-086,Global Systems,54.88,7,MSE,A-093,CT-084
+V-087,Global Constructions Ltd,160.87,1,Class-C,A-094,CT-085
+V-088,Delta Holdings,93.37,6,MSE,A-095,CT-086
+V-089,Reliable Systems,3.84,18,Class-B,A-096,CT-087
+V-090,Allied Development Corp,150.53,1,Class-C,A-097,CT-088
+V-091,Consolidated Holdings,168.31,2,Class-B,A-098,CT-089
+V-092,Omega Contractors,93.79,2,Class-B,A-099,CT-090
+V-093,Vertex Engineering,1.77,18,Class-A,A-100,CT-091
+V-094,Apex Engineering,2.6,17,Class-A,A-101,CT-092
+V-095,National Enterprises,94.96,11,MSE,A-102,CT-093
+V-096,Benchmark Builders LLC,191.06,2,Class-B,A-103,CT-094
+V-097,Nova Systems,199.5,1,Class-B,A-104,CT-095
+V-098,Premier Industries,0.68,28,Class-A,A-105,CT-096
+V-099,Horizon Enterprises,115.36,1,Class-B,A-106,CT-097
+V-100,National Projects,45.0,12,Class-C,A-100,CT-100
+V-101,Omega Systems,60.0,9,Class-B,A-101,CT-101
+V-102,Sigma Development Corp,55.0,18,Class-A,A-102,CT-102
+V-103,Pioneer Projects,30.0,11,Class-C,A-103,CT-103
+V-104,Pioneer Development Corp,50.28,2,Class-A,A-107,CT-098
+V-105,Strategic Development Corp,35.81,2,Class-C,A-108,CT-099
+V-106,Superior Industries,0.93,15,Class-B,A-109,CT-100
+V-107,Benchmark Industries,58.52,1,Class-B,A-110,CT-101
+V-108,Delta Projects,124.94,24,MSE,A-111,CT-102
+V-109,Delta Builders LLC,2.82,26,Class-A,A-112,CT-103
+V-110,Consolidated Industries,1.3,28,Class-A,A-113,CT-104
+V-111,Delta Contractors,4.37,12,Class-B,A-114,CT-105
+V-112,Apex Development Corp,22.61,2,Class-B,A-115,CT-106
+V-113,Premier Projects,136.11,2,Class-C,A-116,CT-107
+V-114,Nova Engineering,68.96,1,Class-C,A-117,CT-108
+V-115,Consolidated Engineering,0.96,10,Class-B,A-118,CT-109
+V-116,Superior Engineering,140.81,2,Class-C,A-119,CT-110
+V-117,Vertex Industries,2.13,11,Class-C,A-120,CT-111
+V-118,Sunshine Infrastructure,3.92,6,Class-A,A-121,CT-112
+V-119,Vertex Services,133.23,23,MSE,A-122,CT-113
+V-120,Superior Infrastructure,18.38,1,Class-A,A-123,CT-114
+V-121,Delta Engineering,158.15,22,MSE,A-124,CT-115
+V-122,Reliable Services,30.7,2,Class-A,A-125,CT-116
+V-123,Allied Projects,1.01,16,Class-A,A-126,CT-117
+V-124,Allied Contractors,2.87,17,Class-C,A-127,CT-118
+V-125,United Associates,63.82,1,Class-C,A-128,CT-119
+V-126,Benchmark Engineering,4.1,13,Class-A,A-129,CT-120
+V-127,Benchmark Solutions Ltd,3.03,20,Class-C,A-130,CT-121
+V-128,Consolidated Infrastructure,3.67,6,Class-A,A-131,CT-122
+V-129,National Associates,3.81,15,Class-B,A-132,CT-123
+V-130,Horizon Builders LLC,3.25,18,Class-A,A-133,CT-124
+V-131,Superior Services,3.48,14,Class-A,A-134,CT-125
+V-132,Reliable Projects,174.28,1,Class-B,A-135,CT-126
+V-133,Reliable Associates,153.0,21,MSE,A-136,CT-127
+V-134,Apex Works,113.56,2,Class-C,A-137,CT-128
+V-135,Delta Enterprises,1.9,8,Class-B,A-138,CT-129
+V-136,Allied Infrastructure,194.5,1,Class-C,A-139,CT-130
+V-137,Frontier Systems,1.98,26,Class-A,A-140,CT-131
+V-138,Global Holdings,72.31,1,Class-A,A-141,CT-132
+V-139,Omega Solutions Ltd,80.26,22,MSE,A-142,CT-133
+V-140,Apex Holdings,153.3,12,MSE,A-143,CT-134
+V-141,Vertex Associates,3.31,19,Class-C,A-144,CT-135
+V-142,Strategic Solutions Ltd,172.7,21,MSE,A-145,CT-136
+V-143,Benchmark Systems,193.31,8,MSE,A-146,CT-137
+V-144,United Builders LLC,50.18,21,MSE,A-147,CT-138
+V-145,Horizon Projects,1.83,8,Class-A,A-148,CT-139
+V-146,Sigma Engineering,3.41,29,Class-B,A-149,CT-140
+V-147,National Engineering,95.47,2,Class-B,A-150,CT-141
+V-148,Premier Builders LLC,1.71,11,Class-C,A-151,CT-142
+V-149,Global Builders LLC,13.26,29,MSE,A-152,CT-143
+V-150,Pioneer Infrastructure,95.23,1,Class-B,A-153,CT-144
+V-151,Nova Services,191.76,2,Class-A,A-154,CT-145
+V-152,Allied Works,9.75,25,MSE,A-155,CT-146
+V-153,Benchmark Infra Pvt Ltd,3.6,24,Class-B,A-156,CT-147
+V-154,Global Development Corp,2.73,15,Class-A,A-157,CT-148
+V-155,United Engineering,2.83,7,Class-A,A-158,CT-149
+V-156,Strategic Industries,130.48,2,Class-B,A-159,CT-150
+V-157,Frontier Infrastructure,4.3,13,Class-A,A-160,CT-151
+V-158,Nova Infra Pvt Ltd,17.28,30,MSE,A-161,CT-152
+V-159,Benchmark Works,120.25,7,MSE,A-162,CT-153
+V-160,Pioneer Contractors,3.38,17,Class-C,A-163,CT-154
+V-161,Global Enterprises,1.97,21,Class-A,A-164,CT-155
+V-162,Frontier Industries,160.65,7,MSE,A-165,CT-156
+V-163,Pioneer Engineering,58.44,27,MSE,A-166,CT-157
+V-164,Allied Industries,4.22,16,Class-B,A-167,CT-158
+V-165,Pioneer Constructions Ltd,76.23,3,MSE,A-168,CT-159
+V-166,Reliable Solutions Ltd,3.84,20,Class-A,A-169,CT-160
+V-167,Frontier Constructions Ltd,85.13,28,MSE,A-170,CT-161
+V-168,Sigma Builders LLC,61.8,1,Class-A,A-171,CT-162
+V-169,United Holdings,158.35,1,Class-C,A-172,CT-163
+V-170,Premier Contractors,1.51,3,Class-B,A-173,CT-164
+V-171,Consolidated Services,152.55,1,Class-C,A-174,CT-165
+V-172,Pioneer Infra Pvt Ltd,2.41,8,Class-C,A-175,CT-166
+V-173,Premier Infra Pvt Ltd,177.39,13,MSE,A-176,CT-167
+V-174,Pioneer Enterprises,4.06,26,Class-B,A-177,CT-168
+V-175,Consolidated Solutions Ltd,76.63,2,Class-B,A-178,CT-169
+V-176,Premier Systems,1.68,17,Class-C,A-179,CT-170
+V-177,United Industries,4.49,11,Class-C,A-180,CT-171
+V-178,Reliable Industries,30.27,22,MSE,A-181,CT-172
+V-179,Pioneer Industries,121.81,24,MSE,A-182,CT-173
+V-180,Premier Enterprises,115.64,19,MSE,A-183,CT-174
+V-181,Allied Enterprises,192.18,3,MSE,A-184,CT-175
+V-182,Omega Projects,2.29,22,Class-C,A-185,CT-176
+V-183,Horizon Services,4.09,17,Class-A,A-186,CT-177
+V-184,Horizon Solutions Ltd,61.62,2,Class-C,A-187,CT-178
+V-185,Superior Builders LLC,2.14,16,Class-C,A-188,CT-179
+V-186,Delta Works,92.75,2,Class-A,A-189,CT-180
+V-187,Global Works,167.12,1,Class-A,A-190,CT-181
+V-188,Delta Solutions Ltd,72.47,2,Class-A,A-191,CT-182
+V-189,Apex Builders LLC,120.4,1,Class-A,A-192,CT-183
+V-190,Frontier Solutions Ltd,131.97,2,Class-B,A-193,CT-184
+V-191,Vertex Works,63.0,1,Class-B,A-194,CT-185
+V-192,Delta Industries,1.86,7,Class-A,A-195,CT-186
+V-193,Reliable Works,94.36,11,MSE,A-196,CT-187
+V-194,Allied Systems,3.55,18,Class-A,A-197,CT-188
+V-195,Vertex Infra Pvt Ltd,19.83,15,MSE,A-198,CT-189
+V-196,Delta Development Corp,96.76,1,Class-C,A-199,CT-190
+V-197,Consolidated Development Corp,2.1,21,Class-A,A-200,CT-191
+V-198,Premier Services,195.07,15,MSE,A-201,CT-192
+V-199,Allied Infra Pvt Ltd,121.29,15,MSE,A-202,CT-193
+V-200,Sigma Enterprises,143.29,28,MSE,A-203,CT-194
