@@ -145,10 +145,14 @@ export default function GraphPanel({ data }: Props) {
       ],
       layout: {
         name: "cose",
-        animate: false,
+        idealEdgeLength: 100,
+        nodeOverlap: 20,
+        refresh: 20,
+        fit: true,
         padding: 30,
-        nodeRepulsion: () => 12000,
-        idealEdgeLength: () => 130,
+        randomize: false,
+        componentSpacing: 100,
+        nodeRepulsion: 400000,
       },
     });
 
@@ -320,8 +324,7 @@ export default function GraphPanel({ data }: Props) {
           role="region"
           aria-label="Interactive Cytoscape network graph"
           tabIndex={0}
-          className="w-full border-4 border-gray-900 rounded-xl bg-gray-50 shadow-inner focus:outline-hidden focus:ring-4 focus:ring-blue-600"
-          style={{ height: 420 }}
+          className="w-full min-h-[550px] h-[550px] border-4 border-gray-900 rounded-xl bg-gray-50 shadow-inner focus:outline-hidden focus:ring-4 focus:ring-blue-600"
         />
       </div>
 
