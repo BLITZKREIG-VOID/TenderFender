@@ -1,36 +1,38 @@
-import { useEffect, useState, type JSX } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import type { TenderSummary } from "../api/client";
+import { LoadingState, EmptyState, ErrorCard } from "../components/UIStates";
 import {
   AlertTriangle,
   CheckCircle2,
   ShieldAlert,
-  Loader2,
+  ChevronRight,
+  Building2,
 } from "lucide-react";
 
 const riskBadge = (level: string) => {
-  const map: Record<string, { bg: string; text: string; icon: JSX.Element }> = {
+  const map: Record<string, { bg: string; text: string; icon: ReactNode }> = {
     high: {
-      bg: "bg-red-100 border-red-300",
-      text: "text-red-800",
-      icon: <ShieldAlert size={14} />,
+      bg: "bg-red-700 text-white border-red-950",
+      text: "text-white",
+      icon: <ShieldAlert size={16} strokeWidth={2.5} />,
     },
     medium: {
-      bg: "bg-yellow-100 border-yellow-300",
-      text: "text-yellow-800",
-      icon: <AlertTriangle size={14} />,
+      bg: "bg-orange-600 text-white border-orange-950",
+      text: "text-white",
+      icon: <AlertTriangle size={16} strokeWidth={2.5} />,
     },
     low: {
-      bg: "bg-green-100 border-green-300",
-      text: "text-green-800",
-      icon: <CheckCircle2 size={14} />,
+      bg: "bg-green-700 text-white border-green-950",
+      text: "text-white",
+      icon: <CheckCircle2 size={16} strokeWidth={2.5} />,
     },
   };
   const s = map[level] ?? map["low"];
   return (
     <span
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${s.bg} ${s.text}`}
+      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-xs sm:text-sm font-black uppercase tracking-wider border-2 shadow-2xs ${s.bg} ${s.text}`}
     >
       {s.icon} {level.toUpperCase()}
     </span>
@@ -39,14 +41,15 @@ const riskBadge = (level: string) => {
 
 const decisionBadge = (decision: string) => {
   const map: Record<string, string> = {
-    escalate: "bg-red-600 text-white",
-    review: "bg-yellow-500 text-white",
-    clear: "bg-green-600 text-white",
+    escalate: "bg-red-700 text-white border-red-950",
+    review: "bg-orange-600 text-white border-orange-950",
+    clear: "bg-green-700 text-white border-green-950",
   };
   return (
     <span
-      className={`px-2 py-0.5 rounded text-xs font-semibold uppercase ${map[decision] ?? "bg-gray-200 text-gray-800"
-        }`}
+      className={`inline-block px-3 py-1 rounded-md text-xs sm:text-sm font-black uppercase tracking-wider border-2 shadow-2xs ${
+        map[decision] ?? "bg-gray-900 text-white border-black"
+      }`}
     >
       {decision}
     </span>
@@ -58,83 +61,147 @@ export default function TenderList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchTenders = () => {
+    setLoading(true);
+    setError(null);
     api
       .getTenders()
       .then((res) => setTenders(res.data))
-      .catch((err) => setError(err.message))
+      .catch((err) => {
+        const msg =
+          err?.response?.data?.error ||
+          err?.message ||
+          "Unable to connect to the Tender Integrity API server at http://localhost:8000.";
+        setError(msg);
+      })
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchTenders();
   }, []);
 
-  if (loading)
+  if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="animate-spin text-gray-400" size={32} />
-      </div>
+      <LoadingState
+        message="Loading Procurement Tenders..."
+        submessage="Querying mock/artifacts database for evaluated tenders, rule findings, and collusion scores."
+      />
     );
+  }
 
-  if (error)
+  if (error) {
     return (
-      <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
-        Error loading tenders: {error}
-      </div>
+      <ErrorCard
+        title="Could Not Load Tenders"
+        error={error}
+        onRetry={fetchTenders}
+      />
     );
+  }
+
+  if (tenders.length === 0) {
+    return (
+      <EmptyState
+        title="No Evaluated Tenders Found"
+        message="No tender records are present in the current environment. Ensure MOCK=1 or run the pipeline to generate artifacts."
+        actionText="Refresh Tenders"
+        onAction={fetchTenders}
+      />
+    );
+  }
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-6 text-gray-900">
-        Tender Integrity Dashboard
-      </h1>
-
-      {tenders.length === 0 ? (
-        <p className="text-gray-500">No tenders found.</p>
-      ) : (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Tender ID
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Title
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Risk
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Decision
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {tenders.map((t) => (
-                <tr
-                  key={t.tender_id}
-                  className="hover:bg-gray-50 transition-colors"
-                >
-                  <td className="px-6 py-4">
-                    <Link
-                      to={`/tender/${t.tender_id}`}
-                      className="text-blue-600 hover:text-blue-800 font-mono font-medium"
-                    >
-                      {t.tender_id}
-                    </Link>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-700">
-                    <Link to={`/tender/${t.tender_id}`} className="hover:underline">
-                      {t.title}
-                    </Link>
-                  </td>
-                  <td className="px-6 py-4">{riskBadge(t.risk_level)}</td>
-                  <td className="px-6 py-4">{decisionBadge(t.decision)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b-2 border-gray-300">
+        <div>
+          <h1 className="text-3xl font-black text-black tracking-tight uppercase flex items-center gap-3">
+            <Building2 size={32} className="text-black" />
+            Tender Integrity Registry
+          </h1>
+          <p className="text-base font-bold text-gray-800 mt-1">
+            Real-time formal rule verification and collusion graph analysis for high-value tenders.
+          </p>
         </div>
-      )}
+        <div className="text-sm font-black text-black bg-white px-4 py-2 rounded-lg border-2 border-black shadow-2xs self-start sm:self-auto">
+          Total Tenders: <span className="font-mono text-base">{tenders.length}</span>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl shadow-md border-4 border-gray-900 overflow-hidden">
+        <table className="min-w-full divide-y-2 divide-gray-300 text-left">
+          <thead className="bg-gray-100">
+            <tr>
+              <th
+                scope="col"
+                className="px-6 py-4 text-xs sm:text-sm font-black text-black uppercase tracking-wider"
+              >
+                Tender ID
+              </th>
+              <th
+                scope="col"
+                className="px-6 py-4 text-xs sm:text-sm font-black text-black uppercase tracking-wider"
+              >
+                Procurement Title
+              </th>
+              <th
+                scope="col"
+                className="px-6 py-4 text-xs sm:text-sm font-black text-black uppercase tracking-wider"
+              >
+                Calculated Risk
+              </th>
+              <th
+                scope="col"
+                className="px-6 py-4 text-xs sm:text-sm font-black text-black uppercase tracking-wider"
+              >
+                Recommendation
+              </th>
+              <th
+                scope="col"
+                className="px-6 py-4 text-right text-xs sm:text-sm font-black text-black uppercase tracking-wider"
+              >
+                Action
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y-2 divide-gray-200">
+            {tenders.map((t) => (
+              <tr
+                key={t.tender_id}
+                className="hover:bg-blue-50/60 transition-colors group focus-within:bg-blue-50"
+              >
+                <td className="px-6 py-5 whitespace-nowrap">
+                  <Link
+                    to={`/tender/${t.tender_id}`}
+                    className="inline-flex items-center font-mono font-black text-lg text-blue-700 hover:text-blue-950 underline decoration-2 rounded-md focus:outline-hidden focus:ring-4 focus:ring-blue-600 px-1 py-0.5"
+                  >
+                    {t.tender_id}
+                  </Link>
+                </td>
+                <td className="px-6 py-5">
+                  <Link
+                    to={`/tender/${t.tender_id}`}
+                    className="text-base sm:text-lg font-bold text-gray-950 hover:text-blue-900 hover:underline rounded-md focus:outline-hidden focus:ring-4 focus:ring-blue-600 block"
+                  >
+                    {t.title}
+                  </Link>
+                </td>
+                <td className="px-6 py-5 whitespace-nowrap">{riskBadge(t.risk_level)}</td>
+                <td className="px-6 py-5 whitespace-nowrap">{decisionBadge(t.decision)}</td>
+                <td className="px-6 py-5 text-right whitespace-nowrap">
+                  <Link
+                    to={`/tender/${t.tender_id}`}
+                    className="inline-flex items-center gap-1 px-4 py-2 bg-black hover:bg-gray-800 text-white font-black text-xs uppercase tracking-wider rounded-lg border-2 border-black shadow-2xs focus:outline-hidden focus:ring-4 focus:ring-blue-600 transition-all cursor-pointer"
+                  >
+                    <span>Inspect</span>
+                    <ChevronRight size={16} />
+                  </Link>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
-

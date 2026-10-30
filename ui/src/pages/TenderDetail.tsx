@@ -6,7 +6,8 @@ import RiskCard from "../components/RiskCard";
 import ClausePanel from "../components/ClausePanel";
 import GraphPanel from "../components/GraphPanel";
 import DecisionPanel from "../components/DecisionPanel";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { LoadingState, ErrorCard } from "../components/UIStates";
+import { ArrowLeft, RefreshCw, FileText } from "lucide-react";
 
 export default function TenderDetail() {
   const { id } = useParams<{ id: string }>();
@@ -14,62 +15,127 @@ export default function TenderDetail() {
   const [graphData, setGraphData] = useState<GraphResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const fetchData = () => {
+  const fetchData = (showLoading = true) => {
     if (!id) return;
-    setLoading(true);
+    if (showLoading) setLoading(true);
+    setError(null);
+
     Promise.all([api.getAnalysis(id), api.getGraph(id)])
       .then(([analysisRes, graphRes]) => {
         setAnalysis(analysisRes.data);
         setGraphData(graphRes.data);
       })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
+      .catch((err) => {
+        const msg =
+          err?.response?.data?.error ||
+          err?.message ||
+          `Failed to load analysis for tender ${id}. Make sure the backend server is active.`;
+        setError(msg);
+      })
+      .finally(() => {
+        setLoading(false);
+        setIsRefreshing(false);
+      });
   };
 
   useEffect(() => {
-    fetchData();
+    fetchData(true);
   }, [id]);
 
   const handleConfirm = async (atomId: string) => {
     if (!id) return;
-    await api.confirmAtom(id, atomId);
-    fetchData(); // re-fetch to reflect updated status
+    setIsRefreshing(true);
+    try {
+      await api.confirmAtom(id, atomId);
+      fetchData(false); // reload quietly
+    } catch (err: unknown) {
+      console.error("Confirmation error:", err);
+      setIsRefreshing(false);
+    }
   };
 
-  if (loading)
+  if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="animate-spin text-gray-400" size={32} />
-      </div>
+      <LoadingState
+        message={`Analyzing Tender ${id || ""}...`}
+        submessage="Synthesizing formal logic proofs, checking vendor cartel networks, and compiling RAG citations."
+      />
     );
+  }
 
-  if (error || !analysis)
+  if (error || !analysis) {
     return (
-      <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
-        {error ?? "Analysis data not available."}
+      <div>
+        <Link
+          to="/"
+          className="inline-flex items-center gap-2 text-base font-black text-black hover:text-blue-700 mb-6 px-3 py-1.5 rounded-lg border-2 border-black bg-white shadow-2xs focus:outline-hidden focus:ring-4 focus:ring-blue-600"
+        >
+          <ArrowLeft size={18} /> Back to Registry
+        </Link>
+        <ErrorCard
+          title={`Error Retrieving Tender ${id}`}
+          error={error ?? "Tender analysis artifact not found on the server."}
+          onRetry={() => fetchData(true)}
+        />
       </div>
     );
+  }
 
   return (
-    <div>
-      <Link
-        to="/"
-        className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 mb-4"
-      >
-        <ArrowLeft size={16} /> Back to list
-      </Link>
+    <div className="space-y-6">
+      {/* Top Navigation & Header */}
+      <div className="flex flex-wrap items-center justify-between gap-4 pb-2 border-b-2 border-gray-300">
+        <Link
+          to="/"
+          className="inline-flex items-center gap-2 text-sm sm:text-base font-black text-black hover:text-white hover:bg-black px-4 py-2 rounded-lg border-2 border-black bg-white shadow-2xs focus:outline-hidden focus:ring-4 focus:ring-blue-600 transition-colors cursor-pointer"
+        >
+          <ArrowLeft size={18} />
+          <span>Back to Tender Registry</span>
+        </Link>
 
-      <h1 className="text-2xl font-bold text-gray-900 mb-1">
-        {analysis.fused.title}
-      </h1>
-      <p className="text-sm text-gray-500 font-mono mb-6">{id}</p>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              setIsRefreshing(true);
+              fetchData(false);
+            }}
+            disabled={isRefreshing}
+            className="inline-flex items-center gap-2 text-xs sm:text-sm font-black text-black bg-white hover:bg-gray-100 px-3.5 py-2 rounded-lg border-2 border-black shadow-2xs focus:outline-hidden focus:ring-4 focus:ring-blue-600 transition-all cursor-pointer disabled:opacity-50"
+            title="Refresh Analysis"
+          >
+            <RefreshCw size={16} className={isRefreshing ? "animate-spin" : ""} />
+            <span>Refresh State</span>
+          </button>
+          <span className="font-mono text-sm sm:text-base font-black bg-black text-white px-3 py-1.5 rounded-lg border-2 border-black">
+            ID: {id}
+          </span>
+        </div>
+      </div>
 
-      {/* Top: Risk card */}
+      {/* Main Title Banner */}
+      <div className="bg-white p-6 rounded-xl border-4 border-gray-900 shadow-md">
+        <div className="flex items-start gap-3">
+          <div className="p-2 bg-blue-100 border-2 border-blue-900 rounded-lg text-blue-900 mt-1 shrink-0">
+            <FileText size={24} />
+          </div>
+          <div>
+            <span className="text-xs font-black uppercase tracking-widest text-gray-700">
+              Procurement Audit Record
+            </span>
+            <h1 className="text-2xl sm:text-3xl font-black text-black tracking-tight mt-0.5 leading-snug">
+              {analysis.fused.title}
+            </h1>
+          </div>
+        </div>
+      </div>
+
+      {/* Top: Risk Card */}
       <RiskCard fused={analysis.fused} />
 
-      {/* Main content: clauses + graph */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+      {/* Main Grid: Clauses + Graph */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left: Clause panel */}
         <ClausePanel
           rules={analysis.rules}
@@ -88,4 +154,3 @@ export default function TenderDetail() {
     </div>
   );
 }
-
