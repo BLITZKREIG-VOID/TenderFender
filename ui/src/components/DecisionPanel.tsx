@@ -1,5 +1,5 @@
 import type { FusedData, Citation, Passage } from "../api/client";
-import { FileText, Lightbulb, ExternalLink, CheckSquare, Bookmark } from "lucide-react";
+import { FileText, Lightbulb, CheckSquare, Bookmark } from "lucide-react";
 
 interface Props {
   fused: FusedData;
@@ -8,7 +8,10 @@ interface Props {
 
 // "llm" and "cache" (a stored LLM answer) are AI-written; "template" is the deterministic writer.
 function sourceLabel(source: string): string {
-  return source === "template" ? "Template" : "AI-written";
+  if (source === "template") return "Template";
+  if (source === "cache") return "Cached LLM";
+  if (source === "llm") return "LLM";
+  return source;
 }
 
 interface CitationDetails {
@@ -23,7 +26,9 @@ interface CitationDetails {
 function getCitationDetails(cite: Citation, passages: Passage[]): CitationDetails {
   if (cite.kind === "guideline") {
     const passage = passages.find((p) => p.passage_id === cite.ref);
-    if (!passage || passage.missing) {
+    const title = cite.source_title ?? (!passage?.missing ? passage?.source_title : undefined);
+    const link = cite.source_url ?? (!passage?.missing ? passage?.source_url : undefined);
+    if (!title) {
       return {
         title: `Guideline passage ${cite.ref} (text unavailable)`,
         tag: "Guideline",
@@ -31,9 +36,9 @@ function getCitationDetails(cite: Citation, passages: Passage[]): CitationDetail
       };
     }
     return {
-      title: passage.source_title ?? cite.ref,
-      section: passage.section,
-      link: passage.source_url,
+      title,
+      section: cite.section ?? passage?.section,
+      link,
       tag: "Guideline",
       tagColor: "bg-blue-700 text-white",
     };
@@ -42,7 +47,6 @@ function getCitationDetails(cite: Citation, passages: Passage[]): CitationDetail
   if (cite.kind === "finding") {
     return {
       title: `Rule Formalization Finding ${cite.ref} (Z3 Solver Core Constraint)`,
-      link: `#finding-${cite.ref}`,
       tag: "Rule Finding",
       tagColor: "bg-red-700 text-white",
     };
@@ -51,7 +55,6 @@ function getCitationDetails(cite: Citation, passages: Passage[]): CitationDetail
   if (cite.kind === "ring") {
     return {
       title: `Graph Analysis Flagged Ring ${cite.ref} (Collusion/Bidding Ring)`,
-      link: `#ring-${cite.ref}`,
       tag: "Collusion Ring",
       tagColor: "bg-purple-700 text-white",
     };
@@ -59,7 +62,6 @@ function getCitationDetails(cite: Citation, passages: Passage[]): CitationDetail
 
   return {
     title: `Reference ${cite.ref}`,
-    link: "#",
     tag: cite.kind,
     tagColor: "bg-gray-800 text-white",
   };
@@ -75,7 +77,7 @@ export default function DecisionPanel({ fused, passages }: Props) {
         </h2>
         {fused.decision_source && (
           <span className="text-xs font-mono font-bold px-2.5 py-1 bg-gray-200 text-gray-800 rounded border border-gray-400">
-            Engine Source: {sourceLabel(fused.decision_source)} ({fused.decision_source})
+            Decision Source: {sourceLabel(fused.decision_source)} ({fused.decision_source})
           </span>
         )}
       </div>
@@ -115,25 +117,27 @@ export default function DecisionPanel({ fused, passages }: Props) {
                     >
                       {details.tag}: {cite.ref}
                     </span>
-                    <span className="text-sm font-bold text-gray-950 min-w-0">
-                      {details.title}
-                      {details.section && (
-                        <span className="font-semibold text-gray-700"> · {details.section}</span>
-                      )}
-                    </span>
+                    {details.link ? (
+                      <a
+                        href={details.link}
+                        target={isExternal ? "_blank" : undefined}
+                        rel={isExternal ? "noreferrer" : undefined}
+                        className="text-sm font-bold text-blue-800 hover:text-blue-950 hover:underline min-w-0 rounded focus:outline-hidden focus:ring-2 focus:ring-blue-600"
+                      >
+                        {details.title}
+                        {details.section && (
+                          <span className="font-semibold text-gray-700"> · {details.section}</span>
+                        )}
+                      </a>
+                    ) : (
+                      <span className="text-sm font-bold text-gray-950 min-w-0">
+                        {details.title}
+                        {details.section && (
+                          <span className="font-semibold text-gray-700"> · {details.section}</span>
+                        )}
+                      </span>
+                    )}
                   </div>
-
-                  {details.link && (
-                    <a
-                      href={details.link}
-                      target={isExternal ? "_blank" : undefined}
-                      rel={isExternal ? "noopener noreferrer" : undefined}
-                      className="inline-flex items-center gap-1 text-xs font-black text-blue-800 hover:text-blue-950 hover:underline bg-blue-50 px-2.5 py-1 rounded border border-blue-300 shrink-0 self-start sm:self-auto"
-                    >
-                      <span>View Source</span>
-                      <ExternalLink size={12} />
-                    </a>
-                  )}
                 </div>
               );
             })}
@@ -168,6 +172,16 @@ export default function DecisionPanel({ fused, passages }: Props) {
           <p className="text-sm text-gray-600 italic">No explicit actions required.</p>
         )}
       </div>
+
+      {/* 4. Mandatory Disclaimer (verbatim from FusedData.disclaimer) */}
+      {fused.disclaimer && (
+        <div className="mt-6 p-4 bg-gray-900 text-white rounded-lg border-2 border-black shadow-inner">
+          <h3 className="text-xs font-black uppercase tracking-wider text-amber-300 mb-1">
+            Disclaimer
+          </h3>
+          <p className="text-sm font-bold tracking-wide">{fused.disclaimer}</p>
+        </div>
+      )}
     </div>
   );
 }

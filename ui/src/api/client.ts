@@ -45,6 +45,9 @@ export interface RulesData {
 export interface Citation {
   ref: string;
   kind: "guideline" | "finding" | "ring";
+  source_title?: string;
+  source_url?: string;
+  section?: string;
 }
 
 export interface LinkedVendor {
