@@ -115,12 +115,14 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", type=Path, default=Path(__file__).resolve().parent.parent)
     ap.add_argument("--file", type=Path, help="Optional specific fused JSON file to validate")
+    ap.add_argument("--artifacts-only", action="store_true", help="Validate only expected artifacts and any other artifacts present")
     parsed = ap.parse_args(argv)
     root = parsed.root
     schemas, registry = load_schemas(root / "contracts" / "schemas")
     validators = {n: Draft202012Validator(s, registry=registry) for n, s in schemas.items()}
 
     results: list[tuple[str, list[str]]] = []
+    missing_artifacts: list[str] = []
     failed = 0
     def check(path: Path, schema: str, extra=None, *, array_of: bool = False) -> None:
         try:
@@ -143,8 +145,41 @@ def main(argv: list[str] | None = None) -> int:
                 errs = extra(doc, path.name)
         results.append((f"{rel}  [{schema}]", errs))
 
+    expected_artifacts = [
+        ("artifacts/rules/T-001.json", "rules_output", check_rules),
+        ("artifacts/rules/T-002.json", "rules_output", check_rules),
+        ("artifacts/rules/T-003.json", "rules_output", check_rules),
+        ("artifacts/graph/graph_output.json", "graph_output", None),
+        ("artifacts/fused/T-001.json", "fused", check_fused),
+        ("artifacts/fused/T-002.json", "fused", check_fused),
+        ("artifacts/fused/T-003.json", "fused", check_fused),
+    ]
+
+    def check_artifacts() -> None:
+        checked_paths: set[Path] = set()
+        for rel_str, schema, extra in expected_artifacts:
+            p = root / rel_str
+            if p.is_file():
+                check(p, schema, extra)
+                checked_paths.add(p.resolve())
+            else:
+                missing_artifacts.append(rel_str)
+        for sub, schema, extra in [
+            ("rules", "rules_output", check_rules),
+            ("graph", "graph_output", None),
+            ("fused", "fused", check_fused),
+        ]:
+            d = root / "artifacts" / sub
+            if d.is_dir():
+                for p in sorted(d.glob("*.json")):
+                    if p.resolve() not in checked_paths:
+                        check(p, schema, extra)
+                        checked_paths.add(p.resolve())
+
     if parsed.file:
         check(parsed.file, "fused", check_fused)
+    elif parsed.artifacts_only:
+        check_artifacts()
     else:
         ex = root / "contracts" / "examples"
         check(ex / "ir_atom.json", "ir_atom")
@@ -156,15 +191,15 @@ def main(argv: list[str] | None = None) -> int:
         for name in ("tender", "kb_passage", "labels"):
             check(ex / f"{name}.json", name)
 
-        for base in ("mocks", "artifacts"):
-            d = root / base
-            for p in sorted((d / "rules").glob("T-*.json")):
-                check(p, "rules_output", check_rules)
-            if (d / "graph" / "graph_output.json").is_file():
-                check(d / "graph" / "graph_output.json", "graph_output")
-            for p in sorted((d / "fused").glob("T-*.json")):
-                check(p, "fused", check_fused)
+        d = root / "mocks"
+        for p in sorted((d / "rules").glob("T-*.json")):
+            check(p, "rules_output", check_rules)
+        if (d / "graph" / "graph_output.json").is_file():
+            check(d / "graph" / "graph_output.json", "graph_output")
+        for p in sorted((d / "fused").glob("T-*.json")):
+            check(p, "fused", check_fused)
 
+        check_artifacts()
         data = root / "data"
         if (data / "labels.json").is_file():
             check(data / "labels.json", "labels")
@@ -194,7 +229,14 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"     - {e}")
         else:
             print(f"OK   {label}")
-    print(f"\n{len(results) - failed}/{len(results)} files valid")
+    for m in missing_artifacts:
+        print(f"MISSING {m} (not produced yet)")
+    summary = f"\n{len(results) - failed}/{len(results)} files valid"
+    if missing_artifacts:
+        summary += f"; {len(missing_artifacts)} expected artifacts not produced yet"
+    print(summary)
+    if parsed.artifacts_only:
+        return 1 if (failed or missing_artifacts) else 0
     return 1 if failed else 0
 
 

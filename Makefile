@@ -20,7 +20,7 @@ FUSED_DIR  := artifacts/fused
 CACHE_DIR  := artifacts/decisions
 
 .PHONY: setup synth verify-synth rules graph fuse decide pipeline pipeline-mock \
-        validate-contracts evaluate api ui demo test
+        validate-contracts validate-artifacts evaluate api ui demo test
 
 setup:
 	@test -x $(PY) || { command -v uv >/dev/null 2>&1 && uv venv --python 3.14 .venv || python3.14 -m venv .venv; }
@@ -70,6 +70,8 @@ pipeline-mock:
 validate-contracts:
 	PYTHONPATH=. $(PY) scripts/validate_contracts.py
 
+validate-artifacts:
+	PYTHONPATH=. $(PY) scripts/validate_contracts.py --artifacts-only
 evaluate:
 	$(PY) scripts/evaluate.py
 

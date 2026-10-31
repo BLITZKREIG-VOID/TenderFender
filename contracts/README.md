@@ -18,4 +18,4 @@ Not in the JSON Schema (enforced by `scripts/validate_contracts.py`): decision c
 
 Intermediate (not a public contract): `artifacts/fusion/T-xxx.json` written by `fusion/`, read only by `decision/`. Same fields as fused, minus reasoning fields, plus `_inputs`. See `docs/CONTRACT_CHANGES.md`.
 
-Validate: `make validate-contracts`.
+Validate: `make validate-contracts` (all contracts, examples, mocks, data) or `make validate-artifacts` (checks that required pipeline artifacts exist and validate).
