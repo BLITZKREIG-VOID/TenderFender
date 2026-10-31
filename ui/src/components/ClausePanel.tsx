@@ -1,15 +1,16 @@
 import { useState } from "react";
 import type { RulesData, Clause, Finding } from "../api/client";
-import { CheckCircle2, Circle, AlertTriangle, ShieldCheck, Scale, Check } from "lucide-react";
+import { CheckCircle2, Circle, AlertTriangle, ShieldCheck, Scale } from "lucide-react";
 
 interface Props {
   rules: RulesData;
   clauses?: Clause[];
-  onConfirm: (atomId: string) => void;
+  onConfirm: (atomId: string) => Promise<void> | void;
 }
 
 export default function ClausePanel({ rules, onConfirm }: Props) {
-  const [confirming, setConfirming] = useState<string | null>(null);
+  const [optimisticStatuses, setOptimisticStatuses] = useState<Record<string, string>>({});
+  const [cooldown, setCooldown] = useState(false);
 
   // Collect clause IDs that appear in findings (bad clauses)
   const flaggedClauseIds = new Set<string>();
@@ -20,11 +21,24 @@ export default function ClausePanel({ rules, onConfirm }: Props) {
   }
 
   const handleConfirm = async (atomId: string) => {
-    setConfirming(atomId);
+    if (cooldown) return;
+
+    // Optimistic rendering: show confirmation instantly.
+    setOptimisticStatuses((prev) => ({ ...prev, [atomId]: "confirmed" }));
+    setCooldown(true);
+
     try {
       await onConfirm(atomId);
+    } catch {
+      // Off the happy path: revert if the server rejects the confirmation.
+      setOptimisticStatuses((prev) => {
+        const next = { ...prev };
+        delete next[atomId];
+        return next;
+      });
     } finally {
-      setConfirming(null);
+      // Throttle rapid clicks for one second.
+      setTimeout(() => setCooldown(false), 1000);
     }
   };
 
@@ -110,7 +124,11 @@ export default function ClausePanel({ rules, onConfirm }: Props) {
           <div className="space-y-3">
             {rules.atoms.map((atom) => {
               const isFlagged = flaggedClauseIds.has(atom.clause_id);
-              const isThisConfirming = confirming === atom.id;
+              const atomStatus =
+                optimisticStatuses[atom.id] ??
+                atom.formalization_status ??
+                rules.formalization_status;
+              const isAtomConfirmed = atomStatus === "confirmed";
 
               return (
                 <div
@@ -147,39 +165,27 @@ export default function ClausePanel({ rules, onConfirm }: Props) {
                       </div>
                     </div>
 
-                    {/* Action Button: Confirm Formalization */}
+                    {/* Action Button: Confirm Clause */}
                     <button
                       onClick={() => handleConfirm(atom.id)}
-                      disabled={isThisConfirming || isConfirmed}
+                      disabled={cooldown || isAtomConfirmed}
                       aria-label={
-                        isConfirmed
-                          ? "Formalization confirmed by auditor"
-                          : `Confirm formalization translation for atom ${atom.id}`
+                        isAtomConfirmed
+                          ? `Clause ${atom.id} confirmed`
+                          : `Confirm clause for atom ${atom.id}`
                       }
                       title={
-                        isConfirmed
-                          ? "Formalization Confirmed"
-                          : "Click to Confirm Formalization"
+                        isAtomConfirmed ? "Clause Confirmed" : "Confirm Clause"
                       }
-                      className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg font-black text-xs uppercase tracking-wider border-2 shadow-2xs transition-all focus:outline-hidden focus:ring-4 focus:ring-blue-600 cursor-pointer ${
-                        isConfirmed
-                          ? "bg-green-700 text-white border-green-950 cursor-default"
-                          : "bg-black hover:bg-gray-800 text-white border-black"
+                      className={`shrink-0 px-4 py-1.5 text-sm font-black rounded-lg border-2 shadow-2xs transition-all focus:outline-hidden focus:ring-4 focus:ring-blue-600 ${
+                        isAtomConfirmed
+                          ? "bg-gray-100 text-gray-500 border-gray-300 cursor-not-allowed"
+                          : cooldown
+                            ? "bg-slate-500 text-white border-slate-700 cursor-not-allowed"
+                            : "bg-slate-800 text-white border-black hover:bg-slate-700 cursor-pointer"
                       } disabled:opacity-80`}
                     >
-                      {isConfirmed ? (
-                        <>
-                          <Check size={16} strokeWidth={3} />
-                          <span className="hidden sm:inline">Verified</span>
-                        </>
-                      ) : isThisConfirming ? (
-                        <span>Saving...</span>
-                      ) : (
-                        <>
-                          <CheckCircle2 size={16} />
-                          <span className="hidden sm:inline">Confirm</span>
-                        </>
-                      )}
+                      {isAtomConfirmed ? "Clause Confirmed" : "Confirm Clause"}
                     </button>
                   </div>
                 </div>

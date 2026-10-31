@@ -21,6 +21,7 @@ export interface Atom {
   op: string;
   value: number | string | string[];
   source_text: string;
+  formalization_status?: string;
 }
 
 export interface Finding {
@@ -154,21 +155,55 @@ export interface ConfirmResponse {
 
 // ── API calls ──────────────────────────────────────────────────────────────
 
+// Module-level session cache: makes revisiting a tender instant. Entries are
+// dropped whenever the underlying server state changes (confirm/refresh).
+const payloadCache = new Map<string, unknown>();
+
+function cached<T>(key: string): T | undefined {
+  return payloadCache.get(key) as T | undefined;
+}
+
 export const api = {
   getHealth: () => client.get<{ status: string; mode: string }>("/health"),
 
   getTenders: () => client.get<TenderSummary[]>("/tenders"),
 
-  getAnalysis: (id: string) =>
-    client.get<AnalysisResponse>(`/tenders/${id}/analysis`),
+  getAnalysis: async (id: string): Promise<{ data: AnalysisResponse }> => {
+    const key = `analysis-${id}`;
+    const hit = cached<AnalysisResponse>(key);
+    if (hit !== undefined) return { data: hit };
 
-  getGraph: (id: string) =>
-    client.get<GraphResponse>(`/tenders/${id}/graph`),
+    const response = await client.get<AnalysisResponse>(
+      `/tenders/${id}/analysis`
+    );
+    payloadCache.set(key, response.data);
+    return { data: response.data };
+  },
 
-  confirmAtom: (tenderId: string, atomId: string) =>
-    client.post<ConfirmResponse>(
+  getGraph: async (id: string): Promise<{ data: GraphResponse }> => {
+    const key = `graph-${id}`;
+    const hit = cached<GraphResponse>(key);
+    if (hit !== undefined) return { data: hit };
+
+    const response = await client.get<GraphResponse>(`/tenders/${id}/graph`);
+    payloadCache.set(key, response.data);
+    return { data: response.data };
+  },
+
+  confirmAtom: async (tenderId: string, atomId: string) => {
+    const response = await client.post<ConfirmResponse>(
       `/tenders/${tenderId}/atoms/${atomId}/confirm`
-    ),
+    );
+    // Confirmation mutates server-side rules state, so the cached analysis is stale.
+    payloadCache.delete(`analysis-${tenderId}`);
+    return response;
+  },
+
+  // Manual refresh must bypass the session cache.
+  invalidateTender: (id: string) => {
+    payloadCache.delete(`analysis-${id}`);
+    payloadCache.delete(`graph-${id}`);
+  },
 };
 
 export default api;

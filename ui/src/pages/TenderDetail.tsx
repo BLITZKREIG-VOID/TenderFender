@@ -54,6 +54,8 @@ export default function TenderDetail() {
     } catch (err: unknown) {
       console.error("Confirmation error:", err);
       setIsRefreshing(false);
+      // Propagate so the clause panel can roll back its optimistic state.
+      throw err;
     }
   };
 
@@ -118,6 +120,7 @@ export default function TenderDetail() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => {
+              if (id) api.invalidateTender(id);
               setIsRefreshing(true);
               fetchData(false);
             }}
@@ -152,7 +155,7 @@ export default function TenderDetail() {
       </div>
 
       {/* Top: Risk Card */}
-      <RiskCard fused={analysis.fused} />
+      <RiskCard fused={analysis.fused} disclaimer={analysis.fused.disclaimer} />
 
       {/* Main Grid: Clauses + Graph */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

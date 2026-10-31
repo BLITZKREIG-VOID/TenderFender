@@ -23,7 +23,7 @@ interface CitationDetails {
 }
 
 // Display metadata for a citation; guideline titles/links come from the passages the API read from kb/passages.
-function getCitationDetails(cite: Citation, passages: Passage[]): CitationDetails {
+function getCitationDetails(cite: Citation, passages: Passage[], isDanger: boolean): CitationDetails {
   if (cite.kind === "guideline") {
     const passage = passages.find((p) => p.passage_id === cite.ref);
     const title = cite.source_title ?? (!passage?.missing ? passage?.source_title : undefined);
@@ -48,7 +48,8 @@ function getCitationDetails(cite: Citation, passages: Passage[]): CitationDetail
     return {
       title: `Rule Formalization Finding ${cite.ref} (Z3 Solver Core Constraint)`,
       tag: "Rule Finding",
-      tagColor: "bg-red-700 text-white",
+      // Red is reserved for high-risk / escalate tenders; other findings are amber.
+      tagColor: isDanger ? "bg-red-700 text-white" : "bg-amber-600 text-white",
     };
   }
 
@@ -68,6 +69,10 @@ function getCitationDetails(cite: Citation, passages: Passage[]): CitationDetail
 }
 
 export default function DecisionPanel({ fused, passages }: Props) {
+  const isDanger =
+    fused.decision?.toLowerCase() === "escalate" ||
+    fused.risk_level?.toLowerCase() === "high";
+
   return (
     <div className="bg-white rounded-xl shadow-md border-4 border-gray-900 p-6 text-black">
       <div className="flex items-center justify-between border-b-2 border-gray-300 pb-3 mb-6">
@@ -103,7 +108,7 @@ export default function DecisionPanel({ fused, passages }: Props) {
         {fused.citations && fused.citations.length > 0 ? (
           <div className="bg-gray-50 border-2 border-gray-300 rounded-lg overflow-hidden divide-y divide-gray-300">
             {fused.citations.map((cite, i) => {
-              const details = getCitationDetails(cite, passages ?? []);
+              const details = getCitationDetails(cite, passages ?? [], isDanger);
               const isExternal = Boolean(details.link && details.link.startsWith("http"));
 
               return (

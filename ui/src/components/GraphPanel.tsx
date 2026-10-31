@@ -337,9 +337,22 @@ export default function GraphPanel({ data }: Props) {
           )}
 
           {gnnSkipped ? (
-            <span className="px-2.5 py-1 bg-amber-100 text-amber-950 rounded border-2 border-amber-600 font-black">
-              GNN: skipped
-            </span>
+            <div
+              className="relative group inline-flex items-center cursor-help"
+              tabIndex={0}
+              aria-describedby="gnn-skipped-tooltip"
+            >
+              <span className="px-2.5 py-1 bg-amber-100 text-amber-950 rounded border-2 border-amber-600 font-black">
+                GNN: skipped
+              </span>
+              <div
+                id="gnn-skipped-tooltip"
+                role="tooltip"
+                className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block group-focus-within:block w-56 p-2 text-xs text-white bg-slate-800 rounded shadow-lg z-10 text-center"
+              >
+                GNN metrics require a synthetic ring holdout to calculate PR-AUC.
+              </div>
+            </div>
           ) : gnnStatus === "trained" && metrics?.gnn ? (
             <span className="px-2.5 py-1 bg-white text-black rounded border border-gray-400">
               GNN: PR-AUC{" "}
