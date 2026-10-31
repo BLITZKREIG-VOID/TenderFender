@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >-
-  TenderFender: one CloudFront distribution serving the static UI from a private S3 bucket (OAC)
-  and /api/* from a FastAPI Lambda behind a Function URL. Sized for the AWS Free Tier.
+  TenderFender: a single Lambda Function URL serving both the FastAPI API and the built React UI.
+  Sized for the AWS Free Tier with optional EventBridge keep-warm schedule.
 
 Parameters:
   CodeBucket:
@@ -14,94 +14,18 @@ Parameters:
     Type: String
     Default: ""
     Description: Optional. If set, creates a $1 monthly AWS Budget that emails this address at 80% of actual spend.
-  PriceClass:
+  KeepWarm:
     Type: String
-    Default: PriceClass_200
-    AllowedValues: [PriceClass_100, PriceClass_200, PriceClass_All]
-    Description: CloudFront price class (edge locations used; data transfer to the internet is free up to 1 TB/month regardless).
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: If true, creates an EventBridge rule that invokes the Lambda every 5 minutes to prevent cold starts.
 
 Conditions:
   HasBudgetEmail: !Not [!Equals [!Ref BudgetEmail, ""]]
+  IsKeepWarm: !Equals [!Ref KeepWarm, "true"]
 
 Resources:
-  # ── Static UI ──────────────────────────────────────────────────────────────
-  SiteBucket:
-    Type: AWS::S3::Bucket
-    DeletionPolicy: Delete
-    UpdateReplacePolicy: Delete
-    Properties:
-      BucketEncryption:
-        ServerSideEncryptionConfiguration:
-          - ServerSideEncryptionByDefault:
-              SSEAlgorithm: AES256
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-      OwnershipControls:
-        Rules:
-          - ObjectOwnership: BucketOwnerEnforced
-
-  SiteBucketPolicy:
-    Type: AWS::S3::BucketPolicy
-    Properties:
-      Bucket: !Ref SiteBucket
-      PolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Sid: AllowCloudFrontServicePrincipalRead
-            Effect: Allow
-            Principal:
-              Service: cloudfront.amazonaws.com
-            Action: s3:GetObject
-            Resource: !Sub "${SiteBucket.Arn}/*"
-            Condition:
-              StringEquals:
-                AWS:SourceArn: !Sub "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${Distribution}"
-          - Sid: DenyInsecureTransport
-            Effect: Deny
-            Principal: "*"
-            Action: s3:*
-            Resource:
-              - !GetAtt SiteBucket.Arn
-              - !Sub "${SiteBucket.Arn}/*"
-            Condition:
-              Bool:
-                aws:SecureTransport: "false"
-
-  SiteOriginAccessControl:
-    Type: AWS::CloudFront::OriginAccessControl
-    Properties:
-      OriginAccessControlConfig:
-        Name: !Sub "${AWS::StackName}-site-oac"
-        OriginAccessControlOriginType: s3
-        SigningBehavior: always
-        SigningProtocol: sigv4
-
-  # Rewrites extension-less paths to /index.html (SPA routing) on the default behavior only,
-  # so API 404s are never touched (no distribution-wide custom error responses).
-  SpaRewriteFunction:
-    Type: AWS::CloudFront::Function
-    Properties:
-      Name: !Sub "${AWS::StackName}-spa-rewrite"
-      AutoPublish: true
-      FunctionConfig:
-        Comment: Rewrite extension-less URIs to /index.html
-        Runtime: cloudfront-js-2.0
-      FunctionCode: |
-        function handler(event) {
-          var request = event.request;
-          var uri = request.uri;
-          if (uri.endsWith('/')) {
-            request.uri = uri + 'index.html';
-          } else if (uri.split('/').pop().indexOf('.') === -1) {
-            request.uri = '/index.html';
-          }
-          return request;
-        }
-
-  # ── API ────────────────────────────────────────────────────────────────────
+  # ── API Lambda ─────────────────────────────────────────────────────────────
   ApiLogGroup:
     Type: AWS::Logs::LogGroup
     DeletionPolicy: Delete
@@ -136,7 +60,7 @@ Resources:
     DependsOn: ApiLogGroup
     Properties:
       FunctionName: !Sub "${AWS::StackName}-api"
-      Description: TenderFender FastAPI (Mangum) behind a Function URL
+      Description: TenderFender FastAPI (Mangum) serving API and static UI behind a Function URL
       Runtime: python3.14
       Architectures: [x86_64]
       Handler: api.lambda_handler.handler
@@ -150,15 +74,12 @@ Resources:
         Variables:
           MOCK: "0"
 
-  # AuthType NONE: CloudFront is the public front door. OAC/SigV4 for Lambda cannot sign POST bodies
-  # without the client computing x-amz-content-sha256, which the browser UI does not do.
   ApiFunctionUrl:
     Type: AWS::Lambda::Url
     Properties:
       TargetFunctionArn: !GetAtt ApiFunction.Arn
       AuthType: NONE
 
-  # Both statements are REQUIRED for a public Function URL; InvokeFunctionUrl alone returns HTTP 403.
   ApiUrlInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
@@ -175,65 +96,28 @@ Resources:
       Principal: "*"
       InvokedViaFunctionUrl: true
 
-  # ── CloudFront ─────────────────────────────────────────────────────────────
-  Distribution:
-    Type: AWS::CloudFront::Distribution
+  # ── Keep-Warm (EventBridge) ────────────────────────────────────────────────
+  KeepWarmRule:
+    Type: AWS::Events::Rule
+    Condition: IsKeepWarm
     Properties:
-      DistributionConfig:
-        Enabled: true
-        Comment: !Sub "${AWS::StackName}: UI (S3/OAC) + /api/* (Lambda Function URL)"
-        HttpVersion: http2and3
-        IPV6Enabled: true
-        PriceClass: !Ref PriceClass
-        DefaultRootObject: index.html
-        Origins:
-          - Id: site
-            DomainName: !GetAtt SiteBucket.RegionalDomainName
-            OriginAccessControlId: !GetAtt SiteOriginAccessControl.Id
-            S3OriginConfig:
-              OriginAccessIdentity: ""
-          - Id: api
-            # https://<id>.lambda-url.<region>.on.aws/  ->  <id>.lambda-url.<region>.on.aws
-            DomainName: !Select [2, !Split ["/", !GetAtt ApiFunctionUrl.FunctionUrl]]
-            CustomOriginConfig:
-              OriginProtocolPolicy: https-only
-              OriginSSLProtocols: [TLSv1.2]
-        DefaultCacheBehavior:
-          TargetOriginId: site
-          ViewerProtocolPolicy: redirect-to-https
-          AllowedMethods: [GET, HEAD, OPTIONS]
-          CachedMethods: [GET, HEAD]
-          Compress: true
-          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6 # Managed-CachingOptimized
-          FunctionAssociations:
-            - EventType: viewer-request
-              FunctionARN: !GetAtt SpaRewriteFunction.FunctionMetadata.FunctionARN
-        CacheBehaviors:
-          # Read-only, deploy-static endpoints: cached at the edge (Managed-CachingOptimized, 1-day default TTL;
-          # every deploy invalidates /*). Fewer Lambda invocations and no cold start for repeat views.
-          # /analysis stays uncached because POST .../confirm changes it.
-          - PathPattern: /api/tenders
-            TargetOriginId: api
-            ViewerProtocolPolicy: https-only
-            AllowedMethods: [GET, HEAD]
-            CachedMethods: [GET, HEAD]
-            Compress: true
-            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6 # Managed-CachingOptimized
-          - PathPattern: /api/tenders/*/graph
-            TargetOriginId: api
-            ViewerProtocolPolicy: https-only
-            AllowedMethods: [GET, HEAD]
-            CachedMethods: [GET, HEAD]
-            Compress: true
-            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6 # Managed-CachingOptimized
-          - PathPattern: /api/*
-            TargetOriginId: api
-            ViewerProtocolPolicy: https-only
-            AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
-            CachedMethods: [GET, HEAD]
-            Compress: true
-            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad # Managed-CachingDisabled
-            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac # Managed-AllViewerExceptHostHeader
+      Name: !Sub "${AWS::StackName}-keep-warm"
+      Description: Invokes TenderFender Lambda every 5 minutes to keep it warm
+      ScheduleExpression: "rate(5 minutes)"
+      State: ENABLED
+      Targets:
+        - Id: KeepWarmTarget
+          Arn: !GetAtt ApiFunction.Arn
+
+      
+  KeepWarmPermission:
+    Type: AWS::Lambda::Permission
+    Condition: IsKeepWarm
+    Properties:
+      FunctionName: !Ref ApiFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt KeepWarmRule.Arn
 
   # ── Cost guard (optional) ──────────────────────────────────────────────────
   CostBudget:
@@ -259,15 +143,9 @@ Resources:
 
 Outputs:
   SiteUrl:
-    Description: Public URL (UI at /, API at /api/*)
-    Value: !Sub "https://${Distribution.DomainName}"
-  SiteBucketName:
-    Description: Private S3 bucket holding the built UI
-    Value: !Ref SiteBucket
-  DistributionId:
-    Value: !Ref Distribution
+    Description: Public URL serving UI and API
+    Value: !GetAtt ApiFunctionUrl.FunctionUrl
   FunctionName:
     Value: !Ref ApiFunction
   FunctionUrl:
-    Description: Raw Function URL (public, unauthenticated; the CloudFront URL is the intended entry point)
     Value: !GetAtt ApiFunctionUrl.FunctionUrl
