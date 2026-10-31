@@ -45,6 +45,16 @@ def test_template_with_no_findings_or_rings_invents_nothing():
     assert out["recommended_actions"] == ["No action required beyond standard procurement review."]
 
 
+def test_template_reasoning_starts_with_template_note(kb_dir):
+    f = make_fusion()
+    r = retrieved_for(f, kb_dir)
+    out = write.write_template(f, r)
+    assert out["reasoning"].startswith(write.TEMPLATE_NOTE)
+
+    empty = make_empty_fusion()
+    out_empty = write.write_template(empty, {})
+    assert out_empty["reasoning"].startswith(write.TEMPLATE_NOTE)
+
 # ---------------------------------------------------------------- LLM with fake transport
 
 class FakeTransport:

@@ -18,6 +18,7 @@ API_URL = "https://api.anthropic.com/v1/messages"
 API_VERSION = "2023-06-01"
 DEFAULT_MODEL = "claude-sonnet-4-5"
 MAX_RETRIES = 2
+TEMPLATE_NOTE = "Template reasoning: generated from a fixed template, not written by the AI model."
 
 Retrieved = dict[str, list[tuple[Passage, float]]]
 Transport = Callable[[dict], dict]
@@ -70,7 +71,7 @@ def write_template(fusion: dict, retrieved: Retrieved) -> dict:
     inputs = fusion["_inputs"]
     if not has_evidence(fusion):
         return {
-            "reasoning": ("No rule findings and no flagged rings are linked to this tender, "
+            "reasoning": (f"{TEMPLATE_NOTE} No rule findings and no flagged rings are linked to this tender, "
                           "so there are no risk indicators to explain and nothing to cite from the knowledge base."),
             "recommended_actions": _actions(fusion),
         }
@@ -82,7 +83,10 @@ def write_template(fusion: dict, retrieved: Retrieved) -> dict:
         cited = "; ".join(f"[{p.passage_id}] {p.source_title}, {p.section}" for p, _ in hits)
         return f"Retrieved guideline passages for {kind} {key}: {cited}."
 
-    parts = [f"Risk level {fusion['risk_level']} and decision {fusion['decision']} follow from the deterministic fusion rules."]
+    parts = [
+        TEMPLATE_NOTE,
+        f"Risk level {fusion['risk_level']} and decision {fusion['decision']} follow from the deterministic fusion rules.",
+    ]
     for f in inputs["findings"]:
         parts.append(f"Finding [{f['finding_id']}] ({f['type']}, severity {f['severity']}): {f['explanation']} "
                      + support(f["finding_id"], "finding"))
