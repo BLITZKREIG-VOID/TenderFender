@@ -68,7 +68,7 @@ pipeline-mock:
 	$(MAKE) decide
 
 validate-contracts:
-	$(PY) scripts/validate_contracts.py
+	PYTHONPATH=. $(PY) scripts/validate_contracts.py
 
 evaluate:
 	$(PY) scripts/evaluate.py

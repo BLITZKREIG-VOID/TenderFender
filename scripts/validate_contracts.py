@@ -7,18 +7,17 @@ Usage: python scripts/validate_contracts.py [--root DIR]
 
 from __future__ import annotations
 
+from pathlib import Path
 import argparse
+import sys
 import json
 import re
-import sys
-from pathlib import Path
-
+from decision.validate import REF_RE
 from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
-
 DECISION_BY_RISK = {"low": "clear", "medium": "review", "high": "escalate"}
-REF_RE = re.compile(r"\b(?:KB-\d{3}|F-\d+|R-\d+)\b")
 KIND_BY_PREFIX = {"KB-": "guideline", "F-": "finding", "R-": "ring"}
+CANONICAL_REF_RE = re.compile(r"^KB-\d{3}$|^F-[1-9]\d*$|^R-[1-9]\d*$")
 
 
 def load_schemas(schema_dir: Path) -> tuple[dict[str, dict], Registry]:
@@ -51,6 +50,8 @@ def check_fused(doc: dict, name: str) -> list[str]:
     cited = set()
     for c in doc.get("citations", []):
         ref, kind = c.get("ref", ""), c.get("kind")
+        if not CANONICAL_REF_RE.match(ref):
+            errs.append(f"citation {ref!r} is not canonical (^KB-\\d{{3}}$|^F-[1-9]\\d*$|^R-[1-9]\\d*$)")
         cited.add(ref)
         prefix = next((p for p in KIND_BY_PREFIX if ref.startswith(p)), None)
         if prefix is None or KIND_BY_PREFIX[prefix] != kind:
@@ -62,8 +63,12 @@ def check_fused(doc: dict, name: str) -> list[str]:
     if len(cited) != len(doc.get("citations", [])):
         errs.append("duplicate citations")
     text = " ".join([doc.get("reasoning", ""), *doc.get("recommended_actions", [])])
-    for ref in sorted(set(REF_RE.findall(text)) - cited):
-        errs.append(f"{ref} appears in reasoning/actions but is missing from citations")
+    found_refs = REF_RE.findall(text)
+    for ref in sorted(set(found_refs)):
+        if ref not in cited:
+            errs.append(f"{ref} appears in reasoning/actions but is missing from citations")
+        elif not CANONICAL_REF_RE.match(ref):
+            errs.append(f"{ref} appears in reasoning/actions but is not a canonical reference")
     for lv in doc.get("linked_vendors", []):
         if lv.get("ring_id") not in doc.get("graph_flag_ring_ids", []):
             errs.append(f"linked vendor {lv.get('vendor_id')} ring {lv.get('ring_id')} not in graph_flag_ring_ids")
@@ -109,14 +114,19 @@ def parse_front_matter(raw: str) -> dict:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", type=Path, default=Path(__file__).resolve().parent.parent)
-    root = ap.parse_args(argv).root
+    ap.add_argument("--file", type=Path, help="Optional specific fused JSON file to validate")
+    parsed = ap.parse_args(argv)
+    root = parsed.root
     schemas, registry = load_schemas(root / "contracts" / "schemas")
     validators = {n: Draft202012Validator(s, registry=registry) for n, s in schemas.items()}
 
     results: list[tuple[str, list[str]]] = []
-
+    failed = 0
     def check(path: Path, schema: str, extra=None, *, array_of: bool = False) -> None:
-        rel = str(path.relative_to(root))
+        try:
+            rel = str(path.relative_to(root))
+        except ValueError:
+            rel = str(path)
         try:
             doc = json.loads(path.read_text(encoding="utf-8"))
         except json.JSONDecodeError as exc:
@@ -133,46 +143,48 @@ def main(argv: list[str] | None = None) -> int:
                 errs = extra(doc, path.name)
         results.append((f"{rel}  [{schema}]", errs))
 
-    ex = root / "contracts" / "examples"
-    check(ex / "ir_atom.json", "ir_atom")
-    for p in sorted(ex.glob("rules_T-*.json")):
-        check(p, "rules_output", check_rules)
-    check(ex / "graph_output.json", "graph_output")
-    for p in sorted(ex.glob("fused_T-*.json")):
-        check(p, "fused", check_fused)
-    for name in ("tender", "kb_passage", "labels"):
-        check(ex / f"{name}.json", name)
-
-    for base in ("mocks", "artifacts"):
-        d = root / base
-        for p in sorted((d / "rules").glob("T-*.json")):
+    if parsed.file:
+        check(parsed.file, "fused", check_fused)
+    else:
+        ex = root / "contracts" / "examples"
+        check(ex / "ir_atom.json", "ir_atom")
+        for p in sorted(ex.glob("rules_T-*.json")):
             check(p, "rules_output", check_rules)
-        if (d / "graph" / "graph_output.json").is_file():
-            check(d / "graph" / "graph_output.json", "graph_output")
-        for p in sorted((d / "fused").glob("T-*.json")):
+        check(ex / "graph_output.json", "graph_output")
+        for p in sorted(ex.glob("fused_T-*.json")):
             check(p, "fused", check_fused)
+        for name in ("tender", "kb_passage", "labels"):
+            check(ex / f"{name}.json", name)
 
-    data = root / "data"
-    if (data / "labels.json").is_file():
-        check(data / "labels.json", "labels")
-    for p in sorted((data / "tenders").glob("T-*.json")):
-        check(p, "tender")
-    for p in sorted((data / "tenders").glob("ir_T-*.json")):
-        check(p, "ir_atom", array_of=True)
+        for base in ("mocks", "artifacts"):
+            d = root / base
+            for p in sorted((d / "rules").glob("T-*.json")):
+                check(p, "rules_output", check_rules)
+            if (d / "graph" / "graph_output.json").is_file():
+                check(d / "graph" / "graph_output.json", "graph_output")
+            for p in sorted((d / "fused").glob("T-*.json")):
+                check(p, "fused", check_fused)
 
-    kb = root / "kb" / "passages"
-    if kb.is_dir():
-        for p in sorted(kb.glob("KB-*.md")):
-            rel = f"{p.relative_to(root)}  [kb_passage]"
-            try:
-                meta = parse_front_matter(p.read_text(encoding="utf-8"))
-                errs = schema_errors(validators["kb_passage"], meta)
-                if not errs and meta["passage_id"] != p.stem:
-                    errs = [f"passage_id {meta['passage_id']} does not match file name"]
-            except ValueError as exc:
-                errs = [str(exc)]
-            results.append((rel, errs))
+        data = root / "data"
+        if (data / "labels.json").is_file():
+            check(data / "labels.json", "labels")
+        for p in sorted((data / "tenders").glob("T-*.json")):
+            check(p, "tender")
+        for p in sorted((data / "tenders").glob("ir_T-*.json")):
+            check(p, "ir_atom", array_of=True)
 
+        kb = root / "kb" / "passages"
+        if kb.is_dir():
+            for p in sorted(kb.glob("KB-*.md")):
+                rel = f"{p.relative_to(root)}  [kb_passage]"
+                try:
+                    meta = parse_front_matter(p.read_text(encoding="utf-8"))
+                    errs = schema_errors(validators["kb_passage"], meta)
+                    if not errs and meta["passage_id"] != p.stem:
+                        errs = [f"passage_id {meta['passage_id']} does not match file name"]
+                except ValueError as exc:
+                    errs = [str(exc)]
+                results.append((rel, errs))
     failed = 0
     for label, errs in results:
         if errs:
