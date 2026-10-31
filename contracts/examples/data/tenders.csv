@@ -1,0 +1,4 @@
+tender_id,buyer_id,title,estimated_value_cr,bid_days,open_date
+T-001,B-001,Supply and Commissioning of Water Treatment Equipment,169.0,21,2024-01-01
+T-002,B-002,Construction of an Annex Building at the District Hospital,266.0,7,2024-01-04
+T-003,B-003,Annual Maintenance of Government Office Buildings,13.75,30,2024-01-10

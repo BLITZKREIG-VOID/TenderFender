@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tenderfender/contracts/ir_atom.json",
+  "title": "IR atom (SoT 8.1)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "clause_id", "field", "op", "value", "source_text"],
+  "properties": {
+    "id": {"type": "string", "pattern": "^CL\\d+\\.\\d+$"},
+    "clause_id": {"type": "string", "pattern": "^CL\\d+$"},
+    "field": {"enum": ["turnover_cr", "years_experience", "registration_class", "bid_days", "emd_pct"]},
+    "op": {"enum": [">=", "<=", "==", "in"]},
+    "value": {
+      "oneOf": [
+        {"type": "number"},
+        {"type": "string"},
+        {"type": "array", "items": {"type": "string"}, "minItems": 1}
+      ]
+    },
+    "source_text": {"type": "string", "minLength": 1}
+  }
+}

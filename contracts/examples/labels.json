@@ -1,0 +1,5 @@
+{
+  "rings": [{"ring_id": "R-1", "vendor_ids": ["V-045", "V-046", "V-047"], "type": "shell_ring"}],
+  "vendor_labels": {"V-045": 1, "V-046": 1, "V-047": 1, "V-001": 0},
+  "planted_type": {"V-045": "shell_ring", "V-046": "shell_ring", "V-047": "shell_ring", "V-001": "none"}
+}

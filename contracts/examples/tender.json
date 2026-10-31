@@ -1,0 +1,8 @@
+{
+  "tender_id": "T-003",
+  "title": "Annual Maintenance of Government Office Buildings",
+  "clauses": [
+    {"clause_id": "CL1", "text": "This tender invites sealed bids for the annual maintenance of government office buildings."},
+    {"clause_id": "CL2", "text": "Contractors registered in Class-A, Class-B or Class-C are eligible to bid."}
+  ]
+}
