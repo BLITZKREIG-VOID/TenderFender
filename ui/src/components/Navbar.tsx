@@ -1,4 +1,5 @@
 import { User } from "lucide-react";
+import { Link } from "react-router-dom";
 
 export default function Navbar() {
   return (
@@ -13,12 +14,18 @@ export default function Navbar() {
 
       {/* Center: App Links */}
       <div className="hidden md:flex items-center gap-8">
-        <a
-          href="/"
+        <Link
+          to="/"
           className="text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors underline underline-offset-2"
         >
           Registry
-        </a>
+        </Link>
+        <Link
+          to="/about"
+          className="text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors underline underline-offset-2"
+        >
+          About
+        </Link>
         <a
           href="/analytics"
           className="text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors underline underline-offset-2"
