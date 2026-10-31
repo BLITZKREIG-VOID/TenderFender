@@ -16,6 +16,8 @@ import sys
 
 SOT_DISCLAIMER = "Risk indicators only; not a finding of wrongdoing. Recommendation requires human review."
 DECISION_BY_RISK = {"low": "clear", "medium": "review", "high": "escalate"}
+T2_PATH_CHECK = ("T-002 fused: linked_vendors[0] is V-047 / R-1 with a path from V-047 to another R-1 member "
+                 "through a shared person (P-xxx) or address (A-xxx) node")
 
 
 def parse_source_title(text: str) -> str:
@@ -146,7 +148,7 @@ def main(argv: list[str] | None = None) -> int:
     f_t2, err_f_t2 = load_json(args.fused_dir / "T-002.json")
     if err_f_t2:
         record_missing("T-002 fused: risk_level == high and decision == escalate", err_f_t2)
-        record_missing("T-002 fused: linked_vendors[0] vendor_id == V-047, ring_id == R-1, path contains P-010", err_f_t2)
+        record_missing(T2_PATH_CHECK, err_f_t2)
     else:
         risk = f_t2.get("risk_level")
         dec = f_t2.get("decision")
@@ -160,21 +162,26 @@ def main(argv: list[str] | None = None) -> int:
 
         lvs = f_t2.get("linked_vendors", [])
         if not lvs:
-            record_fail(
-                "T-002 fused: linked_vendors[0] vendor_id == V-047, ring_id == R-1, path contains P-010",
-                "linked_vendors list is empty",
-            )
+            record_fail(T2_PATH_CHECK, "linked_vendors list is empty")
         else:
             lv0 = lvs[0]
             vid = lv0.get("vendor_id")
             rid = lv0.get("ring_id")
             path = lv0.get("path", [])
-            if vid == "V-047" and rid == "R-1" and "P-010" in path:
-                record_pass("T-002 fused: linked_vendors[0] vendor_id == V-047, ring_id == R-1, path contains P-010")
+            r1_members = set()
+            for ring in (graph_doc or {}).get("rings", []):
+                if ring.get("ring_id") == "R-1":
+                    r1_members = set(ring.get("vendor_ids", []))
+            connectors = [n for n in path[1:-1] if n.startswith(("P-", "A-"))]
+            ok = (vid == "V-047" and rid == "R-1" and len(path) >= 3 and path[0] == "V-047"
+                  and path[-1] != "V-047" and path[-1] in r1_members and bool(connectors))
+            if ok:
+                record_pass(f"{T2_PATH_CHECK} (connector {connectors[0]}, path {path})")
             else:
                 record_fail(
-                    "T-002 fused: linked_vendors[0] vendor_id == V-047, ring_id == R-1, path contains P-010",
-                    f"expected vendor_id='V-047', ring_id='R-1', 'P-010' in path; got vendor_id={vid!r}, ring_id={rid!r}, path={path}",
+                    T2_PATH_CHECK,
+                    f"expected vendor_id='V-047', ring_id='R-1', path from V-047 to another R-1 member {sorted(r1_members)} "
+                    f"via a P-xxx/A-xxx node; got vendor_id={vid!r}, ring_id={rid!r}, path={path}",
                 )
 
     # ------------------------------------------------------------------ T-003

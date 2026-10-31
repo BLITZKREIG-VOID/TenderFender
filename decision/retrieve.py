@@ -9,7 +9,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 DEFAULT_TOP_K = 4
-DEFAULT_MIN_SCORE = {"embedding": 0.30, "keyword": 0.04}
+# Tuned on real kb/passages (docs/RETRIEVAL_TUNING.md): prefer no citation over a wrong one.
+DEFAULT_MIN_SCORE = {"embedding": 0.50, "keyword": 0.055}
 DEFAULT_MODEL = "all-MiniLM-L6-v2"
 DEFAULT_MODEL_CACHE = ".cache/models"
 

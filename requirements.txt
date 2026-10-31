@@ -17,5 +17,4 @@ requests==2.34.2
 # https://download.pytorch.org/whl/cpu (SoT 5: CPU only; the default PyPI linux wheel is the CUDA build), so the line below is already satisfied. z3-solver was installed by `make setup` here but its version is not pinned (P1 owns the Z3 choice).
 torch
 z3-solver
-# torch_geometric: intentionally NOT listed; P2 owns the PyG install check (SoT 11 H0-H2). Add it here once confirmed.
-# torch_geometric
+torch_geometric==2.8.1
