@@ -1,0 +1,31 @@
+{
+  "input_hash": "831c513648678a56683901afbb72d038594223f487e69c67d6f5c110e3c447ec",
+  "decision_source": "llm",
+  "retriever": "embedding",
+  "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+  "reasoning": "Finding F-1 identifies a direct contradiction between two eligibility clauses in the bidding document: clause CL2.1 requires bidders to have an annual turnover of at least ₹50 crore, while clause CL5.1 limits eligibility to bidders whose annual turnover does not exceed ₹10 crore [F-1]. These mutually exclusive thresholds create ambiguity about which criterion applies, potentially excluding qualified bidders or allowing unqualified ones to participate. The retrieved guideline passage KB-012 states that bidding documents should be self-contained and comprehensive without ambiguities, and that eligibility criteria such as financial position must be clearly defined [KB-012]. The presence of contradictory turnover requirements is a risk indicator for procurement clarity and fairness, supporting the medium risk level and the decision to review the document.",
+  "recommended_actions": [
+    "Refer the listed risk indicators to the procurement officer for manual review and clarification.",
+    "Record the reviewer's conclusion before the tender proceeds.",
+    "Request clarification from the procuring entity on the intended turnover eligibility threshold.",
+    "Amend the bidding document to resolve the contradiction before bid opening."
+  ],
+  "citations": [
+    {
+      "ref": "KB-012",
+      "kind": "guideline"
+    },
+    {
+      "ref": "F-1",
+      "kind": "finding"
+    }
+  ],
+  "retrieved": {
+    "F-1": [
+      {
+        "passage_id": "KB-012",
+        "score": 0.58509
+      }
+    ]
+  }
+}
