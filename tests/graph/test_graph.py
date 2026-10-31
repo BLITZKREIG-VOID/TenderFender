@@ -6,11 +6,8 @@ from pathlib import Path
 
 import networkx as nx
 import pytest
-from torch_geometric.data import HeteroData
 
 from graph.build import GraphDataError, build_graph
-from graph.evaluation import binary_metrics, evaluate_graphsage, stratified_split
-from graph.gnn import HeterogeneousGraphSAGE, networkx_to_heterodata
 from graph.run import build_graph_output, run as run_graph_pipeline
 from graph.screens import _category, explain_vendors, find_rings, score_vendors
 
@@ -112,6 +109,7 @@ def _rotation_dataset(
     same_buyer: bool = True,
     cover: bool = False,
     rotate_winners: bool = True,
+    tender_count: int = 6,
 ) -> Path:
     vendors = [
         _vendor("V-001", address="A-001", contact="CT-001"),
@@ -120,7 +118,7 @@ def _rotation_dataset(
     ]
     tenders = []
     bids = []
-    for index in range(1, 7):
+    for index in range(1, tender_count + 1):
         tender_id = f"T-{index:03d}"
         buyer_id = "B-001" if same_buyer else f"B-{index:03d}"
         tenders.append(_tender(tender_id, buyer_id))
@@ -309,21 +307,24 @@ def test_rotation_evidence_includes_buyer_vendors_and_all_tenders(tmp_path: Path
 
 
 def test_cover_evidence_retains_tender_ratio_and_winner(tmp_path: Path) -> None:
-    graph = build_graph(_rotation_dataset(tmp_path / "data", cover=True, rotate_winners=False))
+    graph = build_graph(_rotation_dataset(
+        tmp_path / "data", cover=True, rotate_winners=False, tender_count=10,
+    ))
     _, explanations = explain_vendors(graph)
     v2 = next(row for row in explanations if row["vendor_id"] == "V-002")
     cover = next(item for item in v2["evidence"] if item["type"] == "cover_bids")
+    tender_ids = [f"T-{i:03d}" for i in range(1, 11)]
 
-    assert cover["tender_ids"] == [f"T-{i:03d}" for i in range(1, 7)]
+    assert cover["tender_ids"] == tender_ids
     assert cover["buyer_id"] == "B-001"
     assert cover["relationship_types"] == ["issued_by", "submitted_bid"]
     assert cover["bid_ratios"] == [
-        {"tender_id": f"T-{i:03d}", "vendor_id": "V-002", "ratio": 1.02}
-        for i in range(1, 7)
+        {"tender_id": tender_id, "vendor_id": "V-002", "ratio": 1.02}
+        for tender_id in tender_ids
     ]
     assert cover["winning_bids"] == [
-        {"tender_id": f"T-{i:03d}", "winner_vendor_id": "V-001"}
-        for i in range(1, 7)
+        {"tender_id": tender_id, "winner_vendor_id": "V-001"}
+        for tender_id in tender_ids
     ]
     assert "V-001" in v2["related_vendor_ids"]
 
@@ -370,6 +371,10 @@ def test_explanations_and_scores_are_deterministic(tmp_path: Path) -> None:
 def test_networkx_conversion_preserves_heterogeneous_relations_without_ids_in_features(
     tmp_path: Path,
 ) -> None:
+    pytest.importorskip("torch_geometric")
+    from torch_geometric.data import HeteroData
+    from graph.gnn import networkx_to_heterodata
+
     graph = build_graph(_dataset(tmp_path / "data"))
     converted = networkx_to_heterodata(graph)
 
@@ -387,7 +392,9 @@ def test_networkx_conversion_preserves_heterogeneous_relations_without_ids_in_fe
 
 
 def test_heterogeneous_graphsage_forward_pass_runs_on_cpu(tmp_path: Path) -> None:
+    pytest.importorskip("torch_geometric")
     import torch
+    from graph.gnn import HeterogeneousGraphSAGE, networkx_to_heterodata
 
     graph = build_graph(_dataset(tmp_path / "data"))
     converted = networkx_to_heterodata(graph)
@@ -402,7 +409,9 @@ def test_heterogeneous_graphsage_forward_pass_runs_on_cpu(tmp_path: Path) -> Non
 
 
 def test_evaluation_labels_are_separate_from_graph_features_and_use_union_target(tmp_path: Path) -> None:
+    pytest.importorskip("torch_geometric")
     import torch
+    from graph.gnn import networkx_to_heterodata
 
     root, labels_path = _training_dataset(tmp_path / "data")
     converted = networkx_to_heterodata(build_graph(root))
@@ -415,7 +424,9 @@ def test_evaluation_labels_are_separate_from_graph_features_and_use_union_target
 
 
 def test_split_and_metrics_are_reproducible_and_correct() -> None:
+    pytest.importorskip("torch_geometric")
     import torch
+    from graph.evaluation import binary_metrics, stratified_split
 
     targets = torch.tensor([1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
     first = stratified_split(targets, seed=42)
@@ -432,6 +443,9 @@ def test_split_and_metrics_are_reproducible_and_correct() -> None:
 
 
 def test_graphsage_training_is_reproducible_and_reports_heldout_metrics(tmp_path: Path) -> None:
+    pytest.importorskip("torch_geometric")
+    from graph.evaluation import evaluate_graphsage
+
     root, labels_path = _training_dataset(tmp_path / "data")
     graph = build_graph(root)
     first = evaluate_graphsage(graph, labels_path, seed=7, epochs=3, hidden_channels=8)
@@ -483,7 +497,7 @@ def test_rotation_across_different_buyers_does_not_claim_same_buyer_ring(tmp_pat
 
 def test_r3_repeated_cover_bids_are_detected(tmp_path: Path) -> None:
     graph = build_graph(_rotation_dataset(
-        tmp_path / "data", same_buyer=True, cover=True, rotate_winners=False,
+        tmp_path / "data", same_buyer=True, cover=True, rotate_winners=False, tender_count=10,
     ))
     rings = find_rings(graph)
 
@@ -493,6 +507,35 @@ def test_r3_repeated_cover_bids_are_detected(tmp_path: Path) -> None:
         and ring.anchor_id == "B-001"
         for ring in rings
     )
+
+
+def test_cover_bids_below_minimum_support_are_chance_not_a_ring(tmp_path: Path) -> None:
+    graph = build_graph(_rotation_dataset(
+        tmp_path / "data", same_buyer=True, cover=True, rotate_winners=False, tender_count=7,
+    ))
+
+    assert not any(ring.screen == "cover" for ring in find_rings(graph))
+
+
+def test_shared_director_path_precedes_shared_address_path(tmp_path: Path) -> None:
+    vendors = [
+        _vendor("V-001", address="A-001", contact="CT-001"),
+        _vendor("V-002", address="A-001", contact="CT-002"),
+    ]
+    root = _dataset(
+        tmp_path / "data", vendors=vendors,
+        bids=[_bid("T-001", "V-001", 80.0, 1, True), _bid("T-001", "V-002", 90.0, 2, False)],
+        links=[
+            {"vendor_id": "V-001", "person_id": "P-001"},
+            {"vendor_id": "V-002", "person_id": "P-001"},
+        ],
+    )
+    output = build_graph_output(build_graph(root))
+    from_v2 = [path for path in output["paths"] if path["from"] == "V-002"]
+
+    assert from_v2[0]["nodes"] == ["V-002", "P-001", "V-001"]
+    assert from_v2[0]["edge_types"] == ["directed_by", "directed_by"]
+    assert from_v2[1]["nodes"] == ["V-002", "A-001", "V-001"]
 
 
 def test_screen_membership_comes_from_observed_structure_not_labels(tmp_path: Path) -> None:

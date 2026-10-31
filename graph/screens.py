@@ -28,6 +28,9 @@ ROTATION_TENDER_CAP = 12
 COVER_TENDER_CAP = 10
 COVER_MIN_RATIO = 1.01
 COVER_MAX_RATIO = 1.03
+# A 1-3 % near-winner bid happens by chance on roughly one in five tenders, so
+# a buyer's cover ring needs a support count chance does not reach (cap is 10).
+COVER_MIN_TENDERS = 8
 
 
 @dataclass(frozen=True, order=True)
@@ -223,7 +226,7 @@ def _cover_rings(graph: nx.MultiDiGraph) -> list[RingCandidate]:
     for buyer_id, events in sorted(cover_events.items()):
         members = tuple(sorted({vendor for vendor, _, _ in events}))
         distinct_tenders = {tender for _, tender, _ in events}
-        if len(members) < 2 or len(distinct_tenders) < 6:
+        if len(members) < 2 or len(distinct_tenders) < COVER_MIN_TENDERS:
             continue
         score = round(min(1.0, len(distinct_tenders) / COVER_TENDER_CAP), 4)
         grouped_events: dict[str, list[tuple[str, float, str]]] = defaultdict(list)
