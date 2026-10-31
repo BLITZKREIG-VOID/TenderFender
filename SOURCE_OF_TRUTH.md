@@ -78,7 +78,7 @@ tender-mvp/
 ├── decision/ (retrieve.py, write.py, validate.py, run.py)        # P3
 ├── api/ (main.py, loaders.py)                           # P4
 ├── ui/                                                  # P4
-├── artifacts/ (rules/, graph/, fused/, decisions/)      # generated; gitignored except cached IR and cached decisions
+├── artifacts/ (rules/, graph/, fusion/, fused/, decisions/)  # generated; gitignored except cached IR and cached decisions; fusion/ = intermediate fusion→decision hand-off (D13)
 ├── scripts/ (validate_contracts.py, evaluate.py, demo.sh)
 ├── slides/                                              # P1
 ├── docs/ (CONTRACT_CHANGES.md, DEMO_SCRIPT.md, STATUS.md)
@@ -182,12 +182,18 @@ Real public documents only. Short excerpts. Never invent section numbers. Placeh
 }
 ```
 
-**Fusion rule (deterministic):** `high` if a `tailored_eligibility` finding's unique qualifier is in a flagged ring (score ≥ 0.5); `medium` if any rule finding has severity high, or a qualifier/bidder is in a flagged ring; else `low`.
+**Fusion rule (deterministic; changed by D10):**
+- `high`: a `tailored_eligibility` finding exists, `qualifying_vendors` has exactly 1 vendor, and that vendor is in a flagged ring (ring `score >= 0.5`).
+- `medium`: otherwise, if any rule finding has severity `high`, or any **bidder** of the tender (from `data/bids.csv`) is in a flagged ring. Qualifiers that did not bid no longer count.
+- `low`: otherwise.
+- `graph_flag_ring_ids` = flagged rings containing the unique qualifier or any bidder. `linked_vendors`: the unique qualifier first (`unique_qualifier_in_flagged_ring`), then bidders sorted by id (`bidder_in_flagged_ring`); `ring_id` = the highest-scoring flagged ring containing the vendor; `path` = nodes of the first graph path whose `from` is the vendor, else `[vendor_id]`.
 
 **Decision rule (deterministic):** `low → clear`, `medium → review`, `high → escalate`. The LLM never changes `risk_level` or `decision`.
 
 **RAG rules:**
 - Retrieval: per finding, query = finding type + explanation + clause texts; top 4 passages by cosine similarity (local embeddings, numpy).
+- Retrieval also runs one query per linked ring (ring link types + "collusive bidding ring") (D12). Passages below a minimum similarity (configurable) are not support; `PLACEHOLDER` passages are never retrieved outside tests.
+- Decision modes (`DECISION_MODE`): `template`, `llm`, `cache` (only if `input_hash` matches), `auto` (cache hit → cache; else `ANTHROPIC_API_KEY` present → llm; else fail loudly). No silent fallback (D11). `citations` are derived from the refs found in the validated text, not taken from the LLM.
 - The LLM receives only the findings, ring info and retrieved passages, and writes `reasoning` and `recommended_actions`.
 - Every citation must resolve to a retrieved passage, a finding ID or a ring ID. Invalid citations → max 2 retries, then fail loudly.
 - If no passage supports a finding, the reasoning says so instead of inventing support.
@@ -250,6 +256,12 @@ Errors: JSON `{"error":"...","code":"..."}` with correct HTTP status. The UI sho
 | D7 | Local embeddings + numpy cosine for RAG | Vector database (Chroma/FAISS) | 10–20 passages need no database |
 | D8 | Risk level and decision are deterministic; LLM only explains | LLM decides | Keeps decisions auditable and repeatable |
 | D9 | v2 role split (P2 data, P3 decision layer, P1 texts/passages/slides) | v1 split | P3 was overloaded; RAG layer added |
+| D10 | Fusion rule change (Lead-approved): `high` = tailored_eligibility with exactly 1 qualifier who is in a flagged ring (score ≥ 0.5); `medium` = any high-severity finding or any **bidder** in a flagged ring; qualifiers that did not bid no longer count | v2 rule: qualifier or bidder in a flagged ring → medium | Qualifier-in-ring made clean control T-003 medium whenever random qualifiers sat in rings; bidders are the actual participants. Request to P2: regenerate data so T-003 bidders are not ring members |
+| D11 | `DECISION_MODE` is explicit (`template`/`llm`/`cache`/`auto`); Makefile default is `template` for now. **Announced fallback (SoT 15):** no `ANTHROPIC_API_KEY` exists yet, so decisions are `decision_source: template` until a key is available and the cache is generated | Silent fallback to template when no key / cache miss | Never silent; `auto` fails with a message telling the user to set `DECISION_MODE=template`. Template mode does not write `artifacts/decisions/` |
+| D12 | RAG also queries per linked ring (link types + "collusive bidding ring") in addition to per finding; min-score threshold per retriever (embedding 0.30, keyword 0.04), configurable | Findings-only queries | Ring risk indicators need guideline support too; below-threshold passages are not support |
+| D13 | New intermediate folder `artifacts/fusion/T-xxx.json` (fusion → decision hand-off; carries `_inputs` findings and rings; not a public contract, not consumed by api/) | decision/ reading rules and graph directly | Keeps decoupling rule (D5) and lets fusion be tested alone |
+| D14 | Placeholder KB passages live only in `tests/decision/fixtures/kb/` (`PLACEHOLDER` in `source_title`); retrieval excludes them unless `--allow-placeholder` (tests only) | Placeholders in `kb/passages/` | `kb/` is P1-owned and placeholders must never reach the demo |
+| D15 | `venv/` (py3.9, committed) untracked; root `.gitignore` added; project venv is `.venv` (Python 3.14); embedding model cached in `.cache/models` | Keep committed venv | 1,599 tracked files, wrong Python version |
 
 ## 14. Rules of collaboration
 
