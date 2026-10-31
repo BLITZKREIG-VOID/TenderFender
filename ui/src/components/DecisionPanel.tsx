@@ -32,7 +32,7 @@ function getCitationDetails(cite: Citation, passages: Passage[], isDanger: boole
       return {
         title: `Guideline passage ${cite.ref} (text unavailable)`,
         tag: "Guideline",
-        tagColor: "bg-blue-700 text-white",
+        tagColor: "border-blue-200 bg-blue-50 text-blue-700",
       };
     }
     return {
@@ -40,7 +40,7 @@ function getCitationDetails(cite: Citation, passages: Passage[], isDanger: boole
       section: cite.section ?? passage?.section,
       link,
       tag: "Guideline",
-      tagColor: "bg-blue-700 text-white",
+      tagColor: "border-blue-200 bg-blue-50 text-blue-700",
     };
   }
 
@@ -49,7 +49,9 @@ function getCitationDetails(cite: Citation, passages: Passage[], isDanger: boole
       title: `Rule Formalization Finding ${cite.ref} (Z3 Solver Core Constraint)`,
       tag: "Rule Finding",
       // Red is reserved for high-risk / escalate tenders; other findings are amber.
-      tagColor: isDanger ? "bg-red-700 text-white" : "bg-amber-600 text-white",
+      tagColor: isDanger
+        ? "border-red-200 bg-red-50 text-red-700"
+        : "border-amber-200 bg-amber-50 text-amber-700",
     };
   }
 
@@ -57,14 +59,14 @@ function getCitationDetails(cite: Citation, passages: Passage[], isDanger: boole
     return {
       title: `Graph Analysis Flagged Ring ${cite.ref} (Collusion/Bidding Ring)`,
       tag: "Collusion Ring",
-      tagColor: "bg-purple-700 text-white",
+      tagColor: "border-purple-200 bg-purple-50 text-purple-700",
     };
   }
 
   return {
     title: `Reference ${cite.ref}`,
     tag: cite.kind,
-    tagColor: "bg-gray-800 text-white",
+    tagColor: "border-gray-200 bg-slate-100 text-slate-600",
   };
 }
 
@@ -74,14 +76,14 @@ export default function DecisionPanel({ fused, passages }: Props) {
     fused.risk_level?.toLowerCase() === "high";
 
   return (
-    <div className="bg-white rounded-xl shadow-md border-4 border-gray-900 p-6 text-black">
-      <div className="flex items-center justify-between border-b-2 border-gray-300 pb-3 mb-6">
-        <h2 className="text-xl font-black text-black flex items-center gap-2 uppercase tracking-wide">
-          <FileText size={24} className="text-black" />
+    <div className="rounded-xl border border-gray-200 bg-white p-6 text-slate-900 shadow-sm">
+      <div className="mb-6 flex items-center justify-between gap-4 border-b border-gray-200 pb-4">
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-800">
+          <FileText size={20} className="text-slate-500" />
           Decision & Recommendation Panel
         </h2>
         {fused.decision_source && (
-          <span className="text-xs font-mono font-bold px-2.5 py-1 bg-gray-200 text-gray-800 rounded border border-gray-400">
+          <span className="rounded-md border border-gray-200 bg-slate-100 px-2.5 py-1 font-mono text-xs font-medium text-slate-600">
             Decision Source: {sourceLabel(fused.decision_source)} ({fused.decision_source})
           </span>
         )}
@@ -89,24 +91,24 @@ export default function DecisionPanel({ fused, passages }: Props) {
 
       {/* 1. Reasoning Block */}
       <div className="mb-6">
-        <h3 className="text-xs font-black text-gray-900 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-          <Lightbulb size={18} className="text-amber-600" />
+        <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
+          <Lightbulb size={16} className="text-amber-500" />
           AI Synthesis & Audit Reasoning
         </h3>
-        <div className="bg-gray-100 p-5 rounded-lg border-2 border-gray-400 text-base font-medium text-gray-950 leading-relaxed shadow-inner">
+        <div className="rounded-lg border border-gray-200 bg-slate-50 p-5 text-base leading-relaxed text-slate-700">
           {fused.reasoning}
         </div>
       </div>
 
       {/* 2. Citations as Referenced List */}
       <div className="mb-6">
-        <h3 className="text-xs font-black text-gray-900 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-          <Bookmark size={18} className="text-blue-700" />
+        <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
+          <Bookmark size={16} className="text-blue-600" />
           Referenced Citations & Guidelines
         </h3>
 
         {fused.citations && fused.citations.length > 0 ? (
-          <div className="bg-gray-50 border-2 border-gray-300 rounded-lg overflow-hidden divide-y divide-gray-300">
+          <div className="overflow-hidden divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white">
             {fused.citations.map((cite, i) => {
               const details = getCitationDetails(cite, passages ?? [], isDanger);
               const isExternal = Boolean(details.link && details.link.startsWith("http"));
@@ -114,11 +116,11 @@ export default function DecisionPanel({ fused, passages }: Props) {
               return (
                 <div
                   key={i}
-                  className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-gray-100 transition-colors"
+                  className="flex flex-col justify-between gap-2 p-4 transition-colors hover:bg-slate-50 sm:flex-row sm:items-center"
                 >
-                  <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="flex min-w-0 items-center gap-2.5">
                     <span
-                      className={`text-xs font-black px-2 py-0.5 rounded font-mono uppercase tracking-wider shrink-0 ${details.tagColor}`}
+                      className={`shrink-0 rounded-full border px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide ${details.tagColor}`}
                     >
                       {details.tag}: {cite.ref}
                     </span>
@@ -127,18 +129,18 @@ export default function DecisionPanel({ fused, passages }: Props) {
                         href={details.link}
                         target={isExternal ? "_blank" : undefined}
                         rel={isExternal ? "noreferrer" : undefined}
-                        className="text-sm font-bold text-blue-800 hover:text-blue-950 hover:underline min-w-0 rounded focus:outline-hidden focus:ring-2 focus:ring-blue-600"
+                        className="min-w-0 rounded text-sm font-medium text-blue-700 hover:text-blue-800 hover:underline focus:outline-hidden focus:ring-2 focus:ring-blue-500"
                       >
                         {details.title}
                         {details.section && (
-                          <span className="font-semibold text-gray-700"> · {details.section}</span>
+                          <span className="font-normal text-slate-500"> · {details.section}</span>
                         )}
                       </a>
                     ) : (
-                      <span className="text-sm font-bold text-gray-950 min-w-0">
+                      <span className="min-w-0 text-sm font-medium text-slate-700">
                         {details.title}
                         {details.section && (
-                          <span className="font-semibold text-gray-700"> · {details.section}</span>
+                          <span className="font-normal text-slate-500"> · {details.section}</span>
                         )}
                       </span>
                     )}
@@ -148,25 +150,25 @@ export default function DecisionPanel({ fused, passages }: Props) {
             })}
           </div>
         ) : (
-          <p className="text-sm text-gray-600 italic">No citations recorded.</p>
+          <p className="text-sm italic text-slate-500">No citations recorded.</p>
         )}
       </div>
 
       {/* 3. Recommended Actions as Bulleted List */}
       <div>
-        <h3 className="text-xs font-black text-gray-900 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-          <CheckSquare size={18} className="text-green-700" />
+        <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
+          <CheckSquare size={16} className="text-green-600" />
           Recommended Actions for Reviewer
         </h3>
 
         {fused.recommended_actions && fused.recommended_actions.length > 0 ? (
-          <ul className="space-y-2.5 bg-gray-50 p-4 rounded-lg border-2 border-gray-300">
+          <ul className="space-y-3 rounded-lg border border-gray-200 bg-slate-50 p-4">
             {fused.recommended_actions.map((action, i) => (
               <li
                 key={i}
-                className="flex items-start gap-3 text-base text-gray-950 font-semibold"
+                className="flex items-start gap-3 text-base font-medium text-slate-700"
               >
-                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-black text-white text-xs font-black shrink-0 mt-0.5">
+                <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-800 text-xs font-semibold text-white">
                   {i + 1}
                 </span>
                 <span className="leading-normal">{action}</span>
@@ -174,17 +176,14 @@ export default function DecisionPanel({ fused, passages }: Props) {
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-gray-600 italic">No explicit actions required.</p>
+          <p className="text-sm italic text-slate-500">No explicit actions required.</p>
         )}
       </div>
 
       {/* 4. Mandatory Disclaimer (verbatim from FusedData.disclaimer) */}
       {fused.disclaimer && (
-        <div className="mt-6 p-4 bg-gray-900 text-white rounded-lg border-2 border-black shadow-inner">
-          <h3 className="text-xs font-black uppercase tracking-wider text-amber-300 mb-1">
-            Disclaimer
-          </h3>
-          <p className="text-sm font-bold tracking-wide">{fused.disclaimer}</p>
+        <div className="mt-6 rounded-lg border border-amber-200 bg-slate-800 p-4 text-amber-400 font-medium shadow-inner">
+          <p className="text-sm text-amber-300 leading-relaxed">{fused.disclaimer}</p>
         </div>
       )}
     </div>

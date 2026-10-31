@@ -13,13 +13,13 @@ export function LoadingState({
     <div
       role="status"
       aria-live="polite"
-      className="flex flex-col items-center justify-center p-12 bg-white rounded-xl border-4 border-gray-900 shadow-md text-center my-6"
+      className="my-6 flex flex-col items-center justify-center rounded-xl border border-gray-200 bg-white p-12 text-center shadow-sm"
     >
-      <Loader2 className="animate-spin text-black mb-4" size={48} strokeWidth={2.5} />
-      <h3 className="text-xl font-black text-black uppercase tracking-wide">
+      <Loader2 className="mb-4 animate-spin text-slate-400" size={40} strokeWidth={2} />
+      <h3 className="text-lg font-semibold text-slate-800">
         {message}
       </h3>
-      <p className="text-sm font-semibold text-gray-800 mt-2 max-w-md">
+      <p className="mt-2 max-w-md text-sm text-slate-500">
         {submessage}
       </p>
     </div>
@@ -40,20 +40,20 @@ export function EmptyState({
   onAction,
 }: EmptyStateProps) {
   return (
-    <div className="flex flex-col items-center justify-center p-12 bg-white rounded-xl border-4 border-gray-900 shadow-md text-center my-6">
-      <div className="w-16 h-16 rounded-full bg-gray-100 border-2 border-black flex items-center justify-center mb-4">
-        <FolderSearch size={32} className="text-black" />
+    <div className="my-6 flex flex-col items-center justify-center rounded-xl border border-gray-200 bg-white p-12 text-center shadow-sm">
+      <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full border border-gray-200 bg-slate-100">
+        <FolderSearch size={28} className="text-slate-500" />
       </div>
-      <h3 className="text-2xl font-black text-black uppercase tracking-tight">
+      <h3 className="text-lg font-semibold text-slate-800">
         {title}
       </h3>
-      <p className="text-base font-semibold text-gray-800 mt-2 max-w-md">
+      <p className="mt-2 max-w-md text-sm text-slate-500">
         {message}
       </p>
       {actionText && onAction && (
         <button
           onClick={onAction}
-          className="mt-6 px-5 py-2.5 bg-black text-white font-black text-sm uppercase tracking-wider rounded-lg border-2 border-black shadow-md hover:bg-gray-800 focus:outline-hidden focus:ring-4 focus:ring-blue-600 transition-all cursor-pointer"
+          className="mt-6 cursor-pointer rounded-lg bg-slate-800 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-slate-700 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
         >
           {actionText}
         </button>
@@ -76,32 +76,32 @@ export function ErrorCard({
   return (
     <div
       role="alert"
-      className="p-6 bg-red-50 border-4 border-red-700 rounded-xl shadow-lg my-6 text-black"
+      className="my-6 rounded-xl border border-rose-200 bg-rose-50 p-6 text-slate-900 shadow-sm"
     >
       <div className="flex items-start gap-4">
-        <div className="p-2 bg-red-700 text-white rounded-lg shrink-0 border-2 border-red-900">
-          <AlertOctagon size={32} />
+        <div className="shrink-0 rounded-lg bg-rose-600 p-2 text-white">
+          <AlertOctagon size={28} />
         </div>
         <div className="flex-1">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-black uppercase tracking-widest px-2.5 py-0.5 bg-red-700 text-white rounded">
+            <span className="rounded-full bg-rose-600 px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-white">
               Connection Failure
             </span>
           </div>
-          <h3 className="text-2xl font-black text-red-950 mt-1 uppercase tracking-tight">
+          <h3 className="mt-2 text-lg font-semibold text-rose-900">
             {title}
           </h3>
-          <p className="text-base font-bold text-red-900 mt-2 leading-relaxed">
+          <p className="mt-2 text-sm leading-relaxed text-rose-800">
             {error}
           </p>
 
           {import.meta.env.DEV ? (
-            <div className="mt-4 p-3 bg-white/90 border-2 border-red-300 rounded-md text-sm font-bold text-gray-900 font-mono">
+            <div className="mt-4 rounded-lg border border-rose-200 bg-white p-3 font-mono text-sm text-slate-700">
               Ensure backend server is running:{" "}
-              <span className="text-red-700">MOCK=1 uvicorn api.main:app --reload</span>
+              <span className="text-rose-700">MOCK=1 uvicorn api.main:app --reload</span>
             </div>
           ) : (
-            <p className="mt-4 text-sm font-bold text-gray-900">
+            <p className="mt-4 text-sm text-slate-600">
               The service may be temporarily unavailable. Please retry in a moment.
             </p>
           )}
@@ -109,7 +109,7 @@ export function ErrorCard({
           {onRetry && (
             <button
               onClick={onRetry}
-              className="mt-5 inline-flex items-center gap-2 px-5 py-2.5 bg-red-700 hover:bg-red-800 text-white font-black text-sm uppercase tracking-wider rounded-lg border-2 border-red-950 shadow-md focus:outline-hidden focus:ring-4 focus:ring-red-500 transition-all cursor-pointer"
+              className="mt-5 inline-flex cursor-pointer items-center gap-2 rounded-lg bg-rose-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-rose-700 focus:outline-hidden focus:ring-2 focus:ring-rose-400"
             >
               <RefreshCw size={16} />
               Retry Connection
@@ -120,4 +120,3 @@ export function ErrorCard({
     </div>
   );
 }
-

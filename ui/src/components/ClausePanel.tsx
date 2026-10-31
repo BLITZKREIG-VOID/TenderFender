@@ -6,9 +6,11 @@ interface Props {
   rules: RulesData;
   clauses?: Clause[];
   onConfirm: (atomId: string) => Promise<void> | void;
+  /** Red accents are reserved for high-risk or escalate tenders. */
+  isDanger?: boolean;
 }
 
-export default function ClausePanel({ rules, onConfirm }: Props) {
+export default function ClausePanel({ rules, onConfirm, isDanger = false }: Props) {
   const [optimisticStatuses, setOptimisticStatuses] = useState<Record<string, string>>({});
   const [cooldown, setCooldown] = useState(false);
 
@@ -45,26 +47,26 @@ export default function ClausePanel({ rules, onConfirm }: Props) {
   const isConfirmed = rules.formalization_status === "confirmed";
 
   return (
-    <div className="bg-white rounded-xl shadow-md border-4 border-gray-900 p-6 text-black flex flex-col justify-between">
+    <div className="flex flex-col justify-between rounded-xl border border-gray-200 bg-white p-6 text-slate-900 shadow-sm">
       <div>
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-gray-300 pb-3 mb-5">
-          <h2 className="text-xl font-black text-black flex items-center gap-2 uppercase tracking-wide">
-            <Scale size={24} className="text-black" />
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-4">
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-800">
+            <Scale size={20} className="text-slate-500" />
             Clause Formalization & Logic Proofs
           </h2>
 
           {/* Formalization Status Badge */}
           <span
-            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-xs sm:text-sm font-black uppercase tracking-wider border-2 shadow-2xs ${
+            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${
               isConfirmed
-                ? "bg-green-700 text-white border-green-950"
-                : "bg-orange-600 text-white border-orange-950"
+                ? "border-green-200 bg-green-50 text-green-700"
+                : "border-amber-200 bg-amber-50 text-amber-700"
             }`}
           >
             {isConfirmed ? (
-              <ShieldCheck size={16} strokeWidth={2.5} />
+              <ShieldCheck size={14} strokeWidth={2} />
             ) : (
-              <Circle size={14} strokeWidth={2.5} />
+              <Circle size={12} strokeWidth={2} />
             )}
             Status: {rules.formalization_status}
           </span>
@@ -73,43 +75,57 @@ export default function ClausePanel({ rules, onConfirm }: Props) {
         {/* Solver Findings Section */}
         {rules.findings.length > 0 ? (
           <div className="mb-6 space-y-3">
-            <h3 className="text-xs font-black text-black uppercase tracking-wider flex items-center gap-1.5">
-              <AlertTriangle size={16} className="text-red-700" />
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <AlertTriangle
+                size={16}
+                className={isDanger ? "text-red-600" : "text-amber-600"}
+              />
               Automated Solver Findings ({rules.findings.length})
             </h3>
             {rules.findings.map((f: Finding) => (
               <div
                 key={f.finding_id}
-                className="p-4 rounded-lg border-2 border-red-700 bg-red-50 text-black shadow-2xs"
+                className={`rounded-lg border p-4 ${
+                  isDanger
+                    ? "border-red-200 bg-red-50"
+                    : "border-amber-200 bg-amber-50"
+                }`}
               >
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-black px-2 py-0.5 rounded bg-black text-white">
+                    <span className="rounded-md bg-slate-800 px-2 py-0.5 font-mono text-xs font-medium text-white">
                       {f.finding_id}
                     </span>
-                    <span className="text-sm font-black text-red-950 uppercase tracking-tight">
+                    <span className="text-sm font-semibold text-slate-800">
                       {f.type.replace(/_/g, " ")}
                     </span>
                   </div>
-                  <span className="text-xs font-black px-2.5 py-0.5 rounded bg-red-700 text-white border border-red-950 uppercase tracking-wider">
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-white ${
+                      isDanger ? "bg-red-600" : "bg-amber-600"
+                    }`}
+                  >
                     Severity: {f.severity}
                   </span>
                 </div>
-                <p className="text-sm sm:text-base font-bold text-gray-950 leading-snug">
+                <p className="text-sm leading-relaxed text-slate-700">
                   {f.explanation}
                 </p>
-                <div className="mt-2.5 p-2 bg-white/90 rounded border border-red-300 text-xs font-mono font-bold text-gray-900">
-                  <span className="text-red-800">Formal Proof:</span> {f.proof.detail}
+                <div className="mt-3 rounded-md border border-gray-200 bg-white/80 p-3 font-mono text-xs text-slate-700">
+                  <span className={isDanger ? "text-red-700" : "text-amber-700"}>
+                    Formal Proof:
+                  </span>{" "}
+                  {f.proof.detail}
                 </div>
               </div>
             ))}
           </div>
         ) : (
-          <div className="mb-6 p-4 bg-green-50 rounded-lg border-2 border-green-700 text-green-950 flex items-center gap-3">
-            <CheckCircle2 size={24} className="text-green-700 shrink-0" />
+          <div className="mb-6 flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 p-4 text-green-800">
+            <CheckCircle2 size={22} className="shrink-0 text-green-600" />
             <div>
-              <p className="text-sm font-black uppercase">Z3 Solver Verification: CLEAN</p>
-              <p className="text-xs font-bold text-green-900">
+              <p className="text-sm font-semibold">Z3 Solver Verification: Clean</p>
+              <p className="text-xs text-green-700">
                 No formal contradictions or artificial exclusivity criteria detected.
               </p>
             </div>
@@ -118,7 +134,7 @@ export default function ClausePanel({ rules, onConfirm }: Props) {
 
         {/* Formalized Atoms List */}
         <div>
-          <h3 className="text-xs font-black text-black uppercase tracking-wider mb-3">
+          <h3 className="mb-3 text-sm font-semibold text-slate-700">
             Formalized Tender Criteria (Atoms)
           </h3>
           <div className="space-y-3">
@@ -133,31 +149,39 @@ export default function ClausePanel({ rules, onConfirm }: Props) {
               return (
                 <div
                   key={atom.id}
-                  className={`p-4 rounded-lg border-2 transition-all ${
+                  className={`rounded-lg border p-4 transition-colors ${
                     isFlagged
-                      ? "border-red-600 bg-red-50/70"
-                      : "border-gray-300 bg-gray-50"
+                      ? isDanger
+                        ? "border-red-200 bg-red-50/70"
+                        : "border-amber-200 bg-amber-50/70"
+                      : "border-gray-200 bg-slate-50"
                   }`}
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                        <span className="font-mono text-xs font-black px-2 py-0.5 rounded bg-gray-900 text-white">
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-2 flex flex-wrap items-center gap-2">
+                        <span className="rounded-md bg-slate-800 px-2 py-0.5 font-mono text-xs font-medium text-white">
                           {atom.id}
                         </span>
-                        <span className="text-xs font-bold text-gray-800 bg-white px-2 py-0.5 rounded border border-gray-400">
+                        <span className="rounded-md border border-gray-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-600">
                           Clause: {atom.clause_id}
                         </span>
                         {isFlagged && (
-                          <span className="text-xs font-black px-2 py-0.5 rounded bg-red-700 text-white border border-red-950 uppercase tracking-wider">
+                          <span
+                            className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                              isDanger
+                                ? "border-red-200 bg-red-50 text-red-700"
+                                : "border-amber-200 bg-amber-50 text-amber-700"
+                            }`}
+                          >
                             Flagged in core
                           </span>
                         )}
                       </div>
-                      <p className="text-sm sm:text-base font-bold text-gray-950 leading-snug">
+                      <p className="text-sm leading-relaxed text-slate-700">
                         "{atom.source_text}"
                       </p>
-                      <div className="mt-2 font-mono text-xs font-black text-blue-900 bg-blue-50 px-2.5 py-1 rounded inline-block border border-blue-200">
+                      <div className="mt-2 inline-block rounded-md border border-blue-100 bg-blue-50 px-2.5 py-1 font-mono text-xs text-blue-700">
                         IR Formula: {atom.field} {atom.op}{" "}
                         {Array.isArray(atom.value)
                           ? `[${atom.value.join(", ")}]`
@@ -177,12 +201,12 @@ export default function ClausePanel({ rules, onConfirm }: Props) {
                       title={
                         isAtomConfirmed ? "Clause Confirmed" : "Confirm Clause"
                       }
-                      className={`shrink-0 px-4 py-1.5 text-sm font-black rounded-lg border-2 shadow-2xs transition-all focus:outline-hidden focus:ring-4 focus:ring-blue-600 ${
+                      className={`shrink-0 rounded-lg px-4 py-2 text-sm font-medium transition-colors focus:outline-hidden focus:ring-2 focus:ring-blue-500 ${
                         isAtomConfirmed
-                          ? "bg-gray-100 text-gray-500 border-gray-300 cursor-not-allowed"
+                          ? "cursor-not-allowed bg-slate-100 text-slate-400"
                           : cooldown
-                            ? "bg-slate-500 text-white border-slate-700 cursor-not-allowed"
-                            : "bg-slate-800 text-white border-black hover:bg-slate-700 cursor-pointer"
+                            ? "cursor-not-allowed bg-slate-500 text-white"
+                            : "cursor-pointer bg-slate-800 text-white hover:bg-slate-700"
                       } disabled:opacity-80`}
                     >
                       {isAtomConfirmed ? "Clause Confirmed" : "Confirm Clause"}
@@ -197,20 +221,20 @@ export default function ClausePanel({ rules, onConfirm }: Props) {
 
       {/* Qualifying Vendors Summary Footer */}
       {rules.qualifying_vendors.length > 0 && (
-        <div className="mt-6 p-4 bg-gray-100 rounded-lg border-2 border-black">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <span className="text-xs font-black uppercase text-black tracking-wide">
+        <div className="mt-6 rounded-lg border border-gray-200 bg-slate-50 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-xs font-medium text-slate-600">
               Eligible Bidders Passing Criteria:
             </span>
-            <span className="text-xs font-mono font-bold bg-white px-2 py-0.5 rounded border border-black">
+            <span className="rounded-md border border-gray-200 bg-white px-2 py-0.5 font-mono text-xs text-slate-600">
               {rules.qualifying_vendors.length} of {rules.vendors_evaluated} vendors evaluated
             </span>
           </div>
-          <div className="mt-2 flex flex-wrap gap-1.5">
+          <div className="mt-3 flex flex-wrap gap-1.5">
             {rules.qualifying_vendors.map((vid) => (
               <span
                 key={vid}
-                className="font-mono text-xs font-black px-2 py-1 bg-black text-white rounded border border-black"
+                className="rounded-md bg-slate-800 px-2 py-1 font-mono text-xs font-medium text-white"
               >
                 {vid}
               </span>

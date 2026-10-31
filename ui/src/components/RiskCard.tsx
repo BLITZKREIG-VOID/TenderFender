@@ -15,127 +15,114 @@ export default function RiskCard({ fused, disclaimer }: Props) {
   // Red budget: only high risk or an escalate decision may use red accents.
   const isDanger = riskLevel === "high" || decision === "escalate";
 
-  // High contrast color mappings for projector readability:
-  // Low: Green, Medium: Amber, High: Red
+  // Background + border tint per risk level so the card always signals the zone.
+  const riskBackground: Record<string, string> = {
+    high: "bg-red-50 border-red-200",
+    medium: "bg-amber-50 border-amber-200",
+    low: "bg-emerald-50 border-emerald-200",
+  };
+  const currentBackground = riskBackground[riskLevel] ?? riskBackground.low;
+
   const riskBadgeStyles: Record<string, string> = {
-    high: "bg-red-700 text-white border-2 border-red-900 shadow-sm",
-    medium: "bg-amber-600 text-white border-2 border-amber-800 shadow-sm",
-    low: "bg-green-700 text-white border-2 border-green-900 shadow-sm",
+    high: "border-red-200 bg-red-50 text-red-700",
+    medium: "border-amber-200 bg-amber-50 text-amber-700",
+    low: "border-green-200 bg-green-50 text-green-700",
   };
 
   const decisionBadgeStyles: Record<string, string> = {
-    escalate: "bg-red-700 text-white border-2 border-red-900 shadow-sm",
-    review: "bg-amber-600 text-white border-2 border-amber-800 shadow-sm",
-    clear: "bg-green-700 text-white border-2 border-green-900 shadow-sm",
+    escalate: "border-red-200 bg-red-50 text-red-700",
+    review: "border-amber-200 bg-amber-50 text-amber-700",
+    clear: "border-green-200 bg-green-50 text-green-700",
   };
-
-  const cardBorderAndHeader: Record<string, { border: string; headerBg: string; text: string }> = {
-    high: {
-      border: "border-red-600",
-      headerBg: "bg-red-50",
-      text: "text-red-950",
-    },
-    medium: {
-      border: "border-amber-500",
-      headerBg: "bg-amber-50",
-      text: "text-amber-950",
-    },
-    low: {
-      border: "border-green-600",
-      headerBg: "bg-green-50",
-      text: "text-green-950",
-    },
-  };
-
-  const currentTheme = cardBorderAndHeader[riskLevel] || cardBorderAndHeader.low;
 
   return (
-    <div
-      className={`rounded-xl border-4 ${currentTheme.border} bg-white shadow-md overflow-hidden text-black`}
-    >
+    <div className={`overflow-hidden rounded-xl ${currentBackground} text-slate-900 shadow-sm`}>
       {/* Top Banner with Risk Level and Decision Badges */}
       <div
-        className={`${currentTheme.headerBg} px-6 py-4 border-b-2 ${currentTheme.border} flex flex-wrap items-center justify-between gap-4`}
+        className={`${riskLevel === "high" ? "border-red-200" : riskLevel === "medium" ? "border-amber-200" : "border-emerald-200"} flex flex-wrap items-center justify-between gap-4 border-b border-gray-200 px-6 py-5`}
       >
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
           {riskLevel === "high" ? (
-            <ShieldAlert size={34} className="text-red-700 shrink-0" />
+            <ShieldAlert size={26} className="shrink-0 text-red-600" />
           ) : riskLevel === "medium" ? (
-            <AlertTriangle size={34} className="text-amber-600 shrink-0" />
+            <AlertTriangle size={26} className="shrink-0 text-amber-500" />
           ) : (
-            <CheckCircle2 size={34} className="text-green-700 shrink-0" />
+            <CheckCircle2 size={26} className="shrink-0 text-green-600" />
           )}
           <div>
-            <h2 className="text-xs font-black tracking-widest text-gray-800 uppercase">
+            <h2 className="text-xl font-bold text-slate-900">
               Tender Risk Assessment
             </h2>
-            <div className="flex items-center gap-3 mt-1">
-              <span className="text-2xl font-black text-black tracking-tight">
-                STATUS:
-              </span>
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              <span className="text-sm font-medium text-slate-500">Status</span>
               <span
-                className={`inline-block px-3 py-1 rounded text-base font-black uppercase tracking-wider ${
-                  riskBadgeStyles[riskLevel] || "bg-gray-800 text-white"
+                className={`inline-block rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${
+                  riskBadgeStyles[riskLevel] || "border-gray-200 bg-slate-100 text-slate-600"
                 }`}
               >
-                RISK: {fused.risk_level}
+                Risk: {fused.risk_level}
               </span>
               <span
-                className={`inline-block px-3 py-1 rounded text-base font-black uppercase tracking-wider ${
-                  decisionBadgeStyles[decision] || "bg-gray-800 text-white"
+                className={`inline-block rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${
+                  decisionBadgeStyles[decision] || "border-gray-200 bg-slate-100 text-slate-600"
                 }`}
               >
-                DECISION: {fused.decision}
+                Decision: {fused.decision}
               </span>
             </div>
           </div>
         </div>
 
         {/* Tender ID display */}
-        <div className="font-mono text-sm bg-black text-white px-3 py-1.5 rounded font-bold">
+        <div className="rounded-lg bg-slate-800 px-3 py-1.5 font-mono text-xs font-medium text-white">
           {fused.tender_id}
         </div>
       </div>
 
       {/* Card Body */}
-      <div className="p-6 space-y-4">
+      <div className="space-y-5 p-6">
         {/* Summary */}
         {fused.summary && (
-          <div className="text-base text-gray-950 font-medium leading-relaxed bg-gray-50 p-4 rounded-lg border-2 border-gray-300">
+          <div className="rounded-lg border border-gray-200 bg-slate-50 p-4 text-sm leading-relaxed text-slate-700">
             {fused.summary}
           </div>
         )}
 
         {/* Linked Vendors Section */}
         {fused.linked_vendors && fused.linked_vendors.length > 0 && (
-          <div className="border-2 border-black rounded-lg p-4 bg-amber-50/70">
-            <h3 className="text-xs font-black uppercase tracking-wider text-black mb-2 flex items-center gap-1.5">
-              <AlertOctagon size={16} className={`${isDanger ? "text-red-700" : "text-amber-600"} shrink-0`} />
+          <div className="rounded-lg border border-gray-200 bg-slate-50 p-4">
+            <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-800">
+              <AlertOctagon
+                size={16}
+                className={`shrink-0 ${isDanger ? "text-red-600" : "text-amber-600"}`}
+              />
               Flagged & Linked Vendors ({fused.linked_vendors.length})
             </h3>
-            <div className="divide-y divide-gray-300">
+            <div className="divide-y divide-gray-200">
               {fused.linked_vendors.map((vendor, idx) => (
                 <div
                   key={`${vendor.vendor_id}-${idx}`}
-                  className="py-2.5 first:pt-1 last:pb-0 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                  className="flex flex-col justify-between gap-2 py-3 first:pt-1 last:pb-0 sm:flex-row sm:items-center"
                 >
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-base font-black px-2.5 py-1 bg-black text-white rounded">
+                    <span className="rounded-md bg-slate-800 px-2.5 py-1 font-mono text-sm font-medium text-white">
                       {vendor.vendor_id}
                     </span>
                     {vendor.ring_id && (
                       <span
-                        className={`font-mono text-xs font-bold px-2 py-0.5 rounded ${
-                          isDanger ? "bg-red-800 text-white" : "bg-amber-700 text-white"
+                        className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${
+                          isDanger
+                            ? "border-red-200 bg-red-50 text-red-700"
+                            : "border-amber-200 bg-amber-50 text-amber-700"
                         }`}
                       >
                         Ring: {vendor.ring_id}
                       </span>
                     )}
                   </div>
-                  <div className="text-sm font-semibold text-gray-900 bg-white px-3 py-1 rounded border border-gray-300 shadow-2xs">
-                    <span className="text-gray-600 font-normal">Reason: </span>
-                    <span className={`font-bold ${isDanger ? "text-red-950" : "text-amber-950"}`}>
+                  <div className="rounded-md border border-gray-200 bg-white px-3 py-1.5 text-sm text-slate-600 shadow-sm">
+                    <span className="font-normal text-slate-500">Reason: </span>
+                    <span className={`font-medium ${isDanger ? "text-red-700" : "text-amber-700"}`}>
                       {vendor.reason.replace(/_/g, " ")}
                     </span>
                   </div>
@@ -147,7 +134,9 @@ export default function RiskCard({ fused, disclaimer }: Props) {
 
         {/* Mandatory Disclaimer (verbatim from FusedData.disclaimer) */}
         {disclaimerText && (
-          <p className="text-xs text-gray-500 mt-4">{disclaimerText}</p>
+          <p className="mt-4 border-t border-gray-100 pt-4 text-xs text-slate-500">
+            {disclaimerText}
+          </p>
         )}
       </div>
     </div>

@@ -17,6 +17,10 @@ export default function TenderDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  // ── Tabbed interface state ──────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<'overview' | 'proofs' | 'graph'>(
+    "overview"
+  );
 
   const fetchData = (showLoading = true) => {
     if (!id) return;
@@ -59,6 +63,45 @@ export default function TenderDetail() {
     }
   };
 
+  // ── Tab bar ─────────────────────────────────────────────────────
+  const tabBar = (
+    <div className="flex border-b border-gray-200">
+      <button
+        type="button"
+        className={`flex-1 rounded-t-lg px-4 py-2 text-sm font-medium ${
+          activeTab === "overview"
+            ? "text-indigo-700 border-indigo-700 border-b-2"
+            : "text-slate-500 hover:text-slate-700 transition-colors"
+        }`}
+        onClick={() => setActiveTab("overview")}
+      >
+        Overview
+      </button>
+      <button
+        type="button"
+        className={`flex-1 rounded-t-lg px-4 py-2 text-sm font-medium ${
+          activeTab === "proofs"
+            ? "text-indigo-700 border-indigo-700 border-b-2"
+            : "text-slate-500 hover:text-slate-700 transition-colors"
+        }`}
+        onClick={() => setActiveTab("proofs")}
+      >
+        Proofs
+      </button>
+      <button
+        type="button"
+        className={`flex-1 rounded-t-lg px-4 py-2 text-sm font-medium ${
+          activeTab === "graph"
+            ? "text-indigo-700 border-indigo-700 border-b-2"
+            : "text-slate-500 hover:text-slate-700 transition-colors"
+        }`}
+        onClick={() => setActiveTab("graph")}
+      >
+        Graph
+      </button>
+    </div>
+  );
+
   if (loading) {
     return (
       <div
@@ -69,7 +112,7 @@ export default function TenderDetail() {
       >
         <span className="sr-only">Loading tender analysis for {id}...</span>
 
-        <div className="flex flex-wrap items-center justify-between gap-4 pb-2 border-b-2 border-gray-300">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-200 pb-2">
           <Skeleton className="h-10 w-56" />
           <Skeleton className="h-10 w-40" />
         </div>
@@ -77,7 +120,7 @@ export default function TenderDetail() {
         <PanelSkeleton />
         <PanelSkeleton />
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <PanelSkeleton />
           <PanelSkeleton />
         </div>
@@ -92,7 +135,7 @@ export default function TenderDetail() {
       <div>
         <Link
           to="/"
-          className="inline-flex items-center gap-2 text-base font-black text-black hover:text-blue-700 mb-6 px-3 py-1.5 rounded-lg border-2 border-black bg-white shadow-2xs focus:outline-hidden focus:ring-4 focus:ring-blue-600"
+          className="mb-6 inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-base font-medium text-slate-700 shadow-sm hover:bg-slate-100 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
         >
           <ArrowLeft size={18} /> Back to Registry
         </Link>
@@ -105,13 +148,49 @@ export default function TenderDetail() {
     );
   }
 
+  // ── Tab content renderers ───────────────────────────────────────
+  const overviewContent = (
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      {/* Left: Risk Card */}
+      <RiskCard fused={analysis.fused} disclaimer={analysis.fused.disclaimer} />
+
+      {/* Right: Decision Panel */}
+      <DecisionPanel fused={analysis.fused} passages={analysis.passages} />
+    </div>
+  );
+
+  const proofsContent = (
+    <ClausePanel
+      rules={analysis.rules}
+      clauses={analysis.clauses}
+      onConfirm={handleConfirm}
+      isDanger={
+        analysis.fused.risk_level?.toLowerCase() === "high" ||
+        analysis.fused.decision?.toLowerCase() === "escalate"
+      }
+    />
+  );
+
+  const graphContent = (
+    <GraphPanel data={graphData} isDanger={
+      analysis.fused.risk_level?.toLowerCase() === "high" ||
+      analysis.fused.decision?.toLowerCase() === "escalate"
+    } />
+  );
+
+  const tabContent = {
+    overview: overviewContent,
+    proofs: proofsContent,
+    graph: graphContent,
+  }[activeTab];
+
   return (
     <div className="space-y-6">
       {/* Top Navigation & Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 pb-2 border-b-2 border-gray-300">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-200 pb-2">
         <Link
           to="/"
-          className="inline-flex items-center gap-2 text-sm sm:text-base font-black text-black hover:text-white hover:bg-black px-4 py-2 rounded-lg border-2 border-black bg-white shadow-2xs focus:outline-hidden focus:ring-4 focus:ring-blue-600 transition-colors cursor-pointer"
+          className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-100 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
         >
           <ArrowLeft size={18} />
           <span>Back to Tender Registry</span>
@@ -125,55 +204,45 @@ export default function TenderDetail() {
               fetchData(false);
             }}
             disabled={isRefreshing}
-            className="inline-flex items-center gap-2 text-xs sm:text-sm font-black text-black bg-white hover:bg-gray-100 px-3.5 py-2 rounded-lg border-2 border-black shadow-2xs focus:outline-hidden focus:ring-4 focus:ring-blue-600 transition-all cursor-pointer disabled:opacity-50"
+            className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-100 focus:outline-hidden focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
             title="Refresh Analysis"
           >
             <RefreshCw size={16} className={isRefreshing ? "animate-spin" : ""} />
             <span>Refresh State</span>
           </button>
-          <span className="font-mono text-sm sm:text-base font-black bg-black text-white px-3 py-1.5 rounded-lg border-2 border-black">
+          <span className="rounded-lg bg-slate-800 px-3 py-1.5 font-mono text-sm font-medium text-white">
             ID: {id}
           </span>
         </div>
       </div>
 
       {/* Main Title Banner */}
-      <div className="bg-white p-6 rounded-xl border-4 border-gray-900 shadow-md">
+      <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <div className="flex items-start gap-3">
-          <div className="p-2 bg-blue-100 border-2 border-blue-900 rounded-lg text-blue-900 mt-1 shrink-0">
+          <div className="mt-1 shrink-0 rounded-lg border border-blue-100 bg-blue-50 p-2 text-blue-600">
             <FileText size={24} />
           </div>
           <div>
-            <span className="text-xs font-black uppercase tracking-widest text-gray-700">
+            <span className="text-xs font-medium text-slate-500">
               Procurement Audit Record
             </span>
-            <h1 className="text-2xl sm:text-3xl font-black text-black tracking-tight mt-0.5 leading-snug">
+            <h1 className="mt-1 text-2xl font-semibold leading-snug tracking-tight text-slate-900 sm:text-3xl">
               {analysis.fused.title}
             </h1>
           </div>
         </div>
       </div>
 
-      {/* Top: Risk Card */}
-      <RiskCard fused={analysis.fused} disclaimer={analysis.fused.disclaimer} />
-
-      {/* Main Grid: Clauses + Graph */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left: Clause panel */}
-        <ClausePanel
-          rules={analysis.rules}
-          clauses={analysis.clauses}
-          onConfirm={handleConfirm}
-        />
-
-        {/* Right: Graph panel */}
-        <GraphPanel data={graphData} />
+      {/* Tabbed content area */}
+      <div className="mt-4">
+        {tabBar}
+        {/* Content below the tab bar has no extra top margin when on overview;
+           other tabs will have their own spacing handled inside. */}
+        {tabContent}
       </div>
 
-      {/* Bottom: Decision panel */}
-      <div className="mt-6">
-        <DecisionPanel fused={analysis.fused} passages={analysis.passages} />
-      </div>
+      {/* Bottom: Decision panel (only show on overview tab) */}
+      {/* Already included in overviewContent above */}
     </div>
   );
 }

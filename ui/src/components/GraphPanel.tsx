@@ -5,6 +5,8 @@ import { Network, ZoomIn, ZoomOut, Maximize2, Info } from "lucide-react";
 
 interface Props {
   data: GraphResponse | null;
+  /** Red accents are reserved for high-risk or escalate tenders. */
+  isDanger?: boolean;
 }
 
 // Projector-grade high contrast color palette
@@ -21,7 +23,7 @@ const HIGHLIGHT_COLOR = "#dc2626"; // bright vibrant red
 const formatMetric = (value?: number) =>
   typeof value === "number" ? value.toFixed(2) : "—";
 
-export default function GraphPanel({ data }: Props) {
+export default function GraphPanel({ data, isDanger = false }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
   const [selectedNodeInfo, setSelectedNodeInfo] = useState<{ id: string; label: string; type: string; flagged: boolean } | null>(null);
@@ -233,14 +235,14 @@ export default function GraphPanel({ data }: Props) {
 
   if (!data || !data.graph?.nodes || data.graph.nodes.length === 0) {
     return (
-      <div className="bg-white rounded-xl shadow-md border-4 border-gray-900 p-6 flex flex-col justify-between">
+      <div className="flex flex-col justify-between rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <div>
-          <h2 className="text-xl font-black text-black mb-4 flex items-center gap-2 uppercase tracking-wide">
-            <Network size={24} className="text-black" />
+          <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-slate-800">
+            <Network size={20} className="text-slate-500" />
             Cartel & Collusion Network Graph
           </h2>
-          <div className="p-8 text-center bg-gray-50 rounded-lg border-2 border-dashed border-gray-400">
-            <p className="text-base font-bold text-gray-800">No graph entities recorded for this tender.</p>
+          <div className="rounded-lg border border-dashed border-gray-300 bg-slate-50 p-8 text-center">
+            <p className="text-sm text-slate-500">No graph entities recorded for this tender.</p>
           </div>
         </div>
       </div>
@@ -252,21 +254,21 @@ export default function GraphPanel({ data }: Props) {
   const gnnSkipped = gnnStatus === "skipped";
 
   return (
-    <div className="bg-white rounded-xl shadow-md border-4 border-gray-900 p-6 text-black flex flex-col justify-between">
+    <div className="flex flex-col justify-between rounded-xl border border-gray-200 bg-white p-6 text-slate-900 shadow-sm">
       <div>
         {/* Header with Title and Graph Controls */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-gray-300 pb-3 mb-4">
-          <h2 className="text-xl font-black text-black flex items-center gap-2 uppercase tracking-wide">
-            <Network size={24} className="text-black" />
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-4">
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-800">
+            <Network size={20} className="text-slate-500" />
             Cartel & Collusion Network Graph
           </h2>
 
-          <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg border-2 border-black">
+          <div className="flex items-center gap-1 rounded-lg border border-gray-200 bg-slate-50 p-1">
             <button
               onClick={handleZoomIn}
               aria-label="Zoom in graph"
               title="Zoom In"
-              className="p-1.5 rounded hover:bg-white text-black font-black focus:outline-hidden focus:ring-2 focus:ring-blue-600 cursor-pointer"
+              className="cursor-pointer rounded-md p-1.5 text-slate-500 transition-colors hover:bg-white hover:text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
             >
               <ZoomIn size={18} />
             </button>
@@ -274,7 +276,7 @@ export default function GraphPanel({ data }: Props) {
               onClick={handleZoomOut}
               aria-label="Zoom out graph"
               title="Zoom Out"
-              className="p-1.5 rounded hover:bg-white text-black font-black focus:outline-hidden focus:ring-2 focus:ring-blue-600 cursor-pointer"
+              className="cursor-pointer rounded-md p-1.5 text-slate-500 transition-colors hover:bg-white hover:text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
             >
               <ZoomOut size={18} />
             </button>
@@ -282,53 +284,65 @@ export default function GraphPanel({ data }: Props) {
               onClick={handleFit}
               aria-label="Reset zoom and fit all elements"
               title="Fit to Screen"
-              className="p-1.5 rounded hover:bg-white text-black font-black focus:outline-hidden focus:ring-2 focus:ring-blue-600 cursor-pointer"
+              className="cursor-pointer rounded-md p-1.5 text-slate-500 transition-colors hover:bg-white hover:text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
             >
               <Maximize2 size={18} />
             </button>
           </div>
         </div>
 
-        {/* Large High-Contrast Legend */}
-        <div className="p-3 bg-gray-100 rounded-lg border-2 border-black mb-4">
-          <span className="text-xs font-black uppercase text-black block mb-2 tracking-wider">
-            Display Legend & Node Classes:
+        {/* Display Legend */}
+        <div className="mb-5 rounded-lg border border-gray-200 bg-slate-50 p-4">
+          <span className="mb-3 block text-xs font-medium text-slate-500">
+            Display Legend & Node Classes
           </span>
-          <div className="flex flex-wrap items-center gap-3 text-xs sm:text-sm font-bold text-black">
+          <div className="flex flex-wrap items-center gap-2.5 text-xs font-medium text-slate-600">
             {Object.entries(NODE_COLORS).map(([type, cfg]) => (
-              <span key={type} className="inline-flex items-center gap-1.5 bg-white px-2.5 py-1 rounded border border-gray-400">
+              <span key={type} className="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-2.5 py-1">
                 <span
-                  className="w-4 h-4 rounded-full border-2 border-black inline-block shrink-0 shadow-2xs"
+                  className="inline-block h-3.5 w-3.5 shrink-0 rounded-full shadow-sm"
                   style={{ backgroundColor: cfg.bg }}
                 />
                 <span className="capitalize">{type}</span>
               </span>
             ))}
-            <span className="inline-flex items-center gap-1.5 bg-white px-2.5 py-1 rounded border border-red-300">
+            <span
+              className={`inline-flex items-center gap-2 rounded-md border px-2.5 py-1 ${
+                isDanger
+                  ? "border-red-200 bg-red-50 text-red-700"
+                  : "border-amber-200 bg-amber-50 text-amber-700"
+              }`}
+            >
               <span
-                className="w-4 h-4 rounded-full border-2 border-black inline-block shrink-0 shadow-2xs"
+                className="inline-block h-3.5 w-3.5 shrink-0 rounded-full shadow-sm"
                 style={{ backgroundColor: FLAGGED_COLOR }}
               />
-              <span className="text-red-950 font-black">Flagged Ring Entity</span>
+              <span className="font-medium">Flagged Ring Entity</span>
             </span>
-            <span className="inline-flex items-center gap-1.5 bg-red-100 px-2.5 py-1 rounded border-2 border-red-700">
+            <span
+              className={`inline-flex items-center gap-2 rounded-md border px-2.5 py-1 ${
+                isDanger
+                  ? "border-red-200 bg-red-50 text-red-700"
+                  : "border-amber-200 bg-amber-50 text-amber-700"
+              }`}
+            >
               <span
-                className="w-4 h-4 rounded-full border-2 border-red-950 inline-block shrink-0"
+                className="inline-block h-3.5 w-3.5 shrink-0 rounded-full shadow-sm"
                 style={{ backgroundColor: HIGHLIGHT_COLOR }}
               />
-              <span className="text-red-950 font-black">Highlighted Cartel Path</span>
+              <span className="font-medium">Highlighted Cartel Path</span>
             </span>
           </div>
         </div>
 
         {/* Model Metrics & GNN Status */}
-        <div className="mb-4 flex flex-wrap items-center gap-2 text-xs sm:text-sm font-bold">
-          <span className="px-2.5 py-1 bg-black text-white rounded border-2 border-black uppercase tracking-wider">
+        <div className="mb-5 flex flex-wrap items-center gap-2 text-xs font-medium">
+          <span className="rounded-md bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
             Model Metrics
           </span>
 
           {metrics?.baseline && (
-            <span className="px-2.5 py-1 bg-white text-black rounded border border-gray-400">
+            <span className="rounded-md border border-gray-200 bg-white px-2.5 py-1 text-slate-600">
               Baseline: PR-AUC{" "}
               <span className="font-mono">{formatMetric(metrics.baseline.pr_auc)}</span>
               {" · "}P@10{" "}
@@ -338,36 +352,36 @@ export default function GraphPanel({ data }: Props) {
 
           {gnnSkipped ? (
             <div
-              className="relative group inline-flex items-center cursor-help"
+              className="group relative inline-flex cursor-help items-center"
               tabIndex={0}
               aria-describedby="gnn-skipped-tooltip"
             >
-              <span className="px-2.5 py-1 bg-amber-100 text-amber-950 rounded border-2 border-amber-600 font-black">
+              <span className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1 font-semibold text-amber-700">
                 GNN: skipped
               </span>
               <div
                 id="gnn-skipped-tooltip"
                 role="tooltip"
-                className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block group-focus-within:block w-56 p-2 text-xs text-white bg-slate-800 rounded shadow-lg z-10 text-center"
+                className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 hidden w-56 -translate-x-1/2 rounded-lg bg-slate-800 p-2 text-center text-xs text-white shadow-lg group-hover:block group-focus-within:block"
               >
                 GNN metrics require a synthetic ring holdout to calculate PR-AUC.
               </div>
             </div>
           ) : gnnStatus === "trained" && metrics?.gnn ? (
-            <span className="px-2.5 py-1 bg-white text-black rounded border border-gray-400">
+            <span className="rounded-md border border-gray-200 bg-white px-2.5 py-1 text-slate-600">
               GNN: PR-AUC{" "}
               <span className="font-mono">{formatMetric(metrics.gnn.pr_auc)}</span>
               {" · "}P@10{" "}
               <span className="font-mono">{formatMetric(metrics.gnn.precision_at_10)}</span>
             </span>
           ) : (
-            <span className="px-2.5 py-1 bg-gray-200 text-gray-800 rounded border border-gray-400">
+            <span className="rounded-md border border-gray-200 bg-slate-100 px-2.5 py-1 text-slate-600">
               GNN: {gnnStatus ?? "unknown"}
             </span>
           )}
 
           {metrics?.note && (
-            <span className="px-2.5 py-1 bg-gray-100 text-gray-700 rounded border border-gray-300 font-mono text-xs">
+            <span className="rounded-md border border-gray-200 bg-slate-50 px-2.5 py-1 font-mono text-xs text-slate-500">
               {metrics.note}
             </span>
           )}
@@ -375,12 +389,18 @@ export default function GraphPanel({ data }: Props) {
 
         {/* Flagged Rings Banner */}
         {data.rings && data.rings.length > 0 && (
-          <div className="mb-4 p-3 bg-red-100 rounded-lg border-2 border-red-800 text-xs sm:text-sm text-red-950 font-bold flex items-start gap-2">
-            <Info size={18} className="text-red-800 shrink-0 mt-0.5" />
+          <div
+            className={`mb-5 flex items-start gap-3 rounded-lg border p-4 text-sm ${
+              isDanger
+                ? "border-red-200 bg-red-50 text-red-700"
+                : "border-amber-200 bg-amber-50 text-amber-700"
+            }`}
+          >
+            <Info size={18} className="mt-0.5 shrink-0" />
             <div>
-              <span className="font-black uppercase">Flagged Cartel Rings Detected: </span>
+              <span className="font-semibold">Flagged Cartel Rings Detected: </span>
               {data.rings.map((r) => (
-                <span key={r.ring_id} className="font-mono bg-white px-2 py-0.5 rounded border border-red-400 mr-2 inline-block my-0.5">
+                <span key={r.ring_id} className="mr-2 my-0.5 inline-block rounded-md border border-gray-200 bg-white px-2 py-1 font-mono text-xs text-slate-700">
                   <strong>{r.ring_id}</strong>: [{r.vendor_ids.join(", ")}] — Link: {r.link_types.join("+")} (Collusion Score: {r.score.toFixed(2)})
                 </span>
               ))}
@@ -390,19 +410,25 @@ export default function GraphPanel({ data }: Props) {
 
         {/* Selected Node Inspector Pill */}
         {selectedNodeInfo && (
-          <div className="mb-3 p-3 bg-amber-50 rounded-lg border-2 border-amber-600 text-sm font-bold text-amber-950 flex items-center justify-between">
+          <div className="mb-4 flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
             <div>
-              <span className="uppercase text-xs font-black bg-amber-600 text-white px-2 py-0.5 rounded mr-2">
+              <span className="mr-2 rounded-full bg-amber-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
                 Selected {selectedNodeInfo.type}
               </span>
               <span className="font-mono">{selectedNodeInfo.id}</span>: {selectedNodeInfo.label}
               {selectedNodeInfo.flagged && (
-                <span className="ml-2 text-xs font-black text-red-700 uppercase">[Flagged Cartel Member]</span>
+                <span
+                  className={`ml-2 text-xs font-semibold ${
+                    isDanger ? "text-red-700" : "text-amber-700"
+                  }`}
+                >
+                  [Flagged Cartel Member]
+                </span>
               )}
             </div>
             <button
               onClick={() => setSelectedNodeInfo(null)}
-              className="text-xs underline text-amber-900 cursor-pointer font-black"
+              className="cursor-pointer text-xs font-medium text-amber-700 underline"
             >
               Clear
             </button>
@@ -415,12 +441,12 @@ export default function GraphPanel({ data }: Props) {
           role="region"
           aria-label="Interactive Cytoscape network graph"
           tabIndex={0}
-          className="w-full min-h-[550px] h-[550px] border-4 border-gray-900 rounded-xl bg-gray-50 shadow-inner focus:outline-hidden focus:ring-4 focus:ring-blue-600"
+          className="h-[550px] min-h-[550px] w-full rounded-xl border border-gray-200 bg-slate-50 shadow-inner focus:outline-hidden focus:ring-2 focus:ring-blue-500"
         />
       </div>
 
-      <div className="mt-3 text-right">
-        <span className="text-xs font-bold text-gray-700">
+      <div className="mt-4 text-right">
+        <span className="text-xs text-slate-500">
           Tip: Click any node to inspect details. Drag or scroll to pan/zoom.
         </span>
       </div>
