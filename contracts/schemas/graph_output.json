@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tenderfender/contracts/graph_output.json",
+  "title": "artifacts/graph/graph_output.json (SoT 8.3)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["vendor_scores", "rings", "paths", "graph", "metrics"],
+  "properties": {
+    "vendor_scores": {
+      "type": "object",
+      "propertyNames": {"pattern": "^V-\\d{3}$"},
+      "additionalProperties": {"type": "number", "minimum": 0, "maximum": 1}
+    },
+    "rings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["ring_id", "vendor_ids", "link_types", "score"],
+        "properties": {
+          "ring_id": {"type": "string", "pattern": "^R-\\d+$"},
+          "vendor_ids": {"type": "array", "items": {"$ref": "#/$defs/vendor_id"}, "minItems": 1, "uniqueItems": true},
+          "link_types": {"type": "array", "items": {"type": "string", "minLength": 1}},
+          "score": {"type": "number", "minimum": 0, "maximum": 1}
+        }
+      }
+    },
+    "paths": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["from", "to", "nodes", "edge_types"],
+        "properties": {
+          "from": {"$ref": "#/$defs/vendor_id"},
+          "to": {"$ref": "#/$defs/vendor_id"},
+          "nodes": {"type": "array", "items": {"$ref": "#/$defs/node_id"}, "minItems": 2},
+          "edge_types": {"type": "array", "items": {"type": "string", "minLength": 1}}
+        }
+      }
+    },
+    "graph": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nodes", "edges"],
+      "properties": {
+        "nodes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "type", "label", "flagged"],
+            "properties": {
+              "id": {"$ref": "#/$defs/node_id"},
+              "type": {"enum": ["vendor", "person", "address", "contact", "buyer", "tender"]},
+              "label": {"type": "string"},
+              "flagged": {"type": "boolean"}
+            }
+          }
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["source", "target", "type"],
+            "properties": {
+              "source": {"$ref": "#/$defs/node_id"},
+              "target": {"$ref": "#/$defs/node_id"},
+              "type": {"type": "string", "minLength": 1}
+            }
+          }
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "required": ["baseline", "gnn", "gnn_status", "note"],
+      "properties": {
+        "baseline": {"$ref": "#/$defs/metric_pair"},
+        "gnn": {"$ref": "#/$defs/metric_pair"},
+        "gnn_status": {"enum": ["trained", "skipped"]},
+        "note": {"type": "string"}
+      }
+    }
+  },
+  "$defs": {
+    "vendor_id": {"type": "string", "pattern": "^V-\\d{3}$"},
+    "node_id": {"type": "string", "pattern": "^(V|P|A|CT|B|T)-\\d{3}$"},
+    "metric_pair": {
+      "type": "object",
+      "required": ["pr_auc", "precision_at_10"],
+      "properties": {
+        "pr_auc": {"type": "number", "minimum": 0, "maximum": 1},
+        "precision_at_10": {"type": "number", "minimum": 0, "maximum": 1}
+      }
+    }
+  }
+}

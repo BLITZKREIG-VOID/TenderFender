@@ -1,0 +1,12 @@
+{
+  "tender_id": "T-003",
+  "formalization_status": "unconfirmed",
+  "atoms": [
+    {"id": "CL2.1", "clause_id": "CL2", "field": "registration_class", "op": "in", "value": ["Class-A", "Class-B", "Class-C"], "source_text": "Contractors registered in Class-A, Class-B or Class-C are eligible to bid."},
+    {"id": "CL3.1", "clause_id": "CL3", "field": "turnover_cr", "op": ">=", "value": 5, "source_text": "The bidder must have an annual turnover of at least ₹5 crore."},
+    {"id": "CL4.1", "clause_id": "CL4", "field": "years_experience", "op": ">=", "value": 3, "source_text": "The bidder must have at least 3 years of experience in building maintenance works."}
+  ],
+  "findings": [],
+  "qualifying_vendors": ["V-001", "V-002", "V-004", "V-006", "V-009", "V-011", "V-013", "V-015"],
+  "vendors_evaluated": 200
+}
