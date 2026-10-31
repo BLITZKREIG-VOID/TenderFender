@@ -2,9 +2,9 @@
 
 Modes (never silently falls back):
   template  deterministic writer, no network. Does not write the cache.
-  llm       Anthropic API writer (needs ANTHROPIC_API_KEY). Writes the cache.
+  llm       OpenRouter writer (needs OPENROUTER_API_KEY; model from DECISION_MODEL). Writes the cache.
   cache     use artifacts/decisions/T-xxx.json only if its input_hash matches, else error.
-  auto      cache hit -> cache; else ANTHROPIC_API_KEY present -> llm; else error.
+  auto      cache hit -> cache; else OPENROUTER_API_KEY present -> llm; else error.
 Tenders with no findings and no rings always use the template (no LLM call, nothing to explain)."""
 
 from __future__ import annotations
@@ -35,12 +35,13 @@ def canonical(obj) -> str:
     return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
-def compute_input_hash(fusion: dict, retrieved: write.Retrieved, retriever_name: str) -> str:
+def compute_input_hash(fusion: dict, retrieved: write.Retrieved, retriever_name: str, model: str) -> str:
     material = {
         "fusion": fusion,
         "retrieved": {k: [[p.passage_id, p.content_hash] for p, _ in hits] for k, hits in sorted(retrieved.items())},
         "prompt_version": write.PROMPT_VERSION,
         "retriever": retriever_name,
+        "model": model,
     }
     return hashlib.sha256(canonical(material).encode("utf-8")).hexdigest()
 
@@ -66,7 +67,7 @@ def _cache_usable(entry: dict | None, input_hash: str) -> bool:
 
 
 def _decide_one(fusion: dict, retrieved: write.Retrieved, input_hash: str, retriever_name: str, *,
-                mode: str, cache_path: Path, placeholder_ids: set[str],
+                mode: str, cache_path: Path, placeholder_ids: set[str], model: str,
                 transport: write.Transport = write.urllib_transport) -> tuple[dict, str]:
     """Returns (text_fields, decision_source)."""
     tid = fusion["tender_id"]
@@ -80,12 +81,12 @@ def _decide_one(fusion: dict, retrieved: write.Retrieved, input_hash: str, retri
     if mode == "auto":
         if _cache_usable(entry, input_hash):
             effective = "cache"
-        elif os.environ.get("ANTHROPIC_API_KEY"):
+        elif os.environ.get("OPENROUTER_API_KEY"):
             effective = "llm"
         else:
             raise DecisionError(
-                f"{tid}: DECISION_MODE=auto found no matching cached decision and ANTHROPIC_API_KEY is not set. "
-                "Set DECISION_MODE=template to use the deterministic template writer, or set ANTHROPIC_API_KEY.")
+                f"{tid}: DECISION_MODE=auto found no matching cached decision and OPENROUTER_API_KEY is not set. "
+                "Set DECISION_MODE=template to use the deterministic template writer, or set OPENROUTER_API_KEY.")
 
     if effective == "template":
         return write.write_template(fusion, retrieved), "template"
@@ -102,7 +103,7 @@ def _decide_one(fusion: dict, retrieved: write.Retrieved, input_hash: str, retri
         return fields, "cache"
 
     if effective == "llm":
-        out = write.write_llm(fusion, retrieved, placeholder_ids, transport=transport)
+        out = write.write_llm(fusion, retrieved, placeholder_ids, model=model, transport=transport)
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         cache_path.write_text(json.dumps({
             "input_hash": input_hash, "decision_source": "llm", "retriever": retriever_name,
@@ -129,6 +130,7 @@ def run(fusion_dir: Path, kb_dir: Path, out_dir: Path, cache_dir: Path, *, mode:
     passages = load_passages(kb_dir)
     placeholder_ids = set() if allow_placeholder else {p.passage_id for p in passages if p.placeholder}
     retriever = make_retriever(retriever_name)
+    model = write.resolve_model()
     out_dir.mkdir(parents=True, exist_ok=True)
 
     written = []
@@ -142,10 +144,10 @@ def run(fusion_dir: Path, kb_dir: Path, out_dir: Path, cache_dir: Path, *, mode:
                                 f"{fusion['risk_level']!r} (expected {DECISION_BY_RISK.get(fusion['risk_level'])!r})")
         retrieved = retrieve(build_queries(fusion["_inputs"]), passages, retriever, top_k=top_k,
                              min_score=min_score, allow_placeholder=allow_placeholder)
-        input_hash = compute_input_hash(fusion, retrieved, retriever.name)
+        input_hash = compute_input_hash(fusion, retrieved, retriever.name, model)
         fields, source = _decide_one(fusion, retrieved, input_hash, retriever.name, mode=mode,
                                      cache_path=cache_dir / f"{tid}.json", placeholder_ids=placeholder_ids,
-                                     transport=transport)
+                                     model=model, transport=transport)
         citations = validate_decision(fields, write.allowed_refs(fusion["_inputs"], retrieved), placeholder_ids,
                                       fusion["decision"])
 

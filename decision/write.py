@@ -1,4 +1,4 @@
-"""Decision text writers: deterministic template and LLM (Anthropic Messages API, stdlib urllib).
+"""Decision text writers: deterministic template and LLM (OpenRouter chat completions, stdlib urllib).
 
 The writers never set risk_level or decision; those are fixed inputs (SoT D8)."""
 
@@ -14,10 +14,12 @@ from typing import Callable
 from decision.retrieve import Passage
 from decision.validate import DecisionValidationError, validate_decision
 
-PROMPT_VERSION = "v1"
-API_URL = "https://api.anthropic.com/v1/messages"
-API_VERSION = "2023-06-01"
-DEFAULT_MODEL = "claude-sonnet-4-5"
+PROMPT_VERSION = "v2-openrouter"
+API_URL = "https://openrouter.ai/api/v1/chat/completions"
+DEFAULT_MODEL = "nvidia/nemotron-3-ultra-550b-a55b:free"
+SEED = 42
+MAX_TOKENS = 4096
+TIMEOUT_SECONDS = 120
 MAX_RETRIES = 2
 TEMPLATE_NOTE = "Template reasoning: generated from a fixed template, not written by the AI model."
 
@@ -135,18 +137,33 @@ def build_user_prompt(fusion: dict, retrieved: Retrieved) -> str:
     return json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True)
 
 
+def resolve_model(model: str | None = None) -> str:
+    return model or os.environ.get("DECISION_MODEL") or DEFAULT_MODEL
+
+
+def _http_error_message(code: int, body: str) -> str:
+    snippet = body[:500]
+    if code == 429:
+        return (f"OpenRouter HTTP 429: rate-limited (free models have tight limits); wait and rerun, "
+                f"no automatic retry is done. {snippet}")
+    if code == 404 and "data policy" in body.lower():
+        return (f"OpenRouter HTTP 404 (data policy): enable the free-model data policy in the OpenRouter "
+                f"privacy settings. {snippet}")
+    return f"OpenRouter HTTP {code}: {snippet}"
+
+
 def urllib_transport(request: dict) -> dict:
     req = urllib.request.Request(request["url"], data=json.dumps(request["body"]).encode("utf-8"),
                                  headers=request["headers"], method="POST")
     try:
-        with urllib.request.urlopen(req, timeout=120) as resp:  # noqa: S310 (fixed https URL)
+        with urllib.request.urlopen(req, timeout=TIMEOUT_SECONDS) as resp:  # noqa: S310 (fixed https URL)
             return json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
-        raise LLMError(f"Anthropic API HTTP {exc.code}: {exc.read().decode('utf-8', 'replace')[:500]}") from exc
+        raise LLMError(_http_error_message(exc.code, exc.read().decode("utf-8", "replace"))) from exc
     except urllib.error.URLError as exc:
-        raise LLMError(f"Anthropic API unreachable: {exc.reason}") from exc
+        raise LLMError(f"OpenRouter unreachable: {exc.reason}") from exc
     except (OSError, http.client.HTTPException, json.JSONDecodeError) as exc:
-        raise LLMError(f"Anthropic API request failed: {type(exc).__name__}: {exc}") from exc
+        raise LLMError(f"OpenRouter request failed: {type(exc).__name__}: {exc}") from exc
 
 
 def _parse_json(text: str) -> dict:
@@ -168,24 +185,39 @@ def write_llm(fusion: dict, retrieved: Retrieved, placeholder_ids: set[str], *,
     """Ask the LLM for reasoning/actions; validate; retry with feedback at most MAX_RETRIES times.
 
     Raises DecisionValidationError if still invalid, LLMError on transport problems."""
-    api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+    api_key = api_key or os.environ.get("OPENROUTER_API_KEY")
     if not api_key:
-        raise LLMError("ANTHROPIC_API_KEY is not set")
-    model = model or os.environ.get("DECISION_MODEL") or DEFAULT_MODEL
+        raise LLMError("OPENROUTER_API_KEY is not set")
+    model = resolve_model(model)
     allowed = allowed_refs(fusion["_inputs"], retrieved)
-    messages = [{"role": "user", "content": build_user_prompt(fusion, retrieved)}]
-    headers = {"x-api-key": api_key, "anthropic-version": API_VERSION, "content-type": "application/json"}
+    messages = [{"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": build_user_prompt(fusion, retrieved)}]
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json",
+               "X-Title": "TenderFender"}
 
     errors: list[str] = []
     for _attempt in range(MAX_RETRIES + 1):
         response = transport({"url": API_URL, "headers": headers, "body": {
-            "model": model, "max_tokens": 2048, "temperature": 0,
-            "system": SYSTEM_PROMPT, "messages": messages}})
+            "model": model, "messages": messages, "temperature": 0, "seed": SEED,
+            "max_tokens": MAX_TOKENS}})
+        if isinstance(response, dict) and response.get("error"):
+            raise LLMError(f"OpenRouter returned an error: {str(response['error'])[:500]}")
         try:
-            text = "".join(b.get("text", "") for b in response["content"] if b.get("type") == "text")
-        except (KeyError, TypeError) as exc:
-            raise LLMError(f"unexpected Anthropic response shape: {str(response)[:300]}") from exc
+            choice = response["choices"][0]
+            text = choice["message"]["content"]
+            finish = choice.get("finish_reason")
+        except (KeyError, IndexError, TypeError, AttributeError) as exc:
+            raise LLMError(f"unexpected OpenRouter response shape: {str(response)[:300]}") from exc
+        if text is None:
+            text = ""
+        if not isinstance(text, str):
+            raise LLMError(f"unexpected OpenRouter response shape: {str(response)[:300]}")
         try:
+            if finish == "length":
+                raise DecisionValidationError([f"model output was truncated (finish_reason=length, "
+                                               f"max_tokens={MAX_TOKENS}); reasoning may have used the budget"])
+            if not text.strip():
+                raise DecisionValidationError(["model returned empty content"])
             fields = _parse_json(text)
             fixed = _actions(fusion)
             extras = fields["recommended_actions"]
