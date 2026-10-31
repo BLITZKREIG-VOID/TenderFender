@@ -1,6 +1,7 @@
 import pytest
 
-from decision.retrieve import (KeywordRetriever, PassageError, build_queries, load_passages, parse_passage, retrieve)
+from decision.retrieve import (DEFAULT_MIN_SCORE, DEFAULT_TOP_K, KeywordRetriever, PassageError, build_queries,
+                               load_passages, parse_passage, retrieve)
 from tests.decision.conftest import make_fusion
 
 
@@ -63,3 +64,11 @@ def test_retrieval_is_deterministic(kb_dir):
     a = retrieve(q, ps, KeywordRetriever(), min_score=0.0, allow_placeholder=True)
     b = retrieve(q, list(reversed(ps)), KeywordRetriever(), min_score=0.0, allow_placeholder=True)
     assert a == b
+
+
+def test_default_cutoffs_use_tuned_values_when_min_score_omitted(kb_dir):
+    assert (DEFAULT_MIN_SCORE, DEFAULT_TOP_K) == ({"embedding": 0.50, "keyword": 0.055}, 4)
+    ps = load_passages(kb_dir)
+    q = build_queries(make_fusion()["_inputs"])
+    res = retrieve(q, ps, KeywordRetriever(), allow_placeholder=True)
+    assert all(s >= DEFAULT_MIN_SCORE["keyword"] for hits in res.values() for _, s in hits)
