@@ -20,7 +20,7 @@ FUSED_DIR  := artifacts/fused
 CACHE_DIR  := artifacts/decisions
 
 .PHONY: setup synth verify-synth rules graph fuse decide pipeline pipeline-mock \
-        validate-contracts validate-artifacts demo-guard evaluate api ui demo test
+        validate-contracts validate-artifacts acceptance acceptance-mock demo-guard evaluate api ui demo test
 
 setup:
 	@test -x $(PY) || { command -v uv >/dev/null 2>&1 && uv venv --python 3.14 .venv || python3.14 -m venv .venv; }
@@ -72,6 +72,14 @@ validate-contracts:
 
 validate-artifacts:
 	PYTHONPATH=. $(PY) scripts/validate_contracts.py --artifacts-only
+
+acceptance:
+	PYTHONPATH=. $(PY) scripts/acceptance.py --rules-dir $(RULES_DIR) --graph $(GRAPH_JSON) \
+	  --fused-dir $(FUSED_DIR) --data-dir $(DATA_DIR) --kb-dir $(KB_DIR)
+
+acceptance-mock:
+	PYTHONPATH=. $(PY) scripts/acceptance.py --rules-dir mocks/rules --graph mocks/graph/graph_output.json \
+	  --fused-dir $(FUSED_DIR) --data-dir contracts/examples/data --kb-dir kb/passages
 evaluate:
 	$(PY) scripts/evaluate.py
 
