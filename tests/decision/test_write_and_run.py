@@ -1,5 +1,7 @@
 import http.client
+import io
 import json
+import urllib.error
 
 import pytest
 
@@ -58,13 +60,21 @@ def test_template_reasoning_starts_with_template_note(kb_dir):
 
 # ---------------------------------------------------------------- LLM with fake transport
 
+def completion(content, finish_reason="stop", **message_extra):
+    return {"choices": [{"finish_reason": finish_reason,
+                         "message": {"role": "assistant", "content": content, **message_extra}}]}
+
+
 class FakeTransport:
-    def __init__(self, texts):
-        self.texts, self.requests = list(texts), []
+    """Items are reply texts (wrapped in a chat-completion body) or ready-made response dicts."""
+
+    def __init__(self, replies):
+        self.replies, self.requests = list(replies), []
 
     def __call__(self, request):
         self.requests.append(request)
-        return {"content": [{"type": "text", "text": self.texts.pop(0)}]}
+        reply = self.replies.pop(0)
+        return reply if isinstance(reply, dict) else completion(reply)
 
 
 def j(reasoning, actions=("Review.",)):
@@ -103,26 +113,86 @@ def test_llm_non_json_counts_as_invalid(kb_dir):
     assert out["reasoning"].startswith("Finding")
 
 
-def test_llm_prompt_contains_only_allowed_material_and_fixed_fields(kb_dir):
+def test_llm_request_shape_and_prompt_contents(kb_dir):
     f = make_fusion()
     r = retrieved_for(f, kb_dir)
     t = FakeTransport([GOOD])
     write.write_llm(f, r, set(), api_key=FAKE_KEY, model="my-model", transport=t)
     req = t.requests[0]
-    assert req["url"] == "https://api.anthropic.com/v1/messages"
-    assert req["headers"]["x-api-key"] == FAKE_KEY and req["body"]["model"] == "my-model"
-    payload = json.loads(req["body"]["messages"][0]["content"])
+    assert req["url"] == "https://openrouter.ai/api/v1/chat/completions"
+    assert req["headers"]["Authorization"] == f"Bearer {FAKE_KEY}" and req["headers"]["X-Title"] == "TenderFender"
+    body = req["body"]
+    assert body["model"] == "my-model" and body["temperature"] == 0 and body["seed"] == 42
+    assert body["max_tokens"] == 4096 and "response_format" not in body and "system" not in body
+    assert [m["role"] for m in body["messages"]] == ["system", "user"]
+    assert body["messages"][0]["content"] == write.SYSTEM_PROMPT and "FIXED" in body["messages"][0]["content"]
+    payload = json.loads(body["messages"][1]["content"])
     assert payload["risk_level"] == "high" and payload["decision"] == "escalate"
     assert set(payload) == {"tender_id", "title", "risk_level", "decision", "fixed_fields_note", "findings", "rings",
                             "retrieved_passages_by_key", "passages"}
-    assert "FIXED" in req["body"]["system"]
+
+
+def test_llm_ignores_reasoning_field(kb_dir):
+    f = make_fusion()
+    t = FakeTransport([completion(GOOD, reasoning="See [KB-555] which proves illegality.")])
+    out = write.write_llm(f, retrieved_for(f, kb_dir), set(), api_key=FAKE_KEY, transport=t)
+    assert "KB-555" not in out["reasoning"]
+
+
+def test_llm_finish_reason_length_is_invalid_and_retried(kb_dir):
+    f = make_fusion()
+    t = FakeTransport([completion(GOOD, finish_reason="length"), GOOD])
+    out = write.write_llm(f, retrieved_for(f, kb_dir), set(), api_key=FAKE_KEY, transport=t)
+    assert len(t.requests) == 2 and out["reasoning"].startswith("Finding")
+    assert "finish_reason=length" in t.requests[1]["body"]["messages"][-1]["content"]
+
+
+@pytest.mark.parametrize("content", ["", "   ", None])
+def test_llm_empty_content_is_invalid_and_retried(kb_dir, content):
+    f = make_fusion()
+    t = FakeTransport([completion(content), GOOD])
+    out = write.write_llm(f, retrieved_for(f, kb_dir), set(), api_key=FAKE_KEY, transport=t)
+    assert len(t.requests) == 2 and out["reasoning"].startswith("Finding")
+    assert "empty content" in t.requests[1]["body"]["messages"][-1]["content"]
+
+
+def test_llm_persistent_length_or_empty_raises_after_retries(kb_dir):
+    f = make_fusion()
+    t = FakeTransport([completion(GOOD, finish_reason="length"), completion(""), completion(GOOD, "length")])
+    with pytest.raises(DecisionValidationError, match="after 2 retries"):
+        write.write_llm(f, retrieved_for(f, kb_dir), set(), api_key=FAKE_KEY, transport=t)
+    assert len(t.requests) == 3
+
+
+def test_llm_200_with_error_body_raises_llmerror(kb_dir):
+    f = make_fusion()
+    t = FakeTransport([{"error": {"code": 502, "message": "upstream provider failed"}}])
+    with pytest.raises(write.LLMError, match="upstream provider failed") as ei:
+        write.write_llm(f, retrieved_for(f, kb_dir), set(), api_key=FAKE_KEY, transport=t)
+    assert FAKE_KEY not in str(ei.value) and len(t.requests) == 1
+
+
+def test_llm_unexpected_response_shape_raises_llmerror(kb_dir):
+    f = make_fusion()
+    with pytest.raises(write.LLMError, match="unexpected OpenRouter response shape"):
+        write.write_llm(f, retrieved_for(f, kb_dir), set(), api_key=FAKE_KEY,
+                        transport=FakeTransport([{"choices": []}]))
 
 
 def test_llm_requires_api_key(kb_dir, monkeypatch):
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     f = make_fusion()
-    with pytest.raises(write.LLMError, match="ANTHROPIC_API_KEY"):
+    with pytest.raises(write.LLMError, match="OPENROUTER_API_KEY"):
         write.write_llm(f, {}, set(), transport=FakeTransport([]))
+
+
+def test_llm_api_key_from_env_goes_only_into_bearer_header(kb_dir, monkeypatch):
+    monkeypatch.setenv("OPENROUTER_API_KEY", FAKE_KEY)
+    f = make_fusion()
+    t = FakeTransport([GOOD])
+    write.write_llm(f, retrieved_for(f, kb_dir), set(), transport=t)
+    assert t.requests[0]["headers"]["Authorization"] == f"Bearer {FAKE_KEY}"
+    assert FAKE_KEY not in json.dumps(t.requests[0]["body"])
 
 
 def test_llm_default_model_from_env(kb_dir, monkeypatch):
@@ -134,14 +204,15 @@ def test_llm_default_model_from_env(kb_dir, monkeypatch):
     monkeypatch.delenv("DECISION_MODEL")
     t = FakeTransport([GOOD])
     write.write_llm(f, retrieved_for(f, kb_dir), set(), api_key=FAKE_KEY, transport=t)
-    assert t.requests[0]["body"]["model"] == "claude-sonnet-4-5"
+    assert t.requests[0]["body"]["model"] == "nvidia/nemotron-3-ultra-550b-a55b:free"
 
 
 # ---------------------------------------------------------------- run: modes, cache, invariants
 
 @pytest.fixture
 def env(tmp_path, kb_dir, monkeypatch):
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.delenv("DECISION_MODEL", raising=False)
     fdir = tmp_path / "fusion"
     fdir.mkdir()
     (fdir / "T-002.json").write_text(json.dumps(make_fusion()))
@@ -187,19 +258,42 @@ def test_cache_mode_without_entry_fails(env):
 
 
 def test_llm_writes_cache_then_cache_hit_and_hash_mismatch(env, monkeypatch):
-    monkeypatch.setenv("ANTHROPIC_API_KEY", FAKE_KEY)
+    monkeypatch.setenv("OPENROUTER_API_KEY", FAKE_KEY)
     t = FakeTransport([GOOD])
     go(env, "llm", transport=t)
     assert read(env, "T-002")["decision_source"] == "llm"
     entry = json.loads((env["cache_dir"] / "T-002.json").read_text())
     assert entry["decision_source"] == "llm" and entry["retriever"] == "keyword" and entry["input_hash"]
+    assert entry["model"] == "nvidia/nemotron-3-ultra-550b-a55b:free"
+    assert FAKE_KEY not in (env["cache_dir"] / "T-002.json").read_text()
 
-    monkeypatch.delenv("ANTHROPIC_API_KEY")
+    monkeypatch.delenv("OPENROUTER_API_KEY")
     go(env, "cache")  # hit
     assert read(env, "T-002")["decision_source"] == "cache"
     go(env, "auto")  # hit via auto without key
     assert read(env, "T-002")["decision_source"] == "cache"
     assert len(t.requests) == 1  # no further LLM calls
+
+
+def test_model_change_makes_cache_stale(env, monkeypatch):
+    monkeypatch.setenv("OPENROUTER_API_KEY", FAKE_KEY)
+    monkeypatch.setenv("DECISION_MODEL", "model-a")
+    go(env, "llm", transport=FakeTransport([GOOD]))
+    assert json.loads((env["cache_dir"] / "T-002.json").read_text())["model"] == "model-a"
+    go(env, "cache")  # same model: hit
+    monkeypatch.setenv("DECISION_MODEL", "model-b")
+    with pytest.raises(drun.DecisionError, match="stale"):
+        go(env, "cache")
+    monkeypatch.delenv("OPENROUTER_API_KEY")
+    with pytest.raises(drun.DecisionError, match="OPENROUTER_API_KEY") as ei:
+        go(env, "auto")
+    assert "DECISION_MODE=template" in str(ei.value)
+
+
+def test_input_change_makes_cache_stale_and_auto_fails_loudly(env, monkeypatch):
+    monkeypatch.setenv("OPENROUTER_API_KEY", FAKE_KEY)
+    go(env, "llm", transport=FakeTransport([GOOD]))
+    monkeypatch.delenv("OPENROUTER_API_KEY")
 
     # change an input -> hash mismatch -> loud failure, never silent regeneration
     fusion = json.loads((env["fusion_dir"] / "T-002.json").read_text())
@@ -212,7 +306,7 @@ def test_llm_writes_cache_then_cache_hit_and_hash_mismatch(env, monkeypatch):
 
 
 def test_tampered_cache_is_revalidated(env, monkeypatch):
-    monkeypatch.setenv("ANTHROPIC_API_KEY", FAKE_KEY)
+    monkeypatch.setenv("OPENROUTER_API_KEY", FAKE_KEY)
     t = FakeTransport([GOOD])
     go(env, "llm", transport=t)
     p = env["cache_dir"] / "T-002.json"
@@ -224,7 +318,7 @@ def test_tampered_cache_is_revalidated(env, monkeypatch):
 
 
 def test_zero_evidence_tender_never_calls_llm(env, monkeypatch):
-    monkeypatch.setenv("ANTHROPIC_API_KEY", FAKE_KEY)
+    monkeypatch.setenv("OPENROUTER_API_KEY", FAKE_KEY)
     (env["fusion_dir"] / "T-002.json").unlink()
     t = FakeTransport([])  # any call would IndexError
     go(env, "llm", transport=t)
@@ -300,11 +394,53 @@ def test_urllib_transport_maps_network_errors_to_llmerror(monkeypatch, exc):
         write.urllib_transport({"url": "https://example.invalid", "headers": {}, "body": {}})
 
 
+class FakeHTTPError(urllib.error.HTTPError):
+    def __init__(self, code, body):
+        super().__init__("https://openrouter.ai", code, "err", {}, io.BytesIO(body.encode()))
+
+
+@pytest.mark.parametrize("code,body,needles", [
+    (429, "slow down", ["429", "rate-limited", "no automatic retry"]),
+    (404, "No endpoints found matching your data policy", ["404", "data policy", "privacy settings"]),
+    (401, "x" * 2000, ["401"]),
+])
+def test_urllib_transport_http_errors_are_clean_llmerrors(monkeypatch, code, body, needles):
+    def boom(*a, **k):
+        raise FakeHTTPError(code, body)
+    monkeypatch.setattr(write.urllib.request, "urlopen", boom)
+    with pytest.raises(write.LLMError) as ei:
+        write.urllib_transport({"url": "https://example.invalid", "headers": {"Authorization": "Bearer " + FAKE_KEY},
+                                "body": {}})
+    msg = str(ei.value)
+    assert all(n in msg for n in needles) and FAKE_KEY not in msg and len(msg) < 700
+
+
+def test_urllib_transport_uses_120s_timeout(monkeypatch):
+    seen = {}
+
+    class Resp:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return b'{"choices": []}'
+
+    def fake_urlopen(req, timeout=None):
+        seen["timeout"] = timeout
+        return Resp()
+    monkeypatch.setattr(write.urllib.request, "urlopen", fake_urlopen)
+    assert write.urllib_transport({"url": "https://example.invalid", "headers": {}, "body": {}}) == {"choices": []}
+    assert seen["timeout"] == 120
+
+
 def test_main_prints_clean_error_exit_2_for_llm_and_decision_errors(env, monkeypatch, capsys):
     argv = ["--fusion-dir", str(env["fusion_dir"]), "--kb-dir", str(env["kb_dir"]),
             "--out-dir", str(env["out_dir"]), "--cache-dir", str(env["cache_dir"]),
             "--mode", "llm", "--retriever", "keyword", "--allow-placeholder", "--min-score", "0"]
-    monkeypatch.setenv("ANTHROPIC_API_KEY", FAKE_KEY)
+    monkeypatch.setenv("OPENROUTER_API_KEY", FAKE_KEY)
 
     def boom(*a, **k):
         raise TimeoutError("timed out")
@@ -328,7 +464,7 @@ def test_run_rejects_bad_or_mismatched_tender_id(env, stem, tid):
 
 
 def test_cache_must_be_json_object(env, monkeypatch):
-    monkeypatch.setenv("ANTHROPIC_API_KEY", FAKE_KEY)
+    monkeypatch.setenv("OPENROUTER_API_KEY", FAKE_KEY)
     env["cache_dir"].mkdir()
     (env["cache_dir"] / "T-002.json").write_text("[1, 2]")
     with pytest.raises(drun.DecisionError, match="must be an object"):
@@ -343,7 +479,7 @@ def test_risk_decision_mismatch_raises(env):
 
 
 def test_cached_contradicting_text_is_rejected_on_load(env, monkeypatch):
-    monkeypatch.setenv("ANTHROPIC_API_KEY", FAKE_KEY)
+    monkeypatch.setenv("OPENROUTER_API_KEY", FAKE_KEY)
     t = FakeTransport([j("Finding [F-1].", ["Ask for the audit file."])])
     go(env, "llm", transport=t)
     p = env["cache_dir"] / "T-002.json"
@@ -352,3 +488,9 @@ def test_cached_contradicting_text_is_rejected_on_load(env, monkeypatch):
     p.write_text(json.dumps(entry))
     with pytest.raises(DecisionValidationError, match="contradicts decision"):
         go(env, "cache")
+
+
+def test_auto_without_key_error_names_key_and_template_mode(env):
+    with pytest.raises(drun.DecisionError) as ei:
+        go(env, "auto")
+    assert "OPENROUTER_API_KEY" in str(ei.value) and "DECISION_MODE=template" in str(ei.value)

@@ -1,8 +1,9 @@
 # TenderFender pipeline (SoT section 10). Override any variable on the command line, e.g.
 #   make pipeline-mock DECISION_MODE=template RETRIEVER=keyword
 PY            ?= .venv/bin/python
-# Announced fallback (SoT 13 D11/15): no ANTHROPIC_API_KEY yet, so the default is the deterministic template writer.
-# Modes: template | llm | cache | auto. `auto` fails loudly if there is neither a matching cache entry nor an API key.
+# Announced fallback (SoT 13 D11/D19): until `artifacts/decisions/` has been generated with an OpenRouter key, the default is the deterministic template writer.
+# Modes: template | llm | cache | auto. `auto` fails loudly if there is neither a matching cache entry nor OPENROUTER_API_KEY.
+# LLM mode reads OPENROUTER_API_KEY from the shell only; the model comes from DECISION_MODEL (default in decision/write.py).
 DECISION_MODE ?= template
 RETRIEVER     ?= embedding
 RULES_DIR     ?= artifacts/rules
