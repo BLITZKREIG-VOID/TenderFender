@@ -95,10 +95,16 @@ export function ErrorCard({
             {error}
           </p>
 
-          <div className="mt-4 p-3 bg-white/90 border-2 border-red-300 rounded-md text-sm font-bold text-gray-900 font-mono">
-            Ensure backend server is running:{" "}
-            <span className="text-red-700">MOCK=1 uvicorn api.main:app --reload</span>
-          </div>
+          {import.meta.env.DEV ? (
+            <div className="mt-4 p-3 bg-white/90 border-2 border-red-300 rounded-md text-sm font-bold text-gray-900 font-mono">
+              Ensure backend server is running:{" "}
+              <span className="text-red-700">MOCK=1 uvicorn api.main:app --reload</span>
+            </div>
+          ) : (
+            <p className="mt-4 text-sm font-bold text-gray-900">
+              The service may be temporarily unavailable. Please retry in a moment.
+            </p>
+          )}
 
           {onRetry && (
             <button

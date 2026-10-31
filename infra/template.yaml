@@ -1,0 +1,151 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  TenderFender: a single Lambda Function URL serving both the FastAPI API and the built React UI.
+  Sized for the AWS Free Tier with optional EventBridge keep-warm schedule.
+
+Parameters:
+  CodeBucket:
+    Type: String
+    Description: S3 bucket holding the Lambda zip (the versioned deploy bucket).
+  CodeKey:
+    Type: String
+    Description: S3 key of the Lambda zip (content-hash named).
+  BudgetEmail:
+    Type: String
+    Default: ""
+    Description: Optional. If set, creates a $1 monthly AWS Budget that emails this address at 80% of actual spend.
+  KeepWarm:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: If true, creates an EventBridge rule that invokes the Lambda every 5 minutes to prevent cold starts.
+
+Conditions:
+  HasBudgetEmail: !Not [!Equals [!Ref BudgetEmail, ""]]
+  IsKeepWarm: !Equals [!Ref KeepWarm, "true"]
+
+Resources:
+  # ── API Lambda ─────────────────────────────────────────────────────────────
+  ApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AWS::StackName}-api"
+      RetentionInDays: 7
+
+  ApiRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: write-own-logs
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub "${ApiLogGroup.Arn}:*"
+
+  ApiFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: ApiLogGroup
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-api"
+      Description: TenderFender FastAPI (Mangum) serving API and static UI behind a Function URL
+      Runtime: python3.14
+      Architectures: [x86_64]
+      Handler: api.lambda_handler.handler
+      MemorySize: 1024
+      Timeout: 15
+      Role: !GetAtt ApiRole.Arn
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref CodeKey
+      Environment:
+        Variables:
+          MOCK: "0"
+
+  ApiFunctionUrl:
+    Type: AWS::Lambda::Url
+    Properties:
+      TargetFunctionArn: !GetAtt ApiFunction.Arn
+      AuthType: NONE
+
+  ApiUrlInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ApiFunction
+      Action: lambda:InvokeFunctionUrl
+      Principal: "*"
+      FunctionUrlAuthType: NONE
+
+  ApiInvokeViaUrlPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ApiFunction
+      Action: lambda:InvokeFunction
+      Principal: "*"
+      InvokedViaFunctionUrl: true
+
+  # ── Keep-Warm (EventBridge) ────────────────────────────────────────────────
+  KeepWarmRule:
+    Type: AWS::Events::Rule
+    Condition: IsKeepWarm
+    Properties:
+      Name: !Sub "${AWS::StackName}-keep-warm"
+      Description: Invokes TenderFender Lambda every 5 minutes to keep it warm
+      ScheduleExpression: "rate(5 minutes)"
+      State: ENABLED
+      Targets:
+        - Id: KeepWarmTarget
+          Arn: !GetAtt ApiFunction.Arn
+
+      
+  KeepWarmPermission:
+    Type: AWS::Lambda::Permission
+    Condition: IsKeepWarm
+    Properties:
+      FunctionName: !Ref ApiFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt KeepWarmRule.Arn
+
+  # ── Cost guard (optional) ──────────────────────────────────────────────────
+  CostBudget:
+    Type: AWS::Budgets::Budget
+    Condition: HasBudgetEmail
+    Properties:
+      Budget:
+        BudgetName: !Sub "${AWS::StackName}-monthly-1usd"
+        BudgetType: COST
+        TimeUnit: MONTHLY
+        BudgetLimit:
+          Amount: 1
+          Unit: USD
+      NotificationsWithSubscribers:
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 80
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref BudgetEmail
+
+Outputs:
+  SiteUrl:
+    Description: Public URL serving UI and API
+    Value: !GetAtt ApiFunctionUrl.FunctionUrl
+  FunctionName:
+    Value: !Ref ApiFunction
+  FunctionUrl:
+    Value: !GetAtt ApiFunctionUrl.FunctionUrl

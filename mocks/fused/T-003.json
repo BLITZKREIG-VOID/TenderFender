@@ -1,15 +1,15 @@
 {
   "tender_id": "T-003",
-  "title": "Annual Road Maintenance Contract – NH-44 Section",
+  "title": "Annual Maintenance of Government Office Buildings",
   "risk_level": "low",
   "rule_finding_ids": [],
   "graph_flag_ring_ids": [],
   "linked_vendors": [],
   "summary": "Eligibility criteria are consistent, reasonable, and non-restrictive. Multiple vendors (7 of 200) qualify. No network-level flags detected. No indicators of collusion or bid rigging.",
   "decision": "clear",
-  "reasoning": "The Z3 solver confirms that the eligibility criteria (Class-A or Class-B, turnover >= 10 cr, experience >= 3 yrs) are satisfiable by 7 of 200 registered vendors, indicating a competitive field. No contradictions or tailoring detected. Graph analysis shows none of the qualifying vendors are members of flagged rings. The tender appears to follow fair procurement practices consistent with GFR Rule 160 (KB-002) requiring 'wide publicity and transparency'.",
+  "reasoning": "The Z3 solver confirms that the eligibility criteria (Class-A or Class-B, turnover >= 10 cr, experience >= 3 yrs) are satisfiable by 7 of 200 registered vendors, indicating a competitive field. No contradictions or tailoring detected. Graph analysis shows none of the qualifying vendors are members of flagged rings. The tender appears consistent with GFR 2017 Rule 144 (KB-009), which asks for a fair, transparent and reasonable procedure that promotes competition.",
   "citations": [
-    { "ref": "KB-002", "kind": "guideline" }
+    { "ref": "KB-009", "kind": "guideline" }
   ],
   "recommended_actions": [
     "No further action required. Proceed with standard evaluation."

@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const client = axios.create({
-  baseURL: "http://localhost:8000/api",
+  baseURL: import.meta.env.VITE_API_BASE ?? "/api",
   headers: {
     "Content-Type": "application/json",
   },
@@ -45,6 +45,9 @@ export interface RulesData {
 export interface Citation {
   ref: string;
   kind: "guideline" | "finding" | "ring";
+  source_title?: string;
+  source_url?: string;
+  section?: string;
 }
 
 export interface LinkedVendor {
@@ -77,7 +80,13 @@ export interface Clause {
 
 export interface Passage {
   passage_id: string;
-  kind: string;
+  source_title?: string;
+  source_url?: string;
+  section?: string;
+  retrieved?: string;
+  topics?: string[];
+  text?: string;
+  missing?: boolean;
 }
 
 export interface AnalysisResponse {
@@ -114,6 +123,18 @@ export interface Ring {
   score: number;
 }
 
+export interface GraphMetricScores {
+  pr_auc?: number;
+  precision_at_10?: number;
+}
+
+export interface GraphMetrics {
+  baseline?: GraphMetricScores;
+  gnn?: GraphMetricScores;
+  gnn_status?: string;
+  note?: string;
+}
+
 export interface GraphResponse {
   graph: {
     nodes: GraphNode[];
@@ -122,7 +143,7 @@ export interface GraphResponse {
   highlighted_paths: HighlightedPath[];
   rings: Ring[];
   vendor_scores: Record<string, number>;
-  metrics: Record<string, unknown>;
+  metrics: GraphMetrics;
 }
 
 export interface ConfirmResponse {

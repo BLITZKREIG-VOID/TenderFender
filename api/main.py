@@ -7,6 +7,10 @@ Set ``MOCK=1`` to read from ``mocks/`` instead of ``artifacts/``.
 
 from __future__ import annotations
 
+import os
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import FileResponse
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -18,7 +22,9 @@ from api.loaders import (
     load_fused,
     load_graph,
     load_rules,
+    load_tender_clauses,
 )
+from api.passages import load_passage
 
 
 # ── App setup ────────────────────────────────────────────────────────────────
@@ -28,6 +34,10 @@ app = FastAPI(
     version="0.1.0",
     description="Read-only API serving tender risk analysis artifacts.",
 )
+
+app.add_middleware(GZipMiddleware, minimum_size=1024)
+
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -117,9 +127,9 @@ def tender_analysis(tender_id: str):
 
     rules = _get_rules(tender_id)
 
-    # Extract clause texts from rules atoms
-    clauses: list[dict[str, Any]] = []
-    if rules and "atoms" in rules:
+    # Clause texts: real clause list from data/tenders/<id>.json, else rules atoms
+    clauses = load_tender_clauses(tender_id)
+    if not clauses and rules and "atoms" in rules:
         seen_clauses: set[str] = set()
         for atom in rules["atoms"]:
             cid = atom["clause_id"]
@@ -130,15 +140,13 @@ def tender_analysis(tender_id: str):
                     "text": atom.get("source_text", ""),
                 })
 
-    # Extract cited passages (placeholder metadata — full passages come from kb/)
+    # Guideline passages cited by the fused decision, read from kb/passages
     passages: list[dict[str, Any]] = []
-    if "citations" in fused:
-        for cite in fused["citations"]:
-            if cite.get("kind") == "guideline":
-                passages.append({
-                    "passage_id": cite["ref"],
-                    "kind": "guideline",
-                })
+    seen_passages: set[str] = set()
+    for cite in fused.get("citations", []):
+        if cite.get("kind") == "guideline" and cite["ref"] not in seen_passages:
+            seen_passages.add(cite["ref"])
+            passages.append(load_passage(cite["ref"]))
 
     return {
         "fused": fused,
@@ -219,3 +227,36 @@ def confirm_atom(tender_id: str, atom_id: str):
         formalization_status="confirmed",
     )
 
+
+# ── Static UI Serving ────────────────────────────────────────────────────────
+ui_dist_dir = os.environ.get("UI_DIST", os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "ui_dist")))
+if os.path.isdir(ui_dist_dir):
+    @app.get("/assets/{file_path:path}")
+    def serve_assets(file_path: str):
+        full_path = os.path.join(ui_dist_dir, "assets", file_path)
+        if os.path.isfile(full_path):
+            return FileResponse(full_path, headers={"Cache-Control": "public, max-age=31536000, immutable"})
+        raise HTTPException(status_code=404, detail="Asset not found")
+
+    @app.get("/{file_path:path}")
+    def serve_ui(file_path: str):
+        if file_path.startswith("api/") or file_path == "api":
+            raise HTTPException(status_code=404, detail="Not found")
+        
+        target = os.path.join(ui_dist_dir, file_path)
+        if file_path and os.path.isfile(target):
+            return FileResponse(target, headers={"Cache-Control": "no-cache"})
+        
+        if not file_path or "." not in file_path:
+            index_path = os.path.join(ui_dist_dir, "index.html")
+            if os.path.isfile(index_path):
+                return FileResponse(index_path, headers={"Cache-Control": "no-cache"})
+        
+        raise HTTPException(status_code=404, detail="Not found")
+
+    @app.get("/")
+    def serve_root():
+        index_path = os.path.join(ui_dist_dir, "index.html")
+        if os.path.isfile(index_path):
+            return FileResponse(index_path, headers={"Cache-Control": "no-cache"})
+        raise HTTPException(status_code=404, detail="Not found")

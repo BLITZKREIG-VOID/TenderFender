@@ -1,0 +1,63 @@
+{
+  "input_hash": "114a8f1f5318704b52694ba00cd7daed1c31bd6dd4bd9aa76637d68abd3e2559",
+  "decision_source": "llm",
+  "retriever": "embedding",
+  "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+  "reasoning": "The analysis identifies two primary risk indicators. First, the eligibility criteria (Class-A registration, turnover ≥ ₹100 crore, experience ≥ 15 years) are satisfied by only one of 200 vendors (V-047), indicating tailored eligibility criteria [F-1]. This raises concerns about proportionality: Directive 2014/24/EU requires that selection criteria be appropriate, related and proportionate to the contract subject-matter [KB-002]. The General Financial Rules further state that bidding documents should be self-contained and comprehensive, with eligibility criteria covering experience, turnover and technical capability [KB-012]. The Manual for Procurement of Works recommends turnover thresholds based on a multiplier (2×, not less than 1.5× for large contracts) of projected annual expenditure [KB-015] and experience criteria based on similar works completed in the last seven years [KB-016]; the current 15-year experience and ₹100 crore turnover requirements may not align with these benchmarks. Second, a vendor ring links V-045, V-046 and V-047 through shared address and shared director (score 0.7) [R-1], suggesting possible connections between the sole qualifying vendor and other market participants. No guideline passage in the knowledge base was retrieved in support of ring R-1.",
+  "recommended_actions": [
+    "Escalate this tender to the competent vigilance authority for human examination before any award.",
+    "Review the relationships between the linked vendors (V-047) and the other members of their flagged rings.",
+    "Hold the tender evaluation until the human reviewer has recorded a conclusion.",
+    "Review eligibility criteria for proportionality and alignment with procurement guidelines",
+    "Investigate vendor relationships in ring R-1 for potential collusion",
+    "Consider revising criteria to ensure broader competition",
+    "Assess whether the turnover and experience thresholds are justified by the contract's scale and complexity"
+  ],
+  "citations": [
+    {
+      "ref": "KB-002",
+      "kind": "guideline"
+    },
+    {
+      "ref": "KB-012",
+      "kind": "guideline"
+    },
+    {
+      "ref": "KB-015",
+      "kind": "guideline"
+    },
+    {
+      "ref": "KB-016",
+      "kind": "guideline"
+    },
+    {
+      "ref": "F-1",
+      "kind": "finding"
+    },
+    {
+      "ref": "R-1",
+      "kind": "ring"
+    }
+  ],
+  "retrieved": {
+    "F-1": [
+      {
+        "passage_id": "KB-012",
+        "score": 0.631354
+      },
+      {
+        "passage_id": "KB-016",
+        "score": 0.615126
+      },
+      {
+        "passage_id": "KB-002",
+        "score": 0.588448
+      },
+      {
+        "passage_id": "KB-015",
+        "score": 0.586793
+      }
+    ],
+    "R-1": []
+  }
+}

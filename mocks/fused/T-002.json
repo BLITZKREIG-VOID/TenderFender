@@ -1,6 +1,6 @@
 {
   "tender_id": "T-002",
-  "title": "Smart City Infrastructure – Phase II, Bengaluru",
+  "title": "Construction of an Annex Building at the District Hospital",
   "risk_level": "high",
   "rule_finding_ids": ["F-1"],
   "graph_flag_ring_ids": ["R-1"],
@@ -14,9 +14,10 @@
   ],
   "summary": "Tailored eligibility criteria allow exactly one vendor (V-047) to qualify. V-047 is a member of flagged ring R-1 (shared director P-010 and shared address A-007 with V-045 and V-046). High risk of bid rigging.",
   "decision": "escalate",
-  "reasoning": "The Z3 solver confirms that the eligibility criteria (Class-A, turnover >= 100 cr, experience >= 15 yrs) are satisfiable by exactly one of 200 registered vendors: V-047 (Apex Constructions Ltd). Graph analysis reveals V-047 shares director Rajesh Mehta (P-010) and registered address 42 MG Road, Bengaluru (A-007) with V-045 and V-046, forming ring R-1 with a collusion score of 0.91. Per CVC Circular 03/01/2012 (KB-004), 'where the conditions of contract appear tailored to suit a particular firm, the matter should be examined by the CVO'. The convergence of tailored criteria and network collusion indicators warrants immediate escalation.",
+  "reasoning": "The Z3 solver confirms that the eligibility criteria (CL2 Class-A, CL3 turnover >= 100 cr, CL4 experience >= 15 yrs) are satisfiable by exactly one of 200 registered vendors: V-047 (Apex Constructions Ltd). Graph analysis reveals V-047 shares director Rajesh Mehta (P-010) and registered address 42 MG Road, Bengaluru (A-007) with V-045 and V-046, forming ring R-1 with a collusion score of 0.91. The Manual for Procurement of Works (KB-014, Para 3.9.1 (4)) says qualification criteria should be unrestrictive enough not to leave out even one capable contractor and must consider the adequacy of competition; GFR 2017 Rule 175 (KB-013) lists collusion and bid rigging as breaches of the code of integrity. The convergence of tailored criteria and network collusion indicators warrants immediate escalation.",
   "citations": [
-    { "ref": "KB-004", "kind": "guideline" },
+    { "ref": "KB-014", "kind": "guideline" },
+    { "ref": "KB-013", "kind": "guideline" },
     { "ref": "F-1", "kind": "finding" },
     { "ref": "R-1", "kind": "ring" }
   ],

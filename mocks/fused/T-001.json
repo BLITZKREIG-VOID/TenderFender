@@ -1,15 +1,15 @@
 {
   "tender_id": "T-001",
-  "title": "Construction of District Hospital Wing-B, Lucknow",
+  "title": "Supply, Installation and Commissioning of Water Treatment Equipment at the Municipal Water Works",
   "risk_level": "medium",
   "rule_finding_ids": ["F-1"],
   "graph_flag_ring_ids": [],
   "linked_vendors": [],
   "summary": "Contradictory eligibility clauses detected: turnover must be both >= 50 cr (CL2) and <= 10 cr (CL5). No vendor can satisfy both requirements simultaneously. No network-level flags found for this tender.",
   "decision": "review",
-  "reasoning": "The Z3 solver proves that clauses CL2 and CL5 are mutually exclusive, making it impossible for any vendor to qualify. Per GFR Rule 173 (KB-001), eligibility criteria must be 'fair, reasonable and non-restrictive'. A contradictory set of criteria effectively bars all participation, which may indicate a drafting error or an intent to cancel and re-tender to a preferred party. Recommend manual review of clause origins and amendment history.",
+  "reasoning": "The Z3 solver proves that clauses CL2 (turnover of at least ₹50 crore) and CL5 (turnover not exceeding ₹10 crore) are mutually exclusive, making it impossible for any vendor to qualify. GFR 2017 Rule 173 (KB-012) states that the bidding document should be self-contained and comprehensive without any ambiguities; contradictory eligibility criteria are the opposite of that. A contradictory set of criteria effectively bars all participation, which may indicate a drafting error or an intent to cancel and re-tender to a preferred party. Recommend manual review of clause origins and amendment history.",
   "citations": [
-    { "ref": "KB-001", "kind": "guideline" },
+    { "ref": "KB-012", "kind": "guideline" },
     { "ref": "F-1", "kind": "finding" }
   ],
   "recommended_actions": [

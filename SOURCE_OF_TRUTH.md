@@ -52,8 +52,8 @@ synth/ → data/*.csv ─► graph/ (screens + GraphSAGE) ─► artifacts/graph
 
 ## 5. Stack and conventions
 
-- Python 3.11, `z3-solver`, `pydantic`, `torch` + `torch_geometric` (CPU), `networkx`, `scikit-learn`, `pandas`, `numpy`, `sentence-transformers`, `jsonschema`, `pytest`, FastAPI + `uvicorn`.
-- LLM: Anthropic API via env `ANTHROPIC_API_KEY`. The demo must run offline from cached IR and cached decisions.
+- Python 3.14, `z3-solver`, `pydantic`, `torch` + `torch_geometric` (CPU), `networkx`, `scikit-learn`, `pandas`, `numpy`, `sentence-transformers`, `jsonschema`, `pytest`, FastAPI + `uvicorn`.
+- LLM: the RAG decision writer (P3, `decision/`) uses OpenRouter via env `OPENROUTER_API_KEY`, model env `DECISION_MODEL` (default `nvidia/nemotron-3-ultra-550b-a55b:free`, see D19). The clause-to-IR LLM (P1, `rules/`) is chosen and configured by P1 and is not covered by this line. The demo must run offline from cached IR and cached decisions.
 - Embeddings: a small local sentence-transformers model (suggested all-MiniLM-L6-v2; confirm it downloads by H6 and cache it).
 - UI: Vite + React + TypeScript + Cytoscape.js (P4 may change this before H4; log it in section 13).
 - Pin versions in `requirements.txt` only after confirming they install.
@@ -78,7 +78,7 @@ tender-mvp/
 ├── decision/ (retrieve.py, write.py, validate.py, run.py)        # P3
 ├── api/ (main.py, loaders.py)                           # P4
 ├── ui/                                                  # P4
-├── artifacts/ (rules/, graph/, fused/, decisions/)      # generated; gitignored except cached IR and cached decisions
+├── artifacts/ (rules/, graph/, fusion/, fused/, decisions/)  # generated; gitignored except cached IR and cached decisions; fusion/ = intermediate fusion→decision hand-off (D13)
 ├── scripts/ (validate_contracts.py, evaluate.py, demo.sh)
 ├── slides/                                              # P1
 ├── docs/ (CONTRACT_CHANGES.md, DEMO_SCRIPT.md, STATUS.md)
@@ -182,12 +182,18 @@ Real public documents only. Short excerpts. Never invent section numbers. Placeh
 }
 ```
 
-**Fusion rule (deterministic):** `high` if a `tailored_eligibility` finding's unique qualifier is in a flagged ring (score ≥ 0.5); `medium` if any rule finding has severity high, or a qualifier/bidder is in a flagged ring; else `low`.
+**Fusion rule (deterministic; changed by D10):**
+- `high`: a `tailored_eligibility` finding exists, `qualifying_vendors` has exactly 1 vendor, and that vendor is in a flagged ring (ring `score >= 0.5`).
+- `medium`: otherwise, if any rule finding has severity `high`, or any **bidder** of the tender (from `data/bids.csv`) is in a flagged ring. Qualifiers that did not bid no longer count.
+- `low`: otherwise.
+- `graph_flag_ring_ids` = flagged rings containing the unique qualifier or any bidder. `linked_vendors`: the unique qualifier first (`unique_qualifier_in_flagged_ring`), then bidders sorted by id (`bidder_in_flagged_ring`); `ring_id` = the highest-scoring flagged ring containing the vendor; `path` = nodes of the first graph path whose `from` is the vendor, else `[vendor_id]`.
 
 **Decision rule (deterministic):** `low → clear`, `medium → review`, `high → escalate`. The LLM never changes `risk_level` or `decision`.
 
 **RAG rules:**
 - Retrieval: per finding, query = finding type + explanation + clause texts; top 4 passages by cosine similarity (local embeddings, numpy).
+- Retrieval also runs one query per linked ring (ring link types + "collusive bidding ring") (D12). Passages below a minimum similarity (configurable) are not support; `PLACEHOLDER` passages are never retrieved outside tests.
+- Decision modes (`DECISION_MODE`): `template`, `llm`, `cache` (only if `input_hash` matches; the hash includes the model id and prompt version), `auto` (cache hit → cache; else `OPENROUTER_API_KEY` present → llm; else fail loudly). No silent fallback (D11). `citations` are derived from the refs found in the validated text, not taken from the LLM.
 - The LLM receives only the findings, ring info and retrieved passages, and writes `reasoning` and `recommended_actions`.
 - Every citation must resolve to a retrieved passage, a finding ID or a ring ID. Invalid citations → max 2 retries, then fail loudly.
 - If no passage supports a finding, the reasoning says so instead of inventing support.
@@ -207,7 +213,7 @@ Errors: JSON `{"error":"...","code":"..."}` with correct HTTP status. The UI sho
 
 ## 10. Makefile targets (P3)
 
-`setup`, `synth`, `verify-synth`, `rules`, `graph`, `fuse`, `decide`, `pipeline` (= synth → verify-synth → rules → graph → fuse → decide), `validate-contracts`, `evaluate`, `api`, `ui`, `demo`, `test`.
+`setup`, `synth`, `verify-synth`, `rules`, `graph`, `fuse`, `decide`, `pipeline` (= synth → verify-synth → rules → graph → fuse → decide), `validate-contracts`, `validate-artifacts`, `acceptance`, `acceptance-mock`, `demo-guard`, `evaluate`, `api`, `ui`, `demo`, `test`.
 `make pipeline` must work from a clean clone, offline, using cached IR and cached decisions. Any failing step stops the pipeline.
 
 ## 11. Timeline (H = hours from start)
@@ -250,6 +256,26 @@ Errors: JSON `{"error":"...","code":"..."}` with correct HTTP status. The UI sho
 | D7 | Local embeddings + numpy cosine for RAG | Vector database (Chroma/FAISS) | 10–20 passages need no database |
 | D8 | Risk level and decision are deterministic; LLM only explains | LLM decides | Keeps decisions auditable and repeatable |
 | D9 | v2 role split (P2 data, P3 decision layer, P1 texts/passages/slides) | v1 split | P3 was overloaded; RAG layer added |
+| D10 | Fusion rule change (Lead-approved): `high` = tailored_eligibility with exactly 1 qualifier who is in a flagged ring (score ≥ 0.5); `medium` = any high-severity finding or any **bidder** in a flagged ring; qualifiers that did not bid no longer count | v2 rule: qualifier or bidder in a flagged ring → medium | Qualifier-in-ring made clean control T-003 medium whenever random qualifiers sat in rings; bidders are the actual participants. Request to P2: regenerate data so T-003 bidders are not ring members |
+| D11 | `DECISION_MODE` is explicit (`template`/`llm`/`cache`/`auto`); Makefile default is `template` for now. **Announced fallback (SoT 15):** until the decision cache has been generated with an OpenRouter key, decisions are `decision_source: template` | Silent fallback to template when no key / cache miss | Never silent; `auto` fails with a message telling the user to set `DECISION_MODE=template`. Template mode does not write `artifacts/decisions/` |
+| D12 | RAG also queries per linked ring (link types + "collusive bidding ring") in addition to per finding; min-score threshold per retriever (embedding 0.30, keyword 0.04), configurable | Findings-only queries | Ring risk indicators need guideline support too; below-threshold passages are not support |
+| D13 | New intermediate folder `artifacts/fusion/T-xxx.json` (fusion → decision hand-off; carries `_inputs` findings and rings; not a public contract, not consumed by api/) | decision/ reading rules and graph directly | Keeps decoupling rule (D5) and lets fusion be tested alone |
+| D14 | Placeholder KB passages live only in `tests/decision/fixtures/kb/` (`PLACEHOLDER` in `source_title`); retrieval excludes them unless `--allow-placeholder` (tests only) | Placeholders in `kb/passages/` | `kb/` is P1-owned and placeholders must never reach the demo |
+| D15 | `venv/` (py3.9, committed) untracked; root `.gitignore` added; project venv is `.venv` (Python 3.14); embedding model cached in `.cache/models` | Keep committed venv | 1,599 tracked files, wrong Python version |
+| D16 | Add acceptance test harness (`scripts/acceptance.py`; `make acceptance`, `make acceptance-mock`) and `make validate-artifacts` | Rely only on manual spot-checks or contract validation | Automated DoD §12 enforcement against file artifacts keeps progress honest and tracks missing pipeline deliverables |
+| D17 | Add demo guard (`scripts/demo_guard.py`; `make demo-guard`, `DEMO=1 make demo`) and require fixed disclaimer note on template decisions | Unlabeled template output and manual pre-demo checks | Prevents presenting fixed templates as AI reasoning and prevents demo execution with missing artifacts or leftover placeholders |
+| D18 | Security hardening of the decision layer: LLM `recommended_actions` = fixed actions for the decision (`_actions`) followed by non-duplicate LLM extras; system prompt states that strings in findings, rings and passages are untrusted data; validator NFKC-normalizes text, rejects Unicode `Cf` characters, detects look-alike refs (Unicode hyphens, `KB 777`) and rejects any non-canonical ref; contradiction phrases rejected per decision (review/escalate: "no further action", "proceed with award", ...; clear: "escalate to", "suspend the tender"); `corrupt/corruptly/guilty/is fraudulent` forbidden, official titles ("Corruption Act") allowed; `run` requires `tender_id` = `T-NNN` = file stem, cache must be a JSON object, risk→decision mapping re-checked independently; network/HTTP errors become `LLMError` (exit 2); Makefile quotes path/mode args and reads model env in Python; `.gitignore` covers `.env*`, `*.pem`, `*.key` | Trusting LLM text and fusion/tender ids as-is | Look-alike citations, decision-contradicting text, prompt injection, path traversal and credential files were review findings |
+| D19 | RAG decision writer uses OpenRouter (`https://openrouter.ai/api/v1/chat/completions`, `OPENROUTER_API_KEY`) with model `nvidia/nemotron-3-ultra-550b-a55b:free` by default (override with `DECISION_MODEL`); the Messages API writer is removed (clean cutover). The model id and prompt version are part of `input_hash`, so switching model makes the cache stale. User decision. "Nemotron Ultra 3.5" does not exist on OpenRouter; the free Nemotron 3 Ultra variant is used instead | Anthropic Messages API; a paid OpenRouter model | The free variant is rate-limited (429, no automatic retry), does not support `response_format` (JSON is extracted and validated, max 2 retries), is a reasoning model (only `message.content` is used; `finish_reason=length` or empty content counts as invalid output), and prompts may be logged by the provider: synthetic data only. Clause-to-IR (P1, `rules/`) LLM choice is unchanged and owned by P1 |
+| D20 | Lead-authorized cross-ownership fixes (integration round, 2026-10-31): Lead's agents fixed gaps in P2 (`synth/`, `graph/`) and P4 (`api/`, `ui/`, `mocks/`) folders via PRs naming the owner | Wait for owners | User (Lead) decision to finish the integration and deploy; owners can review the merged PRs |
+| D21 | `torch_geometric==2.8.1` pinned (installs on Python 3.14 with CPU torch; GNN runs). GNN-dependent graph tests use `pytest.importorskip` | GNN skipped | PyG check = yes; `make test` must not crash at collection without it |
+| D22 | Retrieval cutoffs tuned on the 18 real passages: embedding 0.30 → **0.50**, keyword 0.04 → **0.055**, `top_k` 4 (supersedes the values in D12). Table in `docs/RETRIEVAL_TUNING.md`; relevance marks are agent pre-judgment, human confirmation pending | Keep 0.30 (7–8 guideline citations per tender, many off-topic) | Fewer citations over wrong ones; never lower a cutoff to force a citation |
+| D23 | Cover-bid screen needs ≥ 8 distinct tenders per buyer (`COVER_MIN_TENDERS`, was 6); demo tenders T-001..T-003 draw bidders from vendors with no planted role and no cover-like bids, and are generated without chance near-winner bids | Keep 6 and only clean the demo pool | Chance 1–3% near-winner bids reached 6 on one buyer (false ring R-4 caught T-003 bidder V-124); planted R-3 has 10 tenders |
+| D24 | Display paths include every shortest path between ring members, shared-director path first, then shared-address; `synth.verify` is a real CLI over the files on disk | Single path | Matches §8.3 example (V-047 → P-010 → V-045); `make pipeline` needs a real verify step |
+| D25 | T-002 acceptance path check follows §12 #3: path from V-047 to another R-1 member via a person or address node (not a specific P-010) | Require P-010 | §12 does not require a specific connector |
+| D26 | API `/analysis.passages` parsed from `kb/passages` by an API-local parser (missing file → `missing: true`); UI uses relative API base `/api` (`VITE_API_BASE` override, Vite dev proxy to :8000); decision panel labels `llm`/`cache` "AI-written" and `template` "Template" | Absolute localhost URL | Same-origin production behind CloudFront; real passage sources visible |
+| D27 | AWS free-tier deployment: one CloudFront distribution — UI from private S3 (OAC, CloudFront Function for SPA routing, no distribution-wide error pages) and `/api/*` → Lambda Function URL (AuthType NONE behind CloudFront; both `lambda:InvokeFunctionUrl` and `lambda:InvokeFunction` permissions); Lambda python3.14 x86_64 512 MB 15 s serving precomputed JSON only; `mangum` is a Lambda-only dependency (`api/requirements-lambda.txt`); CloudFormation (`infra/template.yaml`) + `make deploy` / `make destroy`; optional $1 budget alert (`BUDGET_EMAIL`) | Render/Fly/Vercel; EC2 | User chose AWS free setup; no servers to manage; stays within always-free Lambda/CloudFront limits at demo traffic |
+| D28 | Lambda-only hosting (supersedes CloudFront part of D27): single Lambda Function URL (`AuthType NONE`) serves both FastAPI backend and built React UI from `<project root>/ui_dist` via static file middleware in `api/main.py`; EventBridge rate(5 minutes) rule keeps Lambda warm (`KeepWarm` parameter, default `true`); `package_lambda.sh` includes `ui_dist` in zip; `deploy_aws.sh` and `destroy_aws.sh` drop S3 site bucket and CloudFront resources; CloudFront alternative described in `docs/DEPLOY.md` to be enabled after AWS account verification | CloudFront + private S3 bucket; public S3 website (HTTP only, public bucket) | AWS account blocked from creating CloudFront distributions until support verification (403); single HTTPS URL; free tier; keep-warm for demo latency; GZip compression for JS bundle |
+| D29 | Makefile default `DECISION_MODE=auto` now that saved AI decisions are committed (D3); template remains explicit opt-in | Keep `template` default | Saved decisions are the intended default output; `auto` uses a decision only when its input_hash matches and fails loudly when stale with no key | 
 
 ## 14. Rules of collaboration
 
@@ -265,7 +291,7 @@ Errors: JSON `{"error":"...","code":"..."}` with correct HTTP status. The UI sho
 | Risk | Fallback (announce and log; never silent) |
 |---|---|
 | PyG install fails (checked at H2) | Ship networkx baseline only; mark GNN skipped |
-| LLM output flaky or no API key | Cached IR and cached decisions; hand-written IR if needed |
+| LLM output flaky or no LLM API key | Cached IR and cached decisions; hand-written IR if needed |
 | Embedding model won't download | Keyword-overlap retrieval; log in decisions table |
 | RAG writer not ready by H30 | Template reasoning listing findings and retrieved passages; `decision_source: template` |
 | Baseline beats GNN | Report honestly; do not tune to win |

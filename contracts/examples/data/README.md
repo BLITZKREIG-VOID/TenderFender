@@ -1,0 +1,1 @@
+Fixture bids/tenders used by `make pipeline-mock` (fusion `--data-dir`). Bidders are deliberately NOT members of rings R-1/R-2 in `mocks/graph/graph_output.json`, so the mock run reproduces the planted scenarios (T-001 review, T-002 escalate, T-003 clear). Real `data/bids.csv` currently differs: see `docs/STATUS.md`.

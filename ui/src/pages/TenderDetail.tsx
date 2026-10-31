@@ -6,7 +6,8 @@ import RiskCard from "../components/RiskCard";
 import ClausePanel from "../components/ClausePanel";
 import GraphPanel from "../components/GraphPanel";
 import DecisionPanel from "../components/DecisionPanel";
-import { LoadingState, ErrorCard } from "../components/UIStates";
+import { ErrorCard } from "../components/UIStates";
+import { Skeleton, PanelSkeleton } from "../components/Skeleton";
 import { ArrowLeft, RefreshCw, FileText } from "lucide-react";
 
 export default function TenderDetail() {
@@ -58,10 +59,29 @@ export default function TenderDetail() {
 
   if (loading) {
     return (
-      <LoadingState
-        message={`Analyzing Tender ${id || ""}...`}
-        submessage="Synthesizing formal logic proofs, checking vendor cartel networks, and compiling RAG citations."
-      />
+      <div
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
+        className="space-y-6"
+      >
+        <span className="sr-only">Loading tender analysis for {id}...</span>
+
+        <div className="flex flex-wrap items-center justify-between gap-4 pb-2 border-b-2 border-gray-300">
+          <Skeleton className="h-10 w-56" />
+          <Skeleton className="h-10 w-40" />
+        </div>
+
+        <PanelSkeleton />
+        <PanelSkeleton />
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <PanelSkeleton />
+          <PanelSkeleton />
+        </div>
+
+        <PanelSkeleton />
+      </div>
     );
   }
 
@@ -149,7 +169,7 @@ export default function TenderDetail() {
 
       {/* Bottom: Decision panel */}
       <div className="mt-6">
-        <DecisionPanel fused={analysis.fused} />
+        <DecisionPanel fused={analysis.fused} passages={analysis.passages} />
       </div>
     </div>
   );

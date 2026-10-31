@@ -1,0 +1,17 @@
+{
+  "tender_id": "T-002",
+  "title": "Construction of an Annex Building at the District Hospital",
+  "risk_level": "high",
+  "rule_finding_ids": ["F-1"],
+  "graph_flag_ring_ids": ["R-1"],
+  "linked_vendors": [
+    {"vendor_id": "V-047", "reason": "unique_qualifier_in_flagged_ring", "ring_id": "R-1", "path": ["V-047", "P-010", "V-045"]}
+  ],
+  "summary": "Risk indicators for T-002: 1 rule finding (F-1: tailored_eligibility); the unique qualifier V-047 is in flagged ring R-1. Risk level: high.",
+  "decision": "escalate",
+  "reasoning": "Finding [F-1] shows that exactly one vendor, V-047, meets the formalized eligibility criteria (CL2, CL3, CL4). Ring [R-1] groups V-047 with V-045 and V-046 through shared directors and addresses. Supporting guideline: [KB-004] (tailored conditions should be examined by the vigilance officer). The combination is a risk indicator that warrants human escalation.",
+  "citations": [{"ref": "KB-004", "kind": "guideline"}, {"ref": "F-1", "kind": "finding"}, {"ref": "R-1", "kind": "ring"}],
+  "recommended_actions": ["Escalate the tender to the Chief Vigilance Officer for human examination of the eligibility criteria.", "Review relationships between V-047 and the other members of ring R-1."],
+  "decision_source": "template",
+  "disclaimer": "Risk indicators only; not a finding of wrongdoing. Recommendation requires human review."
+}

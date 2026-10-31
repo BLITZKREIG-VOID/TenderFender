@@ -1,0 +1,301 @@
+tender_id,buyer_id,title,estimated_value_cr,bid_days,open_date
+T-001,B-002,"Road Construction Contract – Phase 1, Contract 1",168.85,79,2024-01-01
+T-002,B-003,"Water Treatment Plant Upgrade – Phase 1, Contract 2",266.64,86,2024-01-04
+T-003,B-004,"Smart City Infrastructure – Phase 1, Contract 3",150.6,16,2024-01-07
+T-004,B-001,"Municipal Building Renovation – Phase 1, Contract 4",184.81,28,2024-01-10
+T-005,B-001,"Solar Power Installation – Phase 1, Contract 5",489.97,88,2024-01-13
+T-006,B-001,"Drainage Network Expansion – Phase 1, Contract 6",154.53,17,2024-01-16
+T-007,B-001,"Bridge Repair and Maintenance – Phase 1, Contract 7",298.86,47,2024-01-19
+T-008,B-001,"Hospital Wing Construction – Phase 1, Contract 8",483.57,88,2024-01-22
+T-009,B-001,"IT Infrastructure Modernisation – Phase 1, Contract 9",289.24,20,2024-01-25
+T-010,B-001,"Public Transport Fleet Upgrade – Phase 1, Contract 10",292.18,35,2024-01-28
+T-011,B-001,"Airport Terminal Extension – Phase 1, Contract 11",262.59,62,2024-01-31
+T-012,B-001,"Port Logistics Facility – Phase 1, Contract 12",74.74,45,2024-02-03
+T-013,B-001,"Railway Station Development – Phase 1, Contract 13",16.75,28,2024-02-06
+T-014,B-001,"Industrial Zone Development – Phase 1, Contract 14",96.2,70,2024-02-09
+T-015,B-001,"Irrigation Canal Restoration – Phase 1, Contract 15",157.53,33,2024-02-12
+T-016,B-002,"School Building Construction – Phase 1, Contract 16",207.07,40,2024-02-15
+T-017,B-002,"Waste Management System – Phase 1, Contract 17",205.78,74,2024-02-18
+T-018,B-002,"Flyover Construction – Phase 1, Contract 18",436.54,21,2024-02-21
+T-019,B-002,"Metro Rail Extension – Phase 1, Contract 19",353.18,80,2024-02-24
+T-020,B-002,"Sports Complex Development – Phase 1, Contract 20",104.46,55,2024-02-27
+T-021,B-002,"Road Construction Contract – Phase 2, Contract 21",499.06,75,2024-03-01
+T-022,B-002,"Water Treatment Plant Upgrade – Phase 2, Contract 22",263.21,54,2024-03-04
+T-023,B-002,"Smart City Infrastructure – Phase 2, Contract 23",478.39,72,2024-03-07
+T-024,B-002,"Municipal Building Renovation – Phase 2, Contract 24",456.15,57,2024-03-10
+T-025,B-002,"Solar Power Installation – Phase 2, Contract 25",273.59,47,2024-03-13
+T-026,B-027,"Drainage Network Expansion – Phase 2, Contract 26",305.43,38,2024-03-16
+T-027,B-028,"Bridge Repair and Maintenance – Phase 2, Contract 27",478.71,49,2024-03-19
+T-028,B-029,"Hospital Wing Construction – Phase 2, Contract 28",279.49,42,2024-03-22
+T-029,B-030,"IT Infrastructure Modernisation – Phase 2, Contract 29",470.8,52,2024-03-25
+T-030,B-001,"Public Transport Fleet Upgrade – Phase 2, Contract 30",385.82,40,2024-03-28
+T-031,B-002,"Airport Terminal Extension – Phase 2, Contract 31",345.43,76,2024-03-31
+T-032,B-003,"Port Logistics Facility – Phase 2, Contract 32",159.2,58,2024-04-03
+T-033,B-004,"Railway Station Development – Phase 2, Contract 33",280.68,49,2024-04-06
+T-034,B-005,"Industrial Zone Development – Phase 2, Contract 34",144.61,87,2024-04-09
+T-035,B-006,"Irrigation Canal Restoration – Phase 2, Contract 35",338.63,62,2024-04-12
+T-036,B-007,"School Building Construction – Phase 2, Contract 36",447.98,64,2024-04-15
+T-037,B-008,"Waste Management System – Phase 2, Contract 37",409.37,32,2024-04-18
+T-038,B-009,"Flyover Construction – Phase 2, Contract 38",145.94,50,2024-04-21
+T-039,B-010,"Metro Rail Extension – Phase 2, Contract 39",477.7,24,2024-04-24
+T-040,B-011,"Sports Complex Development – Phase 2, Contract 40",173.84,70,2024-04-27
+T-041,B-012,"Road Construction Contract – Phase 3, Contract 41",328.33,75,2024-04-30
+T-042,B-013,"Water Treatment Plant Upgrade – Phase 3, Contract 42",107.78,82,2024-05-03
+T-043,B-014,"Smart City Infrastructure – Phase 3, Contract 43",136.3,85,2024-05-06
+T-044,B-015,"Municipal Building Renovation – Phase 3, Contract 44",348.39,31,2024-05-09
+T-045,B-016,"Solar Power Installation – Phase 3, Contract 45",55.5,89,2024-05-12
+T-046,B-017,"Drainage Network Expansion – Phase 3, Contract 46",120.4,20,2024-05-15
+T-047,B-018,"Bridge Repair and Maintenance – Phase 3, Contract 47",335.25,81,2024-05-18
+T-048,B-019,"Hospital Wing Construction – Phase 3, Contract 48",113.61,43,2024-05-21
+T-049,B-020,"IT Infrastructure Modernisation – Phase 3, Contract 49",27.19,66,2024-05-24
+T-050,B-021,"Public Transport Fleet Upgrade – Phase 3, Contract 50",165.82,74,2024-05-27
+T-051,B-022,"Airport Terminal Extension – Phase 3, Contract 51",51.17,31,2024-05-30
+T-052,B-023,"Port Logistics Facility – Phase 3, Contract 52",3.59,84,2024-06-02
+T-053,B-024,"Railway Station Development – Phase 3, Contract 53",488.98,34,2024-06-05
+T-054,B-025,"Industrial Zone Development – Phase 3, Contract 54",204.05,74,2024-06-08
+T-055,B-026,"Irrigation Canal Restoration – Phase 3, Contract 55",239.25,39,2024-06-11
+T-056,B-027,"School Building Construction – Phase 3, Contract 56",378.2,50,2024-06-14
+T-057,B-028,"Waste Management System – Phase 3, Contract 57",161.26,21,2024-06-17
+T-058,B-029,"Flyover Construction – Phase 3, Contract 58",454.06,25,2024-06-20
+T-059,B-030,"Metro Rail Extension – Phase 3, Contract 59",326.5,43,2024-06-23
+T-060,B-001,"Sports Complex Development – Phase 3, Contract 60",268.04,18,2024-06-26
+T-061,B-002,"Road Construction Contract – Phase 4, Contract 61",456.7,36,2024-06-29
+T-062,B-003,"Water Treatment Plant Upgrade – Phase 4, Contract 62",209.52,36,2024-07-02
+T-063,B-004,"Smart City Infrastructure – Phase 4, Contract 63",467.03,18,2024-07-05
+T-064,B-005,"Municipal Building Renovation – Phase 4, Contract 64",498.59,64,2024-07-08
+T-065,B-006,"Solar Power Installation – Phase 4, Contract 65",394.19,37,2024-07-11
+T-066,B-007,"Drainage Network Expansion – Phase 4, Contract 66",468.37,51,2024-07-14
+T-067,B-008,"Bridge Repair and Maintenance – Phase 4, Contract 67",438.49,15,2024-07-17
+T-068,B-009,"Hospital Wing Construction – Phase 4, Contract 68",149.9,27,2024-07-20
+T-069,B-010,"IT Infrastructure Modernisation – Phase 4, Contract 69",464.3,56,2024-07-23
+T-070,B-011,"Public Transport Fleet Upgrade – Phase 4, Contract 70",143.0,83,2024-07-26
+T-071,B-012,"Airport Terminal Extension – Phase 4, Contract 71",262.63,31,2024-07-29
+T-072,B-013,"Port Logistics Facility – Phase 4, Contract 72",425.68,73,2024-08-01
+T-073,B-014,"Railway Station Development – Phase 4, Contract 73",137.15,28,2024-08-04
+T-074,B-015,"Industrial Zone Development – Phase 4, Contract 74",166.01,72,2024-08-07
+T-075,B-016,"Irrigation Canal Restoration – Phase 4, Contract 75",324.49,37,2024-08-10
+T-076,B-017,"School Building Construction – Phase 4, Contract 76",8.03,57,2024-08-13
+T-077,B-018,"Waste Management System – Phase 4, Contract 77",395.59,86,2024-08-16
+T-078,B-019,"Flyover Construction – Phase 4, Contract 78",337.53,38,2024-08-19
+T-079,B-020,"Metro Rail Extension – Phase 4, Contract 79",88.57,65,2024-08-22
+T-080,B-021,"Sports Complex Development – Phase 4, Contract 80",413.67,79,2024-08-25
+T-081,B-022,"Road Construction Contract – Phase 5, Contract 81",164.64,65,2024-08-28
+T-082,B-023,"Water Treatment Plant Upgrade – Phase 5, Contract 82",334.96,37,2024-08-31
+T-083,B-024,"Smart City Infrastructure – Phase 5, Contract 83",490.86,75,2024-09-03
+T-084,B-025,"Municipal Building Renovation – Phase 5, Contract 84",162.48,45,2024-09-06
+T-085,B-026,"Solar Power Installation – Phase 5, Contract 85",4.41,63,2024-09-09
+T-086,B-027,"Drainage Network Expansion – Phase 5, Contract 86",118.53,48,2024-09-12
+T-087,B-028,"Bridge Repair and Maintenance – Phase 5, Contract 87",477.06,52,2024-09-15
+T-088,B-029,"Hospital Wing Construction – Phase 5, Contract 88",291.65,87,2024-09-18
+T-089,B-030,"IT Infrastructure Modernisation – Phase 5, Contract 89",6.71,60,2024-09-21
+T-090,B-001,"Public Transport Fleet Upgrade – Phase 5, Contract 90",346.69,21,2024-09-24
+T-091,B-002,"Airport Terminal Extension – Phase 5, Contract 91",334.23,73,2024-09-27
+T-092,B-003,"Port Logistics Facility – Phase 5, Contract 92",154.1,65,2024-09-30
+T-093,B-004,"Railway Station Development – Phase 5, Contract 93",343.35,53,2024-10-03
+T-094,B-005,"Industrial Zone Development – Phase 5, Contract 94",345.45,51,2024-10-06
+T-095,B-006,"Irrigation Canal Restoration – Phase 5, Contract 95",184.4,42,2024-10-09
+T-096,B-007,"School Building Construction – Phase 5, Contract 96",110.35,31,2024-10-12
+T-097,B-008,"Waste Management System – Phase 5, Contract 97",239.61,72,2024-10-15
+T-098,B-009,"Flyover Construction – Phase 5, Contract 98",374.12,61,2024-10-18
+T-099,B-010,"Metro Rail Extension – Phase 5, Contract 99",208.51,84,2024-10-21
+T-100,B-011,"Sports Complex Development – Phase 5, Contract 100",456.49,82,2024-10-24
+T-101,B-012,"Road Construction Contract – Phase 6, Contract 101",401.2,41,2024-10-27
+T-102,B-013,"Water Treatment Plant Upgrade – Phase 6, Contract 102",381.17,90,2024-10-30
+T-103,B-014,"Smart City Infrastructure – Phase 6, Contract 103",436.69,24,2024-11-02
+T-104,B-015,"Municipal Building Renovation – Phase 6, Contract 104",263.23,81,2024-11-05
+T-105,B-016,"Solar Power Installation – Phase 6, Contract 105",352.18,23,2024-11-08
+T-106,B-017,"Drainage Network Expansion – Phase 6, Contract 106",458.71,28,2024-11-11
+T-107,B-018,"Bridge Repair and Maintenance – Phase 6, Contract 107",31.82,84,2024-11-14
+T-108,B-019,"Hospital Wing Construction – Phase 6, Contract 108",451.54,39,2024-11-17
+T-109,B-020,"IT Infrastructure Modernisation – Phase 6, Contract 109",286.78,33,2024-11-20
+T-110,B-021,"Public Transport Fleet Upgrade – Phase 6, Contract 110",83.1,80,2024-11-23
+T-111,B-022,"Airport Terminal Extension – Phase 6, Contract 111",221.48,40,2024-11-26
+T-112,B-023,"Port Logistics Facility – Phase 6, Contract 112",358.74,76,2024-11-29
+T-113,B-024,"Railway Station Development – Phase 6, Contract 113",46.38,79,2024-12-02
+T-114,B-025,"Industrial Zone Development – Phase 6, Contract 114",223.3,21,2024-12-05
+T-115,B-026,"Irrigation Canal Restoration – Phase 6, Contract 115",227.26,79,2024-12-08
+T-116,B-027,"School Building Construction – Phase 6, Contract 116",208.3,86,2024-12-11
+T-117,B-028,"Waste Management System – Phase 6, Contract 117",29.81,73,2024-12-14
+T-118,B-029,"Flyover Construction – Phase 6, Contract 118",336.71,53,2024-12-17
+T-119,B-030,"Metro Rail Extension – Phase 6, Contract 119",361.92,64,2024-12-20
+T-120,B-001,"Sports Complex Development – Phase 6, Contract 120",127.97,14,2024-12-23
+T-121,B-002,"Road Construction Contract – Phase 7, Contract 121",373.16,88,2024-12-26
+T-122,B-003,"Water Treatment Plant Upgrade – Phase 7, Contract 122",37.44,68,2024-12-29
+T-123,B-004,"Smart City Infrastructure – Phase 7, Contract 123",172.92,22,2025-01-01
+T-124,B-005,"Municipal Building Renovation – Phase 7, Contract 124",271.04,21,2025-01-04
+T-125,B-006,"Solar Power Installation – Phase 7, Contract 125",467.36,22,2025-01-07
+T-126,B-007,"Drainage Network Expansion – Phase 7, Contract 126",493.08,74,2025-01-10
+T-127,B-008,"Bridge Repair and Maintenance – Phase 7, Contract 127",16.84,66,2025-01-13
+T-128,B-009,"Hospital Wing Construction – Phase 7, Contract 128",90.81,31,2025-01-16
+T-129,B-010,"IT Infrastructure Modernisation – Phase 7, Contract 129",383.15,67,2025-01-19
+T-130,B-011,"Public Transport Fleet Upgrade – Phase 7, Contract 130",187.86,62,2025-01-22
+T-131,B-012,"Airport Terminal Extension – Phase 7, Contract 131",224.82,62,2025-01-25
+T-132,B-013,"Port Logistics Facility – Phase 7, Contract 132",188.45,83,2025-01-28
+T-133,B-014,"Railway Station Development – Phase 7, Contract 133",67.36,58,2025-01-31
+T-134,B-015,"Industrial Zone Development – Phase 7, Contract 134",60.2,82,2025-02-03
+T-135,B-016,"Irrigation Canal Restoration – Phase 7, Contract 135",197.14,30,2025-02-06
+T-136,B-017,"School Building Construction – Phase 7, Contract 136",364.2,42,2025-02-09
+T-137,B-018,"Waste Management System – Phase 7, Contract 137",417.58,16,2025-02-12
+T-138,B-019,"Flyover Construction – Phase 7, Contract 138",489.27,73,2025-02-15
+T-139,B-020,"Metro Rail Extension – Phase 7, Contract 139",337.08,83,2025-02-18
+T-140,B-021,"Sports Complex Development – Phase 7, Contract 140",212.64,62,2025-02-21
+T-141,B-022,"Road Construction Contract – Phase 8, Contract 141",411.86,45,2025-02-24
+T-142,B-023,"Water Treatment Plant Upgrade – Phase 8, Contract 142",230.85,33,2025-02-27
+T-143,B-024,"Smart City Infrastructure – Phase 8, Contract 143",138.55,28,2025-03-02
+T-144,B-025,"Municipal Building Renovation – Phase 8, Contract 144",17.08,67,2025-03-05
+T-145,B-026,"Solar Power Installation – Phase 8, Contract 145",307.85,16,2025-03-08
+T-146,B-027,"Drainage Network Expansion – Phase 8, Contract 146",121.09,22,2025-03-11
+T-147,B-028,"Bridge Repair and Maintenance – Phase 8, Contract 147",51.35,18,2025-03-14
+T-148,B-029,"Hospital Wing Construction – Phase 8, Contract 148",223.77,20,2025-03-17
+T-149,B-030,"IT Infrastructure Modernisation – Phase 8, Contract 149",123.12,19,2025-03-20
+T-150,B-001,"Public Transport Fleet Upgrade – Phase 8, Contract 150",201.73,43,2025-03-23
+T-151,B-002,"Airport Terminal Extension – Phase 8, Contract 151",270.34,21,2025-03-26
+T-152,B-003,"Port Logistics Facility – Phase 8, Contract 152",70.93,51,2025-03-29
+T-153,B-004,"Railway Station Development – Phase 8, Contract 153",117.85,87,2025-04-01
+T-154,B-005,"Industrial Zone Development – Phase 8, Contract 154",160.13,90,2025-04-04
+T-155,B-006,"Irrigation Canal Restoration – Phase 8, Contract 155",386.5,55,2025-04-07
+T-156,B-007,"School Building Construction – Phase 8, Contract 156",119.22,32,2025-04-10
+T-157,B-008,"Waste Management System – Phase 8, Contract 157",492.86,80,2025-04-13
+T-158,B-009,"Flyover Construction – Phase 8, Contract 158",111.3,52,2025-04-16
+T-159,B-010,"Metro Rail Extension – Phase 8, Contract 159",138.3,85,2025-04-19
+T-160,B-011,"Sports Complex Development – Phase 8, Contract 160",474.31,36,2025-04-22
+T-161,B-012,"Road Construction Contract – Phase 9, Contract 161",313.37,68,2025-04-25
+T-162,B-013,"Water Treatment Plant Upgrade – Phase 9, Contract 162",278.37,20,2025-04-28
+T-163,B-014,"Smart City Infrastructure – Phase 9, Contract 163",486.17,62,2025-05-01
+T-164,B-015,"Municipal Building Renovation – Phase 9, Contract 164",393.12,54,2025-05-04
+T-165,B-016,"Solar Power Installation – Phase 9, Contract 165",348.46,66,2025-05-07
+T-166,B-017,"Drainage Network Expansion – Phase 9, Contract 166",75.46,62,2025-05-10
+T-167,B-018,"Bridge Repair and Maintenance – Phase 9, Contract 167",92.76,82,2025-05-13
+T-168,B-019,"Hospital Wing Construction – Phase 9, Contract 168",237.29,42,2025-05-16
+T-169,B-020,"IT Infrastructure Modernisation – Phase 9, Contract 169",151.07,32,2025-05-19
+T-170,B-021,"Public Transport Fleet Upgrade – Phase 9, Contract 170",403.08,21,2025-05-22
+T-171,B-022,"Airport Terminal Extension – Phase 9, Contract 171",281.63,67,2025-05-25
+T-172,B-023,"Port Logistics Facility – Phase 9, Contract 172",279.09,31,2025-05-28
+T-173,B-024,"Railway Station Development – Phase 9, Contract 173",194.82,46,2025-05-31
+T-174,B-025,"Industrial Zone Development – Phase 9, Contract 174",102.47,24,2025-06-03
+T-175,B-026,"Irrigation Canal Restoration – Phase 9, Contract 175",461.19,61,2025-06-06
+T-176,B-027,"School Building Construction – Phase 9, Contract 176",47.14,38,2025-06-09
+T-177,B-028,"Waste Management System – Phase 9, Contract 177",26.72,62,2025-06-12
+T-178,B-029,"Flyover Construction – Phase 9, Contract 178",337.16,19,2025-06-15
+T-179,B-030,"Metro Rail Extension – Phase 9, Contract 179",436.94,38,2025-06-18
+T-180,B-001,"Sports Complex Development – Phase 9, Contract 180",402.52,89,2025-06-21
+T-181,B-002,"Road Construction Contract – Phase 10, Contract 181",362.43,85,2025-06-24
+T-182,B-003,"Water Treatment Plant Upgrade – Phase 10, Contract 182",109.29,40,2025-06-27
+T-183,B-004,"Smart City Infrastructure – Phase 10, Contract 183",434.87,56,2025-06-30
+T-184,B-005,"Municipal Building Renovation – Phase 10, Contract 184",152.29,15,2025-07-03
+T-185,B-006,"Solar Power Installation – Phase 10, Contract 185",106.69,38,2025-07-06
+T-186,B-007,"Drainage Network Expansion – Phase 10, Contract 186",481.08,29,2025-07-09
+T-187,B-008,"Bridge Repair and Maintenance – Phase 10, Contract 187",373.69,75,2025-07-12
+T-188,B-009,"Hospital Wing Construction – Phase 10, Contract 188",457.31,40,2025-07-15
+T-189,B-010,"IT Infrastructure Modernisation – Phase 10, Contract 189",198.92,44,2025-07-18
+T-190,B-011,"Public Transport Fleet Upgrade – Phase 10, Contract 190",276.49,50,2025-07-21
+T-191,B-012,"Airport Terminal Extension – Phase 10, Contract 191",190.95,82,2025-07-24
+T-192,B-013,"Port Logistics Facility – Phase 10, Contract 192",324.71,53,2025-07-27
+T-193,B-014,"Railway Station Development – Phase 10, Contract 193",131.52,79,2025-07-30
+T-194,B-015,"Industrial Zone Development – Phase 10, Contract 194",441.52,73,2025-08-02
+T-195,B-016,"Irrigation Canal Restoration – Phase 10, Contract 195",50.21,74,2025-08-05
+T-196,B-017,"School Building Construction – Phase 10, Contract 196",381.05,54,2025-08-08
+T-197,B-018,"Waste Management System – Phase 10, Contract 197",457.25,61,2025-08-11
+T-198,B-019,"Flyover Construction – Phase 10, Contract 198",157.15,19,2025-08-14
+T-199,B-020,"Metro Rail Extension – Phase 10, Contract 199",281.7,42,2025-08-17
+T-200,B-021,"Sports Complex Development – Phase 10, Contract 200",370.88,16,2025-08-20
+T-201,B-022,"Road Construction Contract – Phase 11, Contract 201",131.13,88,2025-08-23
+T-202,B-023,"Water Treatment Plant Upgrade – Phase 11, Contract 202",289.99,67,2025-08-26
+T-203,B-024,"Smart City Infrastructure – Phase 11, Contract 203",148.3,39,2025-08-29
+T-204,B-025,"Municipal Building Renovation – Phase 11, Contract 204",165.6,62,2025-09-01
+T-205,B-026,"Solar Power Installation – Phase 11, Contract 205",285.32,45,2025-09-04
+T-206,B-027,"Drainage Network Expansion – Phase 11, Contract 206",250.15,57,2025-09-07
+T-207,B-028,"Bridge Repair and Maintenance – Phase 11, Contract 207",129.41,76,2025-09-10
+T-208,B-029,"Hospital Wing Construction – Phase 11, Contract 208",483.29,76,2025-09-13
+T-209,B-030,"IT Infrastructure Modernisation – Phase 11, Contract 209",230.95,59,2025-09-16
+T-210,B-001,"Public Transport Fleet Upgrade – Phase 11, Contract 210",85.46,83,2025-09-19
+T-211,B-002,"Airport Terminal Extension – Phase 11, Contract 211",244.67,83,2025-09-22
+T-212,B-003,"Port Logistics Facility – Phase 11, Contract 212",495.17,21,2025-09-25
+T-213,B-004,"Railway Station Development – Phase 11, Contract 213",262.45,23,2025-09-28
+T-214,B-005,"Industrial Zone Development – Phase 11, Contract 214",472.65,20,2025-10-01
+T-215,B-006,"Irrigation Canal Restoration – Phase 11, Contract 215",382.41,66,2025-10-04
+T-216,B-007,"School Building Construction – Phase 11, Contract 216",69.61,43,2025-10-07
+T-217,B-008,"Waste Management System – Phase 11, Contract 217",34.92,33,2025-10-10
+T-218,B-009,"Flyover Construction – Phase 11, Contract 218",5.56,78,2025-10-13
+T-219,B-010,"Metro Rail Extension – Phase 11, Contract 219",228.55,21,2025-10-16
+T-220,B-011,"Sports Complex Development – Phase 11, Contract 220",309.3,75,2025-10-19
+T-221,B-012,"Road Construction Contract – Phase 12, Contract 221",329.98,16,2025-10-22
+T-222,B-013,"Water Treatment Plant Upgrade – Phase 12, Contract 222",4.3,84,2025-10-25
+T-223,B-014,"Smart City Infrastructure – Phase 12, Contract 223",206.26,16,2025-10-28
+T-224,B-015,"Municipal Building Renovation – Phase 12, Contract 224",265.18,49,2025-10-31
+T-225,B-016,"Solar Power Installation – Phase 12, Contract 225",268.33,50,2025-11-03
+T-226,B-017,"Drainage Network Expansion – Phase 12, Contract 226",9.55,69,2025-11-06
+T-227,B-018,"Bridge Repair and Maintenance – Phase 12, Contract 227",403.28,36,2025-11-09
+T-228,B-019,"Hospital Wing Construction – Phase 12, Contract 228",54.4,26,2025-11-12
+T-229,B-020,"IT Infrastructure Modernisation – Phase 12, Contract 229",262.67,44,2025-11-15
+T-230,B-021,"Public Transport Fleet Upgrade – Phase 12, Contract 230",96.77,81,2025-11-18
+T-231,B-022,"Airport Terminal Extension – Phase 12, Contract 231",126.96,59,2025-11-21
+T-232,B-023,"Port Logistics Facility – Phase 12, Contract 232",134.4,64,2025-11-24
+T-233,B-024,"Railway Station Development – Phase 12, Contract 233",40.43,65,2025-11-27
+T-234,B-025,"Industrial Zone Development – Phase 12, Contract 234",230.04,45,2025-11-30
+T-235,B-026,"Irrigation Canal Restoration – Phase 12, Contract 235",495.13,42,2025-12-03
+T-236,B-027,"School Building Construction – Phase 12, Contract 236",150.69,24,2025-12-06
+T-237,B-028,"Waste Management System – Phase 12, Contract 237",327.21,18,2025-12-09
+T-238,B-029,"Flyover Construction – Phase 12, Contract 238",47.66,62,2025-12-12
+T-239,B-030,"Metro Rail Extension – Phase 12, Contract 239",189.21,74,2025-12-15
+T-240,B-001,"Sports Complex Development – Phase 12, Contract 240",29.0,15,2025-12-18
+T-241,B-002,"Road Construction Contract – Phase 13, Contract 241",351.72,24,2025-12-21
+T-242,B-003,"Water Treatment Plant Upgrade – Phase 13, Contract 242",250.43,69,2025-12-24
+T-243,B-004,"Smart City Infrastructure – Phase 13, Contract 243",322.81,56,2025-12-27
+T-244,B-005,"Municipal Building Renovation – Phase 13, Contract 244",283.36,26,2025-12-30
+T-245,B-006,"Solar Power Installation – Phase 13, Contract 245",447.5,19,2026-01-02
+T-246,B-007,"Drainage Network Expansion – Phase 13, Contract 246",115.65,86,2026-01-05
+T-247,B-008,"Bridge Repair and Maintenance – Phase 13, Contract 247",238.27,19,2026-01-08
+T-248,B-009,"Hospital Wing Construction – Phase 13, Contract 248",462.16,49,2026-01-11
+T-249,B-010,"IT Infrastructure Modernisation – Phase 13, Contract 249",449.76,86,2026-01-14
+T-250,B-011,"Public Transport Fleet Upgrade – Phase 13, Contract 250",329.4,36,2026-01-17
+T-251,B-012,"Airport Terminal Extension – Phase 13, Contract 251",464.45,54,2026-01-20
+T-252,B-013,"Port Logistics Facility – Phase 13, Contract 252",8.81,40,2026-01-23
+T-253,B-014,"Railway Station Development – Phase 13, Contract 253",293.93,64,2026-01-26
+T-254,B-015,"Industrial Zone Development – Phase 13, Contract 254",464.51,52,2026-01-29
+T-255,B-016,"Irrigation Canal Restoration – Phase 13, Contract 255",82.06,44,2026-02-01
+T-256,B-017,"School Building Construction – Phase 13, Contract 256",283.78,63,2026-02-04
+T-257,B-018,"Waste Management System – Phase 13, Contract 257",338.84,83,2026-02-07
+T-258,B-019,"Flyover Construction – Phase 13, Contract 258",166.53,31,2026-02-10
+T-259,B-020,"Metro Rail Extension – Phase 13, Contract 259",395.46,24,2026-02-13
+T-260,B-021,"Sports Complex Development – Phase 13, Contract 260",250.9,58,2026-02-16
+T-261,B-022,"Road Construction Contract – Phase 14, Contract 261",27.79,69,2026-02-19
+T-262,B-023,"Water Treatment Plant Upgrade – Phase 14, Contract 262",116.84,23,2026-02-22
+T-263,B-024,"Smart City Infrastructure – Phase 14, Contract 263",170.96,90,2026-02-25
+T-264,B-025,"Municipal Building Renovation – Phase 14, Contract 264",198.95,55,2026-02-28
+T-265,B-026,"Solar Power Installation – Phase 14, Contract 265",15.78,48,2026-03-03
+T-266,B-027,"Drainage Network Expansion – Phase 14, Contract 266",391.99,71,2026-03-06
+T-267,B-028,"Bridge Repair and Maintenance – Phase 14, Contract 267",245.81,59,2026-03-09
+T-268,B-029,"Hospital Wing Construction – Phase 14, Contract 268",276.97,62,2026-03-12
+T-269,B-030,"IT Infrastructure Modernisation – Phase 14, Contract 269",216.49,88,2026-03-15
+T-270,B-001,"Public Transport Fleet Upgrade – Phase 14, Contract 270",330.68,24,2026-03-18
+T-271,B-002,"Airport Terminal Extension – Phase 14, Contract 271",386.31,51,2026-03-21
+T-272,B-003,"Port Logistics Facility – Phase 14, Contract 272",399.23,23,2026-03-24
+T-273,B-004,"Railway Station Development – Phase 14, Contract 273",41.94,33,2026-03-27
+T-274,B-005,"Industrial Zone Development – Phase 14, Contract 274",190.62,33,2026-03-30
+T-275,B-006,"Irrigation Canal Restoration – Phase 14, Contract 275",370.09,54,2026-04-02
+T-276,B-007,"School Building Construction – Phase 14, Contract 276",180.99,25,2026-04-05
+T-277,B-008,"Waste Management System – Phase 14, Contract 277",3.59,53,2026-04-08
+T-278,B-009,"Flyover Construction – Phase 14, Contract 278",222.92,48,2026-04-11
+T-279,B-010,"Metro Rail Extension – Phase 14, Contract 279",52.01,25,2026-04-14
+T-280,B-011,"Sports Complex Development – Phase 14, Contract 280",94.51,71,2026-04-17
+T-281,B-012,"Road Construction Contract – Phase 15, Contract 281",278.94,79,2026-04-20
+T-282,B-013,"Water Treatment Plant Upgrade – Phase 15, Contract 282",204.61,17,2026-04-23
+T-283,B-014,"Smart City Infrastructure – Phase 15, Contract 283",45.72,84,2026-04-26
+T-284,B-015,"Municipal Building Renovation – Phase 15, Contract 284",47.44,90,2026-04-29
+T-285,B-016,"Solar Power Installation – Phase 15, Contract 285",392.43,63,2026-05-02
+T-286,B-017,"Drainage Network Expansion – Phase 15, Contract 286",7.16,66,2026-05-05
+T-287,B-018,"Bridge Repair and Maintenance – Phase 15, Contract 287",194.51,24,2026-05-08
+T-288,B-019,"Hospital Wing Construction – Phase 15, Contract 288",362.7,85,2026-05-11
+T-289,B-020,"IT Infrastructure Modernisation – Phase 15, Contract 289",452.7,45,2026-05-14
+T-290,B-021,"Public Transport Fleet Upgrade – Phase 15, Contract 290",286.41,35,2026-05-17
+T-291,B-022,"Airport Terminal Extension – Phase 15, Contract 291",342.97,35,2026-05-20
+T-292,B-023,"Port Logistics Facility – Phase 15, Contract 292",70.28,52,2026-05-23
+T-293,B-024,"Railway Station Development – Phase 15, Contract 293",134.93,32,2026-05-26
+T-294,B-025,"Industrial Zone Development – Phase 15, Contract 294",32.57,69,2026-05-29
+T-295,B-026,"Irrigation Canal Restoration – Phase 15, Contract 295",138.7,52,2026-06-01
+T-296,B-027,"School Building Construction – Phase 15, Contract 296",242.63,23,2026-06-04
+T-297,B-028,"Waste Management System – Phase 15, Contract 297",181.2,45,2026-06-07
+T-298,B-029,"Flyover Construction – Phase 15, Contract 298",360.73,77,2026-06-10
+T-299,B-030,"Metro Rail Extension – Phase 15, Contract 299",297.31,39,2026-06-13
+T-300,B-001,"Sports Complex Development – Phase 15, Contract 300",229.47,31,2026-06-16

@@ -18,6 +18,9 @@ const NODE_COLORS: Record<string, { bg: string; border: string; text: string; la
 const FLAGGED_COLOR = "#b91c1c"; // deep red
 const HIGHLIGHT_COLOR = "#dc2626"; // bright vibrant red
 
+const formatMetric = (value?: number) =>
+  typeof value === "number" ? value.toFixed(2) : "—";
+
 export default function GraphPanel({ data }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
@@ -79,7 +82,7 @@ export default function GraphPanel({ data }: Props) {
     }
 
     // Create Cytoscape instance configured for high-contrast projector display
-    cyRef.current = cytoscape({
+    const cy = cytoscape({
       container: containerRef.current,
       elements,
       style: [
@@ -102,15 +105,29 @@ export default function GraphPanel({ data }: Props) {
             width: 44,
             height: 44,
             "background-color": (ele: cytoscape.NodeSingular) => {
-              if (ele.data("highlighted")) return HIGHLIGHT_COLOR;
               if (ele.data("flagged")) return FLAGGED_COLOR;
               const typeCfg = NODE_COLORS[ele.data("nodeType")];
               return typeCfg ? typeCfg.bg : "#374151";
             },
             "border-width": (ele: cytoscape.NodeSingular) =>
-              ele.data("highlighted") ? 5 : ele.data("flagged") ? 4 : 2.5,
+              ele.data("flagged") ? 4 : 2.5,
             "border-color": (ele: cytoscape.NodeSingular) =>
-              ele.data("highlighted") ? "#450a0a" : ele.data("flagged") ? "#7f1d1d" : "#000000",
+              ele.data("flagged") ? "#7f1d1d" : "#000000",
+          },
+        },
+        {
+          // Nodes on a highlighted cartel path (highlighted_paths[].nodes)
+          selector: "node[?highlighted]",
+          style: {
+            "background-color": HIGHLIGHT_COLOR,
+            width: 52,
+            height: 52,
+            "border-width": 6,
+            "border-color": "#450a0a",
+            "overlay-color": "#fca5a5",
+            "overlay-opacity": 0.35,
+            "overlay-padding": 6,
+            "z-index": 10,
           },
         },
         {
@@ -132,28 +149,49 @@ export default function GraphPanel({ data }: Props) {
             "text-background-opacity": 0.9,
             "text-background-padding": "2px",
             "text-rotation": "autorotate",
-            width: (ele: cytoscape.EdgeSingular) => (ele.data("highlighted") ? 4.5 : 2),
-            "line-color": (ele: cytoscape.EdgeSingular) =>
-              ele.data("highlighted") ? HIGHLIGHT_COLOR : "#475569",
-            "target-arrow-color": (ele: cytoscape.EdgeSingular) =>
-              ele.data("highlighted") ? HIGHLIGHT_COLOR : "#475569",
+            width: 2,
+            "line-color": "#475569",
+            "target-arrow-color": "#475569",
             "target-arrow-shape": "triangle",
             "arrow-scale": 1.4,
             "curve-style": "bezier",
           },
         },
+        {
+          // Edges between consecutive nodes of a highlighted cartel path
+          selector: "edge[?highlighted]",
+          style: {
+            width: 6,
+            "line-color": HIGHLIGHT_COLOR,
+            "target-arrow-color": HIGHLIGHT_COLOR,
+            "arrow-scale": 1.8,
+            "overlay-color": "#fca5a5",
+            "overlay-opacity": 0.3,
+            "overlay-padding": 3,
+            "z-index": 9,
+          },
+        },
       ],
       layout: {
         name: "cose",
-        animate: false,
+        idealEdgeLength: 100,
+        nodeOverlap: 20,
+        refresh: 20,
+        fit: true,
         padding: 30,
-        nodeRepulsion: () => 12000,
-        idealEdgeLength: () => 130,
+        randomize: false,
+        componentSpacing: 100,
+        nodeRepulsion: 400000,
+        // Run synchronously: the layout animation loop does not survive an
+        // instance teardown (React StrictMode mounts effects twice).
+        animate: false,
       },
     });
 
+    cyRef.current = cy;
+
     // Handle node selection for inspection
-    cyRef.current.on("tap", "node", (evt) => {
+    cy.on("tap", "node", (evt) => {
       const node = evt.target;
       setSelectedNodeInfo({
         id: node.data("id"),
@@ -163,14 +201,15 @@ export default function GraphPanel({ data }: Props) {
       });
     });
 
-    cyRef.current.on("tap", (evt) => {
-      if (evt.target === cyRef.current) {
+    cy.on("tap", (evt) => {
+      if (evt.target === cy) {
         setSelectedNodeInfo(null);
       }
     });
 
     return () => {
-      cyRef.current?.destroy();
+      cyRef.current = null;
+      cy.destroy();
     };
   }, [data]);
 
@@ -207,6 +246,10 @@ export default function GraphPanel({ data }: Props) {
       </div>
     );
   }
+
+  const metrics = data.metrics;
+  const gnnStatus = metrics?.gnn_status;
+  const gnnSkipped = gnnStatus === "skipped";
 
   return (
     <div className="bg-white rounded-xl shadow-md border-4 border-gray-900 p-6 text-black flex flex-col justify-between">
@@ -278,6 +321,45 @@ export default function GraphPanel({ data }: Props) {
           </div>
         </div>
 
+        {/* Model Metrics & GNN Status */}
+        <div className="mb-4 flex flex-wrap items-center gap-2 text-xs sm:text-sm font-bold">
+          <span className="px-2.5 py-1 bg-black text-white rounded border-2 border-black uppercase tracking-wider">
+            Model Metrics
+          </span>
+
+          {metrics?.baseline && (
+            <span className="px-2.5 py-1 bg-white text-black rounded border border-gray-400">
+              Baseline: PR-AUC{" "}
+              <span className="font-mono">{formatMetric(metrics.baseline.pr_auc)}</span>
+              {" · "}P@10{" "}
+              <span className="font-mono">{formatMetric(metrics.baseline.precision_at_10)}</span>
+            </span>
+          )}
+
+          {gnnSkipped ? (
+            <span className="px-2.5 py-1 bg-amber-100 text-amber-950 rounded border-2 border-amber-600 font-black">
+              GNN: skipped
+            </span>
+          ) : gnnStatus === "trained" && metrics?.gnn ? (
+            <span className="px-2.5 py-1 bg-white text-black rounded border border-gray-400">
+              GNN: PR-AUC{" "}
+              <span className="font-mono">{formatMetric(metrics.gnn.pr_auc)}</span>
+              {" · "}P@10{" "}
+              <span className="font-mono">{formatMetric(metrics.gnn.precision_at_10)}</span>
+            </span>
+          ) : (
+            <span className="px-2.5 py-1 bg-gray-200 text-gray-800 rounded border border-gray-400">
+              GNN: {gnnStatus ?? "unknown"}
+            </span>
+          )}
+
+          {metrics?.note && (
+            <span className="px-2.5 py-1 bg-gray-100 text-gray-700 rounded border border-gray-300 font-mono text-xs">
+              {metrics.note}
+            </span>
+          )}
+        </div>
+
         {/* Flagged Rings Banner */}
         {data.rings && data.rings.length > 0 && (
           <div className="mb-4 p-3 bg-red-100 rounded-lg border-2 border-red-800 text-xs sm:text-sm text-red-950 font-bold flex items-start gap-2">
@@ -320,8 +402,7 @@ export default function GraphPanel({ data }: Props) {
           role="region"
           aria-label="Interactive Cytoscape network graph"
           tabIndex={0}
-          className="w-full border-4 border-gray-900 rounded-xl bg-gray-50 shadow-inner focus:outline-hidden focus:ring-4 focus:ring-blue-600"
-          style={{ height: 420 }}
+          className="w-full min-h-[550px] h-[550px] border-4 border-gray-900 rounded-xl bg-gray-50 shadow-inner focus:outline-hidden focus:ring-4 focus:ring-blue-600"
         />
       </div>
 
