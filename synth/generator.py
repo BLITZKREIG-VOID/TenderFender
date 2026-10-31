@@ -8,7 +8,7 @@ Usage
 Options
 -------
     --vendors INT     Total vendors to generate (default 200, min 103)
-    --tenders INT     Total tenders to generate (default 300, min 12)
+    --tenders INT     Total tenders to generate (default 300, min 25)
     --seed    INT     Random seed (default 42)
     --output-dir PATH Output directory (default data/)
 
@@ -42,7 +42,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from synth.generate import generate_all
+from synth.generate import generate_all, MIN_TENDERS
 from synth.verify import VerificationError, verify_all
 
 
@@ -51,7 +51,7 @@ from synth.verify import VerificationError, verify_all
 # ---------------------------------------------------------------------------
 
 MIN_VENDORS = 103   # must accommodate R-1 (45,46,47) and R-2 (100,101,102,103)
-MIN_TENDERS = 12    # accommodates R-2 (12 tenders) + R-3 overlay on T-003..T-012
+# MIN_TENDERS is 25: 3 demo + 12 R-2 + 10 R-3 tenders.
 
 
 
