@@ -10,6 +10,11 @@ Callers must call ``verify_all()`` before writing any file.
 
 from __future__ import annotations
 
+import argparse
+import csv
+import json
+import sys
+from pathlib import Path
 from typing import Any
 
 from synth.generate import (
@@ -19,10 +24,17 @@ from synth.generate import (
     R1_SHARED_DIRECTOR,
     R1_SHARED_ADDRESS,
     R2_VENDOR_IDS,
+    R2_ROTATION_TENDER_START,
     R2_ROTATION_TENDER_COUNT,
+    R2_ROTATION_TENDER_END,
+    R2_BUYER_NUM,
+    R3_TENDER_START,
     R3_TENDER_COUNT,
-    R3_OVERLAP_FIRST,
-    R3_OVERLAP_LAST,
+    R3_TENDER_END,
+    R3_BUYER_NUM,
+    R3_COVER_BIDDERS_MIN,
+    R3_COVER_BIDDERS_MAX,
+    MIN_TENDERS,
     T003_MIN_QUALIFIERS,
     T003_MAX_QUALIFIERS,
     _vid,
@@ -300,37 +312,39 @@ def validate_r1(
 
 def validate_r2(
     errors: list[str],
+    tenders: list[dict[str, Any]],
     bids: list[dict[str, Any]],
+    num_tenders: int,
 ) -> None:
-    """V-100..V-103 rotate wins across exactly R2_ROTATION_TENDER_COUNT tenders."""
+    """Validate the isolated T-004..T-015 one-buyer, four-vendor rotation."""
     r2_vids = {_vid(n) for n in R2_VENDOR_IDS}
-    r2_tender_ids = {_tid(n) for n in range(1, R2_ROTATION_TENDER_COUNT + 1)}
+    expected_ids = [
+        _tid(n) for n in range(R2_ROTATION_TENDER_START, R2_ROTATION_TENDER_END + 1)
+    ]
+    available_ids = [tid for tid in expected_ids if num_tenders == 0 or int(tid[2:]) <= num_tenders]
+    tender_by_id = {tender["tender_id"]: tender for tender in tenders}
+    missing_tenders = [tid for tid in available_ids if tid not in tender_by_id]
+    for tid in missing_tenders:
+        errors.append(f"R-2: required rotation tender {tid} is missing")
 
-    # Check all R-2 tenders have a winner that is one of the R-2 vendors
-    wins_by_tender: dict[str, list[str]] = {}
-    for bid in bids:
-        if bid["tender_id"] in r2_tender_ids and bid["won"] == 1:
-            wins_by_tender.setdefault(bid["tender_id"], []).append(bid["vendor_id"])
+    r2_tender_ids = set(available_ids) - set(missing_tenders)
+    buyer_ids = {tender_by_id[tid]["buyer_id"] for tid in r2_tender_ids}
+    if len(r2_tender_ids) == R2_ROTATION_TENDER_COUNT and len(buyer_ids) != 1:
+        errors.append(f"R-2: all rotation tenders must share one buyer; found {sorted(buyer_ids)}")
+    if len(r2_tender_ids) == R2_ROTATION_TENDER_COUNT and buyer_ids != {f"B-{R2_BUYER_NUM:03d}"}:
+        errors.append(f"R-2: expected buyer B-{R2_BUYER_NUM:03d}; found {sorted(buyer_ids)}")
 
-    tenders_with_r2_winner = {
-        tid: vids for tid, vids in wins_by_tender.items()
-        if any(v in r2_vids for v in vids)
-    }
-
-    if len(tenders_with_r2_winner) < R2_ROTATION_TENDER_COUNT:
-        errors.append(
-            f"R-2: expected wins in {R2_ROTATION_TENDER_COUNT} tenders, "
-            f"got {len(tenders_with_r2_winner)}"
-        )
-
-    # Each R-2 member must win at least one R-2 tender
-    r2_winners: set[str] = set()
-    for vids in tenders_with_r2_winner.values():
-        r2_winners.update(v for v in vids if v in r2_vids)
-
-    for rv in r2_vids:
-        if rv not in r2_winners:
-            errors.append(f"R-2: {rv} never wins a rotation tender")
+    win_counts = {vendor_id: 0 for vendor_id in r2_vids}
+    for tid in available_ids:
+        if tid not in tender_by_id:
+            continue
+        wins = [bid["vendor_id"] for bid in bids if bid["tender_id"] == tid and bid["won"] == 1]
+        position = int(tid[2:]) - R2_ROTATION_TENDER_START
+        expected_winner = _vid(R2_VENDOR_IDS[position % len(R2_VENDOR_IDS)])
+        if wins != [expected_winner]:
+            errors.append(f"R-2: {tid} winner must be exactly {expected_winner}; found {wins}")
+        if len(wins) == 1 and wins[0] in win_counts:
+            win_counts[wins[0]] += 1
 
     # Bid table must have all R-2 vendors bidding on every R-2 tender
     bids_by_tender_vendor = {
@@ -341,15 +355,30 @@ def validate_r2(
             if (tid, rv) not in bids_by_tender_vendor:
                 errors.append(f"R-2: {rv} has no bid on {tid}")
 
+    if len(r2_tender_ids) == R2_ROTATION_TENDER_COUNT:
+        expected_wins = R2_ROTATION_TENDER_COUNT // len(R2_VENDOR_IDS)
+        for vendor_id, count in win_counts.items():
+            if count != expected_wins:
+                errors.append(f"R-2: {vendor_id} must win exactly {expected_wins} tenders; got {count}")
+
+    for bid in bids:
+        if bid["vendor_id"] in r2_vids and bid["tender_id"] not in r2_tender_ids:
+            errors.append(
+                f"R-2: rotation member {bid['vendor_id']} has an outside-scenario bid "
+                f"on {bid['tender_id']}"
+            )
+
 
 def validate_r3(
     errors: list[str],
     bids: list[dict[str, Any]],
+    tenders: list[dict[str, Any]],
+    cover_metadata: dict[str, list[str]],
     num_tenders: int = 0,
 ) -> None:
     """
-    R-3 cover bids: the last R3_TENDER_COUNT R-2 tenders (T-003..T-012) each
-    carry 2-3 planted cover bids that sit 1-3% above the R-2 rotation winner.
+    R-3 tenders T-016..T-025 carry 2-3 planted cover bids each, 1-3% above
+    their winning bid, with one shared buyer across all ten tenders.
 
     Approved ratio requirement: 1.01 <= cover_amount / winner_amount <= 1.03
     (both boundaries inclusive).
@@ -360,59 +389,155 @@ def validate_r3(
     Cover bidders are drawn from the general pool (not R-1, not R-2) so they
     are cleanly separate from the rotating winners.
 
-    Skip logic:
-    - num_tenders < R3_OVERLAP_FIRST (=3): not enough tenders for any R-3
-      overlay; skip entirely.
-    - num_tenders in [R3_OVERLAP_FIRST .. R3_OVERLAP_LAST): only a partial
-      R-3 overlay exists; validate only tenders that were generated.
-    - num_tenders >= R3_OVERLAP_LAST (=12) or num_tenders == 0 (sentinel):
-      validate all R3_TENDER_COUNT tenders T-003..T-012.
+    Only metadata recorded at planting time identifies the true cover bids.
     """
-    if num_tenders > 0 and num_tenders < R3_OVERLAP_FIRST:
-        # Below T-003: no R-3 overlay possible.
-        return
-
-    # Determine which R-3 tenders actually exist in this dataset.
-    actual_last = min(R3_OVERLAP_LAST, num_tenders) if num_tenders > 0 else R3_OVERLAP_LAST
-    r3_tender_ids = {_tid(n) for n in range(R3_OVERLAP_FIRST, actual_last + 1)}
+    actual_last = min(R3_TENDER_END, num_tenders) if num_tenders > 0 else R3_TENDER_END
+    r3_tender_ids = {
+        _tid(n) for n in range(R3_TENDER_START, actual_last + 1)
+        if num_tenders == 0 or n <= num_tenders
+    }
+    unexpected_metadata = set(cover_metadata) - r3_tender_ids
+    if unexpected_metadata:
+        errors.append(f"R-3: cover metadata has out-of-range tenders {sorted(unexpected_metadata)}")
 
     # R-2 members are the rotating winners; they are never cover bidders.
     r1_vids = {_vid(n) for n in R1_VENDOR_IDS}
     r2_vids = {_vid(n) for n in R2_VENDOR_IDS}
     reserved_vids = r1_vids | r2_vids
+    tender_by_id = {tender["tender_id"]: tender for tender in tenders}
+    r3_buyers: set[str] = set()
 
     for tid in r3_tender_ids:
+        if tid not in tender_by_id:
+            errors.append(f"R-3: required cover tender {tid} is missing")
+            continue
+        r3_buyers.add(tender_by_id[tid]["buyer_id"])
         tender_bids = [b for b in bids if b["tender_id"] == tid]
         if not tender_bids:
             errors.append(f"R-3: no bids found for tender {tid}")
             continue
 
-        # The winner of the R-3/R-2 overlap tender is the R-2 rotation member.
         winner_bids = [b for b in tender_bids if b["won"] == 1]
-        if not winner_bids:
-            errors.append(f"R-3: no winner found for tender {tid}")
+        if len(winner_bids) != 1:
+            errors.append(f"R-3: expected exactly one winner for {tid}; found {len(winner_bids)}")
             continue
 
         winner_amount = winner_bids[0]["bid_amount_cr"]
         winner_vid    = winner_bids[0]["vendor_id"]
 
-        cover_bids_in_tender = []
-        for b in tender_bids:
-            if b["vendor_id"] in reserved_vids:
+        planted_vids = cover_metadata.get(tid, [])
+        if not (R3_COVER_BIDDERS_MIN <= len(planted_vids) <= R3_COVER_BIDDERS_MAX):
+            errors.append(
+                f"R-3: {tid} metadata must contain {R3_COVER_BIDDERS_MIN}-"
+                f"{R3_COVER_BIDDERS_MAX} planted cover bidders; got {len(planted_vids)}"
+            )
+        if len(set(planted_vids)) != len(planted_vids):
+            errors.append(f"R-3: {tid} metadata contains duplicate cover bidders")
+
+        bid_by_vendor = {bid["vendor_id"]: bid for bid in tender_bids}
+        for cover_vid in planted_vids:
+            if cover_vid in reserved_vids:
+                errors.append(f"R-3: {cover_vid} on {tid} is an R-1/R-2 member")
+            planted_bid = bid_by_vendor.get(cover_vid)
+            if planted_bid is None:
+                errors.append(f"R-3: planted cover bidder {cover_vid} has no bid on {tid}")
                 continue
-            if b["vendor_id"] == winner_vid:
+            if cover_vid == winner_vid or planted_bid["won"] == 1:
+                errors.append(f"R-3: planted cover bidder {cover_vid} cannot win {tid}")
                 continue
-            ratio = b["bid_amount_cr"] / winner_amount
             # Approved requirement: 1.01 <= ratio <= 1.03 (both inclusive).
             # No tolerance added: generation guarantees exact compliance.
-            if 1.01 <= ratio <= 1.03:
-                cover_bids_in_tender.append(b)
+            ratio = planted_bid["bid_amount_cr"] / winner_amount
+            if not 1.01 <= ratio <= 1.03:
+                errors.append(f"R-3: planted cover bid {cover_vid} on {tid} has ratio {ratio:.6f}")
 
-        if len(cover_bids_in_tender) < 2:
-            errors.append(
-                f"R-3: tender {tid} has only {len(cover_bids_in_tender)} "
-                f"qualifying cover bids (need >= 2)"
-            )
+    if r3_tender_ids and len(r3_tender_ids) == R3_TENDER_COUNT:
+        if r3_buyers != {f"B-{R3_BUYER_NUM:03d}"}:
+            errors.append(f"R-3: all cover tenders must share buyer B-{R3_BUYER_NUM:03d}; found {sorted(r3_buyers)}")
+        r2_buyers = {
+            tender["buyer_id"] for tender in tenders
+            if R2_ROTATION_TENDER_START <= int(tender["tender_id"][2:]) <= R2_ROTATION_TENDER_END
+        }
+        if r3_buyers & r2_buyers:
+            errors.append("R-3: cover buyer must be separate from the R-2 buyer")
+
+
+def validate_demo_isolation(
+    errors: list[str],
+    bids: list[dict[str, Any]],
+    cover_metadata: dict[str, list[str]],
+    num_tenders: int,
+) -> None:
+    """Keep R-2/R-3 overlays and cover-like behaviour off demo tenders; keep R-1 off demo bidders."""
+    r1_vids = {_vid(n) for n in R1_VENDOR_IDS}
+    r2_vids = {_vid(n) for n in R2_VENDOR_IDS}
+    demo_ids = {_tid(n) for n in range(1, min(3, num_tenders) + 1)}
+    for tid, cover_vids in cover_metadata.items():
+        if tid in demo_ids and cover_vids:
+            errors.append(f"Demo isolation: R-3 cover metadata appears on {tid}")
+
+    for bid in bids:
+        tid = bid["tender_id"]
+        if tid not in demo_ids:
+            continue
+        if bid["vendor_id"] in r2_vids:
+            errors.append(f"Demo isolation: R-2 vendor {bid['vendor_id']} bids on {tid}")
+        if bid["vendor_id"] in r1_vids:
+            errors.append(f"Demo isolation: R-1 vendor {bid['vendor_id']} bids on demo tender {tid}")
+
+    demo_bidders = {
+        bid["vendor_id"] for bid in bids if bid["tender_id"] in demo_ids
+    }
+    cover_bidders = {
+        vendor_id for vendor_ids in cover_metadata.values() for vendor_id in vendor_ids
+    }
+    overlap = demo_bidders & cover_bidders
+    if overlap:
+        errors.append(f"Demo isolation: R-3 cover bidders appear in demo tenders: {sorted(overlap)}")
+
+    # No demo bidder may show cover-like behaviour (a losing bid 1-3 % above the
+    # winner) on any tender: demo bidders are clean controls.
+    winners = {b["tender_id"]: b["bid_amount_cr"] for b in bids if b["won"] == 1}
+    cover_like = {
+        b["vendor_id"] for b in bids
+        if b["won"] == 0 and b["tender_id"] in winners and winners[b["tender_id"]] > 0
+        and 1.01 <= b["bid_amount_cr"] / winners[b["tender_id"]] <= 1.03
+    }
+    if demo_bidders & cover_like:
+        errors.append(
+            f"Demo isolation: demo bidders with cover-like bids: {sorted(demo_bidders & cover_like)}"
+        )
+
+
+def validate_r3_labels(
+    errors: list[str],
+    labels: dict[str, Any],
+    cover_metadata: dict[str, list[str]],
+) -> None:
+    """Ensure evaluation R-3 labels contain exactly the planted cover vendors."""
+    expected = {vendor_id for ids in cover_metadata.values() for vendor_id in ids}
+    r3 = next((ring for ring in labels.get("rings", []) if ring.get("ring_id") == "R-3"), None)
+    actual = set(r3.get("vendor_ids", [])) if r3 else set()
+    if actual != expected:
+        errors.append(
+            f"R-3 labels must equal planted cover metadata; missing={sorted(expected-actual)}, "
+            f"extra={sorted(actual-expected)}"
+        )
+    planted_type = labels.get("planted_type", {})
+    vendor_labels = labels.get("vendor_labels", {})
+    cover_types = {vendor_id for vendor_id, kind in planted_type.items() if kind == "cover"}
+    if cover_types != expected:
+        errors.append(
+            f"R-3 planted_type labels must equal planted cover metadata; "
+            f"missing={sorted(expected-cover_types)}, extra={sorted(cover_types-expected)}"
+        )
+    if r3 and r3.get("type") != "cover":
+        errors.append("R-3 label ring type must be 'cover'")
+    for vendor_id in expected:
+        if planted_type.get(vendor_id) != "cover":
+            errors.append(f"R-3 label: {vendor_id} planted_type must be 'cover'")
+        if vendor_labels.get(vendor_id) != 1:
+            errors.append(f"R-3 label: {vendor_id} vendor_labels value must be 1")
 
 
 def validate_no_labels_in_features(
@@ -446,6 +571,11 @@ def validate_counts(
     num_vendors: int,
     num_tenders: int,
 ) -> None:
+    if num_tenders < MIN_TENDERS:
+        errors.append(
+            f"At least {MIN_TENDERS} tenders are required to include all demo and planted scenarios; "
+            f"got {num_tenders}"
+        )
     if len(vendors) != num_vendors:
         errors.append(
             f"Expected {num_vendors} vendors, got {len(vendors)}"
@@ -514,11 +644,116 @@ def verify_all(
 
     # --- Planted scenarios ---
     validate_r1(errors, vendors, vendor_directors)
-    validate_r2(errors, bids)
-    validate_r3(errors, bids, num_tenders=num_tenders)
+    cover_metadata = data.get("_cover_metadata", {})
+    validate_r2(errors, tenders, bids, num_tenders=num_tenders)
+    validate_r3(errors, bids, tenders, cover_metadata, num_tenders=num_tenders)
+    validate_demo_isolation(errors, bids, cover_metadata, num_tenders)
+    validate_r3_labels(errors, labels, cover_metadata)
 
     # --- Label isolation ---
     validate_no_labels_in_features(errors, vendors, bids)
 
     if errors:
         raise VerificationError(errors)
+
+
+# ---------------------------------------------------------------------------
+# CLI: verify the files that are actually on disk
+# ---------------------------------------------------------------------------
+
+DATA_FILES = (
+    "vendors.csv", "directors.csv", "vendor_directors.csv",
+    "tenders.csv", "bids.csv", "labels.json",
+)
+
+_VENDOR_TYPES = {"turnover_cr": float, "years_experience": int}
+_TENDER_TYPES = {"estimated_value_cr": float, "bid_days": int}
+_BID_TYPES = {"bid_amount_cr": float, "bid_ratio": float, "rank": int, "won": int}
+
+
+def _read_csv(path: Path, types: dict[str, Any]) -> list[dict[str, Any]]:
+    with path.open(newline="", encoding="utf-8") as stream:
+        rows = list(csv.DictReader(stream))
+    for row in rows:
+        for column, cast in types.items():
+            if column in row:
+                row[column] = cast(row[column])
+    return rows
+
+
+def _reconstruct_cover_metadata(
+    bids: list[dict[str, Any]],
+    tenders: list[dict[str, Any]],
+    labels: dict[str, Any],
+) -> dict[str, list[str]]:
+    """
+    The in-memory generator records which cover bids it planted; that private
+    record is not written to disk. From disk it is reconstructed as: on each R-3
+    tender, the non-winning bids by vendors in the labelled R-3 (cover) ring that
+    sit 1-3 % above the winner. Verification-only; graph/ never reads labels.
+    """
+    r3 = next((r for r in labels.get("rings", []) if r.get("ring_id") == "R-3"), None)
+    cover_vids = set(r3.get("vendor_ids", [])) if r3 else set()
+    r3_tids = {_tid(n) for n in range(R3_TENDER_START, R3_TENDER_END + 1)}
+    winners = {b["tender_id"]: b["bid_amount_cr"] for b in bids if b["won"] == 1}
+    metadata: dict[str, list[str]] = {}
+    for bid in bids:
+        tid = bid["tender_id"]
+        if tid not in r3_tids or tid not in winners or bid["won"] == 1:
+            continue
+        if bid["vendor_id"] in cover_vids and 1.01 <= bid["bid_amount_cr"] / winners[tid] <= 1.03:
+            metadata.setdefault(tid, []).append(bid["vendor_id"])
+    return metadata
+
+
+def load_data_dir(data_dir: Path) -> dict[str, Any]:
+    """Load the six data files from ``data_dir`` into the ``verify_all`` shape."""
+    missing = [name for name in DATA_FILES if not (data_dir / name).is_file()]
+    if missing:
+        raise FileNotFoundError(f"{data_dir}: missing data file(s) {missing}")
+    vendors = _read_csv(data_dir / "vendors.csv", _VENDOR_TYPES)
+    directors = _read_csv(data_dir / "directors.csv", {})
+    vendor_directors = _read_csv(data_dir / "vendor_directors.csv", {})
+    tenders = _read_csv(data_dir / "tenders.csv", _TENDER_TYPES)
+    bids = _read_csv(data_dir / "bids.csv", _BID_TYPES)
+    labels = json.loads((data_dir / "labels.json").read_text(encoding="utf-8"))
+    return {
+        "vendors": vendors,
+        "directors": directors,
+        "vendor_directors": vendor_directors,
+        "tenders": tenders,
+        "bids": bids,
+        "labels": labels,
+        "_cover_metadata": _reconstruct_cover_metadata(bids, tenders, labels),
+    }
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="python -m synth.verify",
+        description="Verify the six synthetic data files on disk against the SoT section 7 contracts.",
+    )
+    parser.add_argument("--data-dir", default="data", help="directory holding the six data files (default: data)")
+    args = parser.parse_args(argv)
+    data_dir = Path(args.data_dir)
+    try:
+        data = load_data_dir(data_dir)
+        verify_all(data, num_vendors=len(data["vendors"]), num_tenders=len(data["tenders"]))
+    except VerificationError as exc:
+        print(f"[verify-synth] FAIL {data_dir}\n{exc}", file=sys.stderr)
+        return 1
+    except (OSError, ValueError, KeyError, json.JSONDecodeError) as exc:
+        print(f"[verify-synth] FAIL could not load {data_dir}: {exc!r}", file=sys.stderr)
+        return 1
+    print(
+        f"[verify-synth] OK {data_dir}: vendors={len(data['vendors'])}, "
+        f"directors={len(data['directors'])}, "
+        f"vendor_director_pairs={len(data['vendor_directors'])}, "
+        f"tenders={len(data['tenders'])}, bids={len(data['bids'])}, "
+        f"rings={len(data['labels'].get('rings', []))}"
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

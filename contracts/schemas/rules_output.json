@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tenderfender/contracts/rules_output.json",
+  "title": "artifacts/rules/T-xxx.json (SoT 8.2)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["tender_id", "formalization_status", "atoms", "findings", "qualifying_vendors", "vendors_evaluated"],
+  "properties": {
+    "tender_id": {"type": "string", "pattern": "^T-\\d{3}$"},
+    "formalization_status": {"enum": ["unconfirmed", "confirmed"]},
+    "atoms": {"type": "array", "items": {"$ref": "ir_atom.json"}},
+    "findings": {"type": "array", "items": {"$ref": "#/$defs/finding"}},
+    "qualifying_vendors": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^V-\\d{3}$"},
+      "uniqueItems": true
+    },
+    "vendors_evaluated": {"type": "integer", "minimum": 0}
+  },
+  "$defs": {
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["finding_id", "type", "severity", "clause_ids", "source_texts", "proof", "explanation"],
+      "properties": {
+        "finding_id": {"type": "string", "pattern": "^F-\\d+$"},
+        "type": {"enum": ["contradiction", "tailored_eligibility", "no_qualifier"]},
+        "severity": {"enum": ["high", "medium", "low"]},
+        "clause_ids": {"type": "array", "items": {"type": "string", "pattern": "^CL\\d+$"}, "minItems": 1},
+        "source_texts": {"type": "array", "items": {"type": "string"}},
+        "proof": {
+          "type": "object",
+          "required": ["method", "detail"],
+          "properties": {
+            "method": {"type": "string", "minLength": 1},
+            "detail": {"type": "string"}
+          }
+        },
+        "explanation": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

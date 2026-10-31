@@ -169,7 +169,7 @@ export default function TenderDetail() {
 
       {/* Bottom: Decision panel */}
       <div className="mt-6">
-        <DecisionPanel fused={analysis.fused} />
+        <DecisionPanel fused={analysis.fused} passages={analysis.passages} />
       </div>
     </div>
   );

@@ -1,0 +1,15 @@
+{
+  "tender_id": "T-003",
+  "title": "Annual Maintenance of Government Office Buildings",
+  "risk_level": "low",
+  "rule_finding_ids": [],
+  "graph_flag_ring_ids": [],
+  "linked_vendors": [],
+  "summary": "Risk indicators for T-003: no rule findings and no bidder belongs to a flagged ring. Risk level: low.",
+  "decision": "clear",
+  "reasoning": "No rule finding and no flagged ring is linked to this tender, so there is nothing to cite from the knowledge base.",
+  "citations": [],
+  "recommended_actions": ["No action required beyond standard procurement review."],
+  "decision_source": "template",
+  "disclaimer": "Risk indicators only; not a finding of wrongdoing. Recommendation requires human review."
+}

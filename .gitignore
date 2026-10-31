@@ -1,0 +1,16 @@
+# No trailing slash: also matches a .venv symlink (worktrees), not only a directory.
+venv
+.venv
+__pycache__/
+*.pyc
+.pytest_cache/
+node_modules/
+.cache/
+artifacts/*
+!artifacts/decisions/
+.env
+.env.*
+*.pem
+*.key
+build/
+ui/dist/

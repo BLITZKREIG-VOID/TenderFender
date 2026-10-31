@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tenderfender/contracts/fused.json",
+  "title": "artifacts/fused/T-xxx.json (SoT 8.4)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "tender_id", "title", "risk_level", "rule_finding_ids", "graph_flag_ring_ids", "linked_vendors",
+    "summary", "decision", "reasoning", "citations", "recommended_actions", "decision_source", "disclaimer"
+  ],
+  "properties": {
+    "tender_id": {"type": "string", "pattern": "^T-\\d{3}$"},
+    "title": {"type": "string", "minLength": 1},
+    "risk_level": {"enum": ["high", "medium", "low"]},
+    "rule_finding_ids": {"type": "array", "items": {"type": "string", "pattern": "^F-\\d+$"}, "uniqueItems": true},
+    "graph_flag_ring_ids": {"type": "array", "items": {"type": "string", "pattern": "^R-\\d+$"}, "uniqueItems": true},
+    "linked_vendors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["vendor_id", "reason", "ring_id", "path"],
+        "properties": {
+          "vendor_id": {"type": "string", "pattern": "^V-\\d{3}$"},
+          "reason": {"enum": ["unique_qualifier_in_flagged_ring", "bidder_in_flagged_ring"]},
+          "ring_id": {"type": "string", "pattern": "^R-\\d+$"},
+          "path": {"type": "array", "items": {"type": "string", "pattern": "^(V|P|A|CT|B|T)-\\d{3}$"}, "minItems": 1}
+        }
+      }
+    },
+    "summary": {"type": "string", "minLength": 1},
+    "decision": {"enum": ["clear", "review", "escalate"]},
+    "reasoning": {"type": "string", "minLength": 1},
+    "citations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["ref", "kind"],
+        "properties": {
+          "ref": {"type": "string", "pattern": "^(KB-\\d{3}|F-\\d+|R-\\d+)$"},
+          "kind": {"enum": ["guideline", "finding", "ring"]}
+        }
+      }
+    },
+    "recommended_actions": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1},
+    "decision_source": {"enum": ["llm", "template", "cache"]},
+    "disclaimer": {"const": "Risk indicators only; not a finding of wrongdoing. Recommendation requires human review."}
+  }
+}

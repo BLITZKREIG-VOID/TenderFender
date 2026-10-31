@@ -1,0 +1,11 @@
+vendor_id,name,turnover_cr,years_experience,registration_class,address_id,contact_id
+V-045,Vendor 45,40.0,4,Class-B,A-007,CT-045
+V-046,Vendor 46,30.0,2,Class-C,A-007,CT-046
+V-047,Vendor 47,150.0,20,Class-A,A-007,CT-047
+V-001,Near Miss 1,150.0,14,Class-A,A-001,CT-001
+V-002,Near Miss 2,200.0,20,Class-B,A-002,CT-002
+V-003,Near Miss 3,99.0,30,Class-A,A-003,CT-003
+V-004,Vendor 4,10.0,5,Class-A,A-004,CT-004
+V-005,Vendor 5,20.0,8,Class-B,A-005,CT-005
+V-006,Vendor 6,5.0,3,Class-C,A-006,CT-006
+V-007,Vendor 7,2.0,1,MSE,A-008,CT-008

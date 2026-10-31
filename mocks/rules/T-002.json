@@ -42,10 +42,9 @@
         "method": "z3_model",
         "detail": "satisfiable; exactly 1 of 200 vendors qualifies: V-047"
       },
-      "explanation": "The combination of Class-A registration, turnover >= 100 cr, and experience >= 15 years is satisfied by exactly one vendor (V-047), indicating potentially tailored eligibility criteria."
+      "explanation": "The combination of Class-A registration (CL2), turnover >= 100 cr (CL3) and experience >= 15 years (CL4) is satisfied by exactly one vendor (V-047), indicating potentially tailored eligibility criteria."
     }
   ],
   "qualifying_vendors": ["V-047"],
   "vendors_evaluated": 200
 }
-

@@ -1,41 +1,39 @@
-import type { FusedData, Citation } from "../api/client";
+import type { FusedData, Citation, Passage } from "../api/client";
 import { FileText, Lightbulb, ExternalLink, CheckSquare, Bookmark } from "lucide-react";
 
 interface Props {
   fused: FusedData;
+  passages: Passage[];
 }
 
-// Helpers for citation display metadata
-function getCitationDetails(cite: Citation) {
+// "llm" and "cache" (a stored LLM answer) are AI-written; "template" is the deterministic writer.
+function sourceLabel(source: string): string {
+  return source === "template" ? "Template" : "AI-written";
+}
+
+interface CitationDetails {
+  title: string;
+  section?: string;
+  link?: string;
+  tag: string;
+  tagColor: string;
+}
+
+// Display metadata for a citation; guideline titles/links come from the passages the API read from kb/passages.
+function getCitationDetails(cite: Citation, passages: Passage[]): CitationDetails {
   if (cite.kind === "guideline") {
-    // Official Procurement Guidelines / CVC Circulars / GFR mappings
-    const guidelineTitles: Record<string, { title: string; link?: string }> = {
-      "KB-001": {
-        title: "General Financial Rules (GFR) 2017 – Rule 173 (Transparency & Fairness)",
-        link: "https://doe.gov.in/order-rules/general-financial-rules-2017",
-      },
-      "KB-002": {
-        title: "GFR 2017 – Rule 160 (Mandatory Wide Publicity & Transparency)",
-        link: "https://doe.gov.in/order-rules/general-financial-rules-2017",
-      },
-      "KB-003": {
-        title: "CVC Guidelines on Qualification Criteria – Office Order No. 12/04/04",
-        link: "https://cvc.gov.in/",
-      },
-      "KB-004": {
-        title: "CVC Circular 03/01/2012 – Restrictive & Tailored Eligibility Examination",
-        link: "https://cvc.gov.in/",
-      },
-    };
-
-    const info = guidelineTitles[cite.ref] || {
-      title: `Procurement Guideline Standard (${cite.ref})`,
-      link: "https://cvc.gov.in/",
-    };
-
+    const passage = passages.find((p) => p.passage_id === cite.ref);
+    if (!passage || passage.missing) {
+      return {
+        title: `Guideline passage ${cite.ref} (text unavailable)`,
+        tag: "Guideline",
+        tagColor: "bg-blue-700 text-white",
+      };
+    }
     return {
-      title: info.title,
-      link: info.link,
+      title: passage.source_title ?? cite.ref,
+      section: passage.section,
+      link: passage.source_url,
       tag: "Guideline",
       tagColor: "bg-blue-700 text-white",
     };
@@ -67,7 +65,7 @@ function getCitationDetails(cite: Citation) {
   };
 }
 
-export default function DecisionPanel({ fused }: Props) {
+export default function DecisionPanel({ fused, passages }: Props) {
   return (
     <div className="bg-white rounded-xl shadow-md border-4 border-gray-900 p-6 text-black">
       <div className="flex items-center justify-between border-b-2 border-gray-300 pb-3 mb-6">
@@ -77,7 +75,7 @@ export default function DecisionPanel({ fused }: Props) {
         </h2>
         {fused.decision_source && (
           <span className="text-xs font-mono font-bold px-2.5 py-1 bg-gray-200 text-gray-800 rounded border border-gray-400">
-            Engine Source: {fused.decision_source.toUpperCase()}
+            Engine Source: {sourceLabel(fused.decision_source)} ({fused.decision_source})
           </span>
         )}
       </div>
@@ -103,7 +101,7 @@ export default function DecisionPanel({ fused }: Props) {
         {fused.citations && fused.citations.length > 0 ? (
           <div className="bg-gray-50 border-2 border-gray-300 rounded-lg overflow-hidden divide-y divide-gray-300">
             {fused.citations.map((cite, i) => {
-              const details = getCitationDetails(cite);
+              const details = getCitationDetails(cite, passages ?? []);
               const isExternal = Boolean(details.link && details.link.startsWith("http"));
 
               return (
@@ -117,8 +115,11 @@ export default function DecisionPanel({ fused }: Props) {
                     >
                       {details.tag}: {cite.ref}
                     </span>
-                    <span className="text-sm font-bold text-gray-950 truncate">
+                    <span className="text-sm font-bold text-gray-950 min-w-0">
                       {details.title}
+                      {details.section && (
+                        <span className="font-semibold text-gray-700"> · {details.section}</span>
+                      )}
                     </span>
                   </div>
 

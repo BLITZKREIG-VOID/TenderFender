@@ -1,0 +1,5 @@
+# Runtime dependencies for the AWS Lambda package only (see scripts/package_lambda.sh).
+# No uvicorn/pytest/requests, and no torch, sentence-transformers or z3: the API only serves precomputed JSON.
+fastapi>=0.115
+pydantic>=2.7
+mangum>=0.19

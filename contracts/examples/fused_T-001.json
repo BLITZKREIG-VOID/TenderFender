@@ -1,0 +1,15 @@
+{
+  "tender_id": "T-001",
+  "title": "Supply, Installation and Commissioning of Water Treatment Equipment at the Municipal Water Works",
+  "risk_level": "medium",
+  "rule_finding_ids": ["F-1"],
+  "graph_flag_ring_ids": [],
+  "linked_vendors": [],
+  "summary": "Risk indicators for T-001: 1 rule finding (F-1: contradiction); no bidder belongs to a flagged ring. Risk level: medium.",
+  "decision": "review",
+  "reasoning": "Finding [F-1] shows that the formalized clauses CL2 and CL5 conflict: no vendor can hold turnover of at least 50 cr and at most 10 cr at the same time. Supporting guideline: [KB-001] (eligibility criteria should be fair and non-restrictive). No network ring is linked to the bidders of this tender.",
+  "citations": [{"ref": "KB-001", "kind": "guideline"}, {"ref": "F-1", "kind": "finding"}],
+  "recommended_actions": ["Ask the tendering authority to clarify clauses CL2 and CL5 or issue a corrigendum.", "Review the amendment history of the tender document."],
+  "decision_source": "template",
+  "disclaimer": "Risk indicators only; not a finding of wrongdoing. Recommendation requires human review."
+}

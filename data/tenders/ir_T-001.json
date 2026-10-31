@@ -1,0 +1,42 @@
+[
+  {
+    "id": "CL2.1",
+    "clause_id": "CL2",
+    "field": "turnover_cr",
+    "op": ">=",
+    "value": 50,
+    "source_text": "The bidder must have an annual turnover of at least ₹50 crore."
+  },
+  {
+    "id": "CL3.1",
+    "clause_id": "CL3",
+    "field": "years_experience",
+    "op": ">=",
+    "value": 5,
+    "source_text": "The bidder must have at least 5 years of experience in executing similar works."
+  },
+  {
+    "id": "CL4.1",
+    "clause_id": "CL4",
+    "field": "bid_days",
+    "op": "==",
+    "value": 21,
+    "source_text": "Bids must be submitted within 21 days from the date of publication of this notice."
+  },
+  {
+    "id": "CL5.1",
+    "clause_id": "CL5",
+    "field": "turnover_cr",
+    "op": "<=",
+    "value": 10,
+    "source_text": "To encourage participation by smaller firms, only bidders whose annual turnover does not exceed ₹10 crore are eligible to bid."
+  },
+  {
+    "id": "CL6.1",
+    "clause_id": "CL6",
+    "field": "emd_pct",
+    "op": "==",
+    "value": 2,
+    "source_text": "An Earnest Money Deposit of 2% of the estimated contract value must accompany the bid."
+  }
+]

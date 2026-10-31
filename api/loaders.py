@@ -73,3 +73,21 @@ def list_fused_ids() -> list[str]:
         p.stem for p in fused_dir.glob("T-*.json")
     )
 
+
+
+def load_tender_clauses(tender_id: str) -> list[dict[str, Any]]:
+    """Real clause list from ``data/tenders/<id>.json`` (empty if absent or malformed)."""
+    if not tender_id.startswith("T-") or "/" in tender_id or "\\" in tender_id or ".." in tender_id:
+        return []
+    path = _project_root() / "data" / "tenders" / f"{tender_id}.json"
+    if not path.is_file():
+        return []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    return [
+        {"clause_id": c["clause_id"], "text": c.get("text", "")}
+        for c in data.get("clauses", [])
+        if isinstance(c, dict) and "clause_id" in c
+    ]
