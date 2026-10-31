@@ -11,3 +11,5 @@ artifacts/*
 .env.*
 *.pem
 *.key
+build/
+ui/dist/
