@@ -123,6 +123,18 @@ export interface Ring {
   score: number;
 }
 
+export interface GraphMetricScores {
+  pr_auc?: number;
+  precision_at_10?: number;
+}
+
+export interface GraphMetrics {
+  baseline?: GraphMetricScores;
+  gnn?: GraphMetricScores;
+  gnn_status?: string;
+  note?: string;
+}
+
 export interface GraphResponse {
   graph: {
     nodes: GraphNode[];
@@ -131,7 +143,7 @@ export interface GraphResponse {
   highlighted_paths: HighlightedPath[];
   rings: Ring[];
   vendor_scores: Record<string, number>;
-  metrics: Record<string, unknown>;
+  metrics: GraphMetrics;
 }
 
 export interface ConfirmResponse {
