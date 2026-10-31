@@ -11,6 +11,24 @@
       "propertyNames": {"pattern": "^V-\\d{3}$"},
       "additionalProperties": {"type": "number", "minimum": 0, "maximum": 1}
     },
+    "gnn_vendor_scores": {
+      "description": "Optional (CC-04). GraphSAGE vendor scores; empty when the GNN is skipped.",
+      "type": "object",
+      "propertyNames": {"pattern": "^V-\\d{3}$"},
+      "additionalProperties": {"type": "number", "minimum": 0, "maximum": 1}
+    },
+    "vendor_explanations": {
+      "description": "Optional (CC-04). Per-vendor evidence from the baseline screens; display only.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["vendor_id", "risk_score"],
+        "properties": {
+          "vendor_id": {"type": "string", "pattern": "^V-\\d{3}$"},
+          "risk_score": {"type": "number", "minimum": 0, "maximum": 1}
+        }
+      }
+    },
     "rings": {
       "type": "array",
       "items": {

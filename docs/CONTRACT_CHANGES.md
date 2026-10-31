@@ -42,3 +42,10 @@ Everyone proposes changes here; only the Lead (P3) edits `SOURCE_OF_TRUTH.md`, `
 - Change: `fused.json` requires all §8.4 fields, `citations.kind ∈ guideline|finding|ring`, `decision_source ∈ llm|template|cache`, exact `disclaimer`. `scripts/validate_contracts.py` additionally enforces `low→clear`, `medium→review`, `high→escalate`, citation kind/prefix match, and that cited findings/rings are listed in `rule_finding_ids` / `graph_flag_ring_ids`. `rules_output.formalization_status ∈ unconfirmed|confirmed`; `graph_output.graph.nodes[].type ∈ vendor|person|address|contact|buyer|tender`; `metrics.gnn_status ∈ trained|skipped`.
 - Why: contract freeze (H2) needs schemas strict enough to catch drift.
 - Impacted owners: P1/P2/P4 run `make validate-contracts` on their outputs and mocks; report enum gaps here instead of editing schemas.
+
+### CC-04: Optional graph fields `gnn_vendor_scores`, `vendor_explanations`
+- Date / proposer: 2026-10-31, P2 (Anirudh) output in PR #7; accepted by Lead (Hardhik).
+- Status: applied (`contracts/schemas/graph_output.json`).
+- Change: `graph_output.json` may carry `gnn_vendor_scores` (`{V-xxx: 0..1}`, empty when the GNN is skipped) and `vendor_explanations` (array of `{vendor_id, risk_score, ...}` evidence records). Both optional and additive; `vendor_scores`, `rings`, `paths`, `graph`, `metrics` unchanged.
+- Why: PR #7 emitted them and `make validate-contracts` rejected the real artifact (root `additionalProperties: false`).
+- Impacted owners: none; fusion/decision and the API ignore them.
