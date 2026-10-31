@@ -213,7 +213,7 @@ Errors: JSON `{"error":"...","code":"..."}` with correct HTTP status. The UI sho
 
 ## 10. Makefile targets (P3)
 
-`setup`, `synth`, `verify-synth`, `rules`, `graph`, `fuse`, `decide`, `pipeline` (= synth → verify-synth → rules → graph → fuse → decide), `validate-contracts`, `evaluate`, `api`, `ui`, `demo`, `test`.
+`setup`, `synth`, `verify-synth`, `rules`, `graph`, `fuse`, `decide`, `pipeline` (= synth → verify-synth → rules → graph → fuse → decide), `validate-contracts`, `validate-artifacts`, `acceptance`, `acceptance-mock`, `demo-guard`, `evaluate`, `api`, `ui`, `demo`, `test`.
 `make pipeline` must work from a clean clone, offline, using cached IR and cached decisions. Any failing step stops the pipeline.
 
 ## 11. Timeline (H = hours from start)
@@ -262,6 +262,8 @@ Errors: JSON `{"error":"...","code":"..."}` with correct HTTP status. The UI sho
 | D13 | New intermediate folder `artifacts/fusion/T-xxx.json` (fusion → decision hand-off; carries `_inputs` findings and rings; not a public contract, not consumed by api/) | decision/ reading rules and graph directly | Keeps decoupling rule (D5) and lets fusion be tested alone |
 | D14 | Placeholder KB passages live only in `tests/decision/fixtures/kb/` (`PLACEHOLDER` in `source_title`); retrieval excludes them unless `--allow-placeholder` (tests only) | Placeholders in `kb/passages/` | `kb/` is P1-owned and placeholders must never reach the demo |
 | D15 | `venv/` (py3.9, committed) untracked; root `.gitignore` added; project venv is `.venv` (Python 3.14); embedding model cached in `.cache/models` | Keep committed venv | 1,599 tracked files, wrong Python version |
+| D16 | Add acceptance test harness (`scripts/acceptance.py`; `make acceptance`, `make acceptance-mock`) and `make validate-artifacts` | Rely only on manual spot-checks or contract validation | Automated DoD §12 enforcement against file artifacts keeps progress honest and tracks missing pipeline deliverables |
+| D17 | Add demo guard (`scripts/demo_guard.py`; `make demo-guard`, `DEMO=1 make demo`) and require fixed disclaimer note on template decisions | Unlabeled template output and manual pre-demo checks | Prevents presenting fixed templates as AI reasoning and prevents demo execution with missing artifacts or leftover placeholders |
 
 ## 14. Rules of collaboration
 
