@@ -21,7 +21,8 @@ FUSED_DIR  := artifacts/fused
 CACHE_DIR  := artifacts/decisions
 
 .PHONY: setup synth verify-synth rules graph fuse decide pipeline pipeline-mock \
-        validate-contracts validate-artifacts acceptance acceptance-mock demo-guard evaluate api ui demo test
+        validate-contracts validate-artifacts acceptance acceptance-mock demo-guard evaluate api ui demo test \
+        build-ui package-lambda deploy destroy
 
 setup:
 	@test -x $(PY) || { command -v uv >/dev/null 2>&1 && uv venv --python 3.14 .venv || python3.14 -m venv .venv; }
@@ -98,3 +99,17 @@ demo: demo-guard
 
 test:
 	$(PY) -m pytest tests/
+
+# ── AWS free-tier deployment (docs/DEPLOY.md) ────────────────────────────────
+build-ui:
+	npm --prefix ui ci
+	VITE_API_BASE=/api npm --prefix ui run build
+
+package-lambda:
+	bash scripts/package_lambda.sh
+
+deploy:
+	bash scripts/deploy_aws.sh
+
+destroy:
+	bash scripts/destroy_aws.sh
