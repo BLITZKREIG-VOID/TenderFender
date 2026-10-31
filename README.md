@@ -48,8 +48,14 @@ graph TD
 ## 4. Screenshots
 
 The UI includes detailed risk cards, clause formalization confirmations, interactive graphs, and citation panels:
-- Detail & Risk Card: `docs/screenshots/02-t002-detail.png`
-- Decision Panel with Citations: `docs/screenshots/04-t002-decision.png`
+
+**Detail & Risk Card (T-002: risk card, clause formalization, collusion graph):**
+
+![T-002 detail: risk card, clause formalization and collusion graph](docs/screenshots/02-t002-detail.png)
+
+**Decision Panel with Citations (T-002):**
+
+![T-002 decision panel with citations](docs/screenshots/04-t002-decision.png)
 
 ---
 
