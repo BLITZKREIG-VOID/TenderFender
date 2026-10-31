@@ -35,6 +35,7 @@ Once AWS Support verifies your account, you can re-enable CloudFront by:
 - Credentials: `aws login` (or `aws sso login --profile <name>` then `export AWS_PROFILE=<name>`). Check with `aws sts get-caller-identity`.
 - Region: `export AWS_REGION=ap-south-1` (default). Lambda and Budgets live in this region.
 - Generated artifacts: `HF_HUB_OFFLINE=1 make pipeline` (creates `artifacts/`).
+- Decision mode: `make pipeline` defaults to `DECISION_MODE=auto` (SoT §13 D29), so the committed saved decisions for T-001/T-002 are served as `decision_source: cache` with no API key; T-003 (no evidence) uses the template. `DECISION_MODE=template` is explicit opt-in.
 
 ---
 
