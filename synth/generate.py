@@ -104,22 +104,24 @@ T003_MAX_QUALIFIERS = 35   # soft upper bound; target is 20-30 (§7)
 # naturally (~7 more), bringing the total to approximately 32 — within the range.
 T003_COHORT_VENDOR_NUMS: set[int] = set(range(1, 26))  # V-001..V-025
 
-# R-2 rotation: must span at least 12 tenders
+# R-2 rotation: 12 tenders after the three demo tenders
+R2_ROTATION_TENDER_START = 4
 R2_ROTATION_TENDER_COUNT = 12
+R2_ROTATION_TENDER_END = R2_ROTATION_TENDER_START + R2_ROTATION_TENDER_COUNT - 1
 
 # R-3 cover-bid parameters
-R3_TENDER_COUNT = 10       # number of R-2 tenders that also carry cover bids
+R3_TENDER_START = 16
+R3_TENDER_COUNT = 10
+R3_TENDER_END = R3_TENDER_START + R3_TENDER_COUNT - 1
 R3_COVER_BIDDERS_MIN = 2
 R3_COVER_BIDDERS_MAX = 3
 R3_COVER_ABOVE_MIN = 0.01  # 1 % above winner
 R3_COVER_ABOVE_MAX = 0.03  # 3 % above winner
 
-# R-3 overlaps on the LAST R3_TENDER_COUNT of the R-2 tenders.
-# With R2_ROTATION_TENDER_COUNT=12 and R3_TENDER_COUNT=10 this gives T-003..T-012.
-# Formula: first = R2_ROTATION_TENDER_COUNT - R3_TENDER_COUNT + 1  (= 3)
-#           last  = R2_ROTATION_TENDER_COUNT                         (= 12)
-R3_OVERLAP_FIRST: int = R2_ROTATION_TENDER_COUNT - R3_TENDER_COUNT + 1
-R3_OVERLAP_LAST:  int = R2_ROTATION_TENDER_COUNT
+# The minimum configuration must include the complete demo and planted scenarios.
+MIN_TENDERS = R3_TENDER_END
+R2_BUYER_NUM = 1
+R3_BUYER_NUM = 2
 
 # Buyer pool size
 BUYER_COUNT = 30
@@ -467,7 +469,12 @@ def generate_tenders(
     base_date = datetime.date(2024, 1, 1)
 
     for tn in range(1, num_tenders + 1):
-        buyer_n = (tn % BUYER_COUNT) + 1
+        if R2_ROTATION_TENDER_START <= tn <= R2_ROTATION_TENDER_END:
+            buyer_n = R2_BUYER_NUM
+        elif R3_TENDER_START <= tn <= R3_TENDER_END:
+            buyer_n = R3_BUYER_NUM
+        else:
+            buyer_n = (tn % BUYER_COUNT) + 1
         title_base = tender_titles[(tn - 1) % len(tender_titles)]
         phase = ((tn - 1) // len(tender_titles)) + 1
         title = f"{title_base} – Phase {phase}, Contract {tn}"
@@ -537,14 +544,13 @@ def generate_bids(
 
     Strategy
     --------
-    1. R-2 tenders (T-001..T-012): rotate wins among V-100..V-103.
-       Each R-2 vendor bids on every R-2 tender.
-    2. R-3 overlay (T-003..T-012, the last 10 R-2 tenders): after the R-2
-       winner amount is fixed, 2–3 cover bidders from cover_bidder_pool each
-       submit a bid 1–3 % above the winner. Cover bidders are never R-1 or R-2
-       members.  The rotation winner is unaffected.
-    3. Remaining tenders (T-013+ when num_tenders > 12): random winner and
-       noise bidders from the general pool.
+    1. R-2 tenders T-004..T-015 rotate wins among V-100..V-103. Each R-2
+       vendor bids on every rotation tender.
+    2. R-3 tenders T-016..T-025 have a random winner and noise bidders, plus
+       2–3 planted cover bids 1–3% above the winner. Cover bidders are never
+       R-1 or R-2 members.
+    3. Demo and remaining tenders receive ordinary noise bids only. T-003's
+       bidder pool excludes R-1 and R-2 so it remains a clean control.
 
     Schema (SOURCE_OF_TRUTH.md §7):
       tender_id, vendor_id, bid_amount_cr, bid_ratio, rank, won, submitted_at
@@ -556,24 +562,24 @@ def generate_bids(
 
     tender_list = list(tenders)   # already sorted by tender_id
 
-    # R-2 tenders: T-001..T-012
-    r2_tenders = [t["tender_id"] for t in tender_list[:R2_ROTATION_TENDER_COUNT]]
-
-    # R-3 overlay set: the last R3_TENDER_COUNT of the R-2 tenders (T-003..T-012)
-    r3_overlay_set = {_tid(n) for n in range(R3_OVERLAP_FIRST, R3_OVERLAP_LAST + 1)}
+    r2_tender_ids = {
+        _tid(n) for n in range(R2_ROTATION_TENDER_START, R2_ROTATION_TENDER_END + 1)
+    }
+    r2_tenders = [t["tender_id"] for t in tender_list if t["tender_id"] in r2_tender_ids]
+    r3_overlay_set = {_tid(n) for n in range(R3_TENDER_START, R3_TENDER_END + 1)}
 
     # Cover bidder pool: excludes R-1 and R-2 (separate from rotation winners)
     r1_vids = [_vid(n) for n in R1_VENDOR_IDS]
     reserved_vids = set(r1_vids + r2_vids)
     cover_bidder_pool = [vid for vid in general_vids if vid not in reserved_vids]
+    demo_tender_ids = {_tid(1), _tid(2), _tid(3)}
 
     bids: list[dict[str, Any]] = []
     base_ts = datetime.datetime(2024, 1, 15, 9, 0, 0)
     # cover_metadata: {tender_id -> [cover_vid, ...]}  (private; not written to CSV)
     cover_metadata: dict[str, list[str]] = {}
 
-    # --- R-2 rotation tenders (T-001..T-012) ---
-    # R-3 cover bids are overlaid on T-003..T-012 within this same loop.
+    # --- R-2 rotation tenders (T-004..T-015) ---
     for i, tid in enumerate(r2_tenders):
         tender_obj = next(t for t in tender_list if t["tender_id"] == tid)
         estimated = tender_obj["estimated_value_cr"]
@@ -599,24 +605,6 @@ def generate_bids(
             noise_amt = round(estimated * rng.uniform(0.85, 1.10), 2)
             r2_bid_amounts.append((nv, noise_amt))
 
-        # R-3 overlay: plant cover bids on T-003..T-012
-        if tid in r3_overlay_set:
-            cover_count = rng.randint(R3_COVER_BIDDERS_MIN, R3_COVER_BIDDERS_MAX)
-            # Exclude any vendor already in this tender's bid list
-            already_bidding = {v for v, _ in r2_bid_amounts}
-            available_covers = [
-                v for v in cover_bidder_pool if v not in already_bidding
-            ]
-            cover_vids = rng.sample(
-                available_covers, min(cover_count, len(available_covers))
-            )
-            cover_metadata[tid] = list(cover_vids)  # record before appending
-            for cv in cover_vids:
-                # Cover bid: 1–3 % above the R-2 rotation winner's amount.
-                # _clamp_cover_amount guarantees the 2-dp ratio is in [1.01, 1.03].
-                raw = winner_amount * (1.0 + rng.uniform(R3_COVER_ABOVE_MIN, R3_COVER_ABOVE_MAX))
-                r2_bid_amounts.append((cv, _clamp_cover_amount(winner_amount, raw)))
-
         # Sort by amount to assign ranks
         r2_bid_amounts.sort(key=lambda x: x[1])
 
@@ -635,30 +623,56 @@ def generate_bids(
                 "submitted_at": submitted_at.isoformat(),
             })
 
-    # --- Remaining tenders (T-013+ when num_tenders > 12) ---
-    # No R-3 overlay here; R-3 is fully captured in the R-2 loop above.
+    # --- Demo and remaining tenders ---
     remaining_tids = [
         t["tender_id"] for t in tender_list
-        if t["tender_id"] not in set(r2_tenders)
+        if t["tender_id"] not in r2_tender_ids
     ]
 
     for k, tid in enumerate(remaining_tids):
         tender_obj = next(t for t in tender_list if t["tender_id"] == tid)
         estimated = tender_obj["estimated_value_cr"]
 
-        winner_vid = rng.choice(general_vids)
+        tender_pool = general_vids
+        if tid == _tid(3):
+            # Keep the clean-control tender away from every flagged ownership
+            # and rotation member while leaving T-001/T-002 otherwise normal.
+            tender_pool = [vid for vid in general_vids if vid not in r1_vids]
+        winner_vid = rng.choice(tender_pool)
         winner_amount = round(estimated * rng.uniform(0.75, 0.98), 2)
 
         bid_amounts: list[tuple[str, float]] = [(winner_vid, winner_amount)]
 
         extra_count = rng.randint(2, 8)
         extra_vids = rng.sample(
-            [v for v in general_vids if v != winner_vid],
-            min(extra_count, len(general_vids) - 1),
+            [v for v in tender_pool if v != winner_vid],
+            min(extra_count, len(tender_pool) - 1),
         )
         for ev in extra_vids:
             amt = round(estimated * rng.uniform(0.80, 1.25), 2)
             bid_amounts.append((ev, amt))
+
+        if tid in r3_overlay_set:
+            cover_count = rng.randint(R3_COVER_BIDDERS_MIN, R3_COVER_BIDDERS_MAX)
+            already_bidding = {vendor_id for vendor_id, _ in bid_amounts}
+            demo_bidders = {
+                bid["vendor_id"] for bid in bids if bid["tender_id"] in demo_tender_ids
+            }
+            available_covers = [
+                vid for vid in cover_bidder_pool
+                if vid not in already_bidding and vid not in demo_bidders
+            ]
+            if len(available_covers) < cover_count:
+                raise ValueError(
+                    f"R-3 tender {tid} needs {cover_count} distinct cover bidders, "
+                    f"only {len(available_covers)} are available"
+                )
+            cover_vids = rng.sample(available_covers, cover_count)
+            cover_metadata[tid] = list(cover_vids)
+            for cover_vid in cover_vids:
+                multiplier = rng.uniform(R3_COVER_ABOVE_MIN, R3_COVER_ABOVE_MAX)
+                amount = _clamp_cover_amount(winner_amount, winner_amount * (1.0 + multiplier))
+                bid_amounts.append((cover_vid, amount))
 
         bid_amounts.sort(key=lambda x: x[1])
 
@@ -686,6 +700,7 @@ def generate_bids(
 def generate_labels(
     tenders: list[dict[str, Any]],
     bids: list[dict[str, Any]],
+    cover_metadata: dict[str, list[str]],
 ) -> dict[str, Any]:
     """
     Build labels.json.
@@ -699,33 +714,15 @@ def generate_labels(
 
     WARNING: labels must NEVER be used as model features.
     """
-    # r2_tenders_set removed (D9): was defined but never used in this function.
     r1_vids = [_vid(n) for n in R1_VENDOR_IDS]
     r2_vids = [_vid(n) for n in R2_VENDOR_IDS]
-
-    # R-3 tenders: the last R3_TENDER_COUNT of the R-2 tenders (T-003..T-012).
-    # Cover bids are overlaid on these tenders within the R-2 loop.
-    r3_tender_ids = {_tid(n) for n in range(R3_OVERLAP_FIRST, R3_OVERLAP_LAST + 1)}
-
-    # Determine who won in R-3 tenders (rank==1) and who is a cover bidder (rank>1)
-    r3_cover_bidders: set[str] = set()
-    r3_winners: set[str] = set()
-    for bid in bids:
-        if bid["tender_id"] in r3_tender_ids:
-            if bid["rank"] == 1:
-                r3_winners.add(bid["vendor_id"])
-            elif bid["vendor_id"] not in (set(r1_vids) | set(r2_vids)):
-                r3_cover_bidders.add(bid["vendor_id"])
-
-    # R-3 cover bidders are flagged only if they appear in multiple R-3 tenders
-    r3_cover_counts: dict[str, int] = {}
-    for bid in bids:
-        if bid["tender_id"] in r3_tender_ids and bid["rank"] > 1:
-            vid = bid["vendor_id"]
-            if vid not in (set(r1_vids) | set(r2_vids)):
-                r3_cover_counts[vid] = r3_cover_counts.get(vid, 0) + 1
-
-    flagged_r3 = {vid for vid, cnt in r3_cover_counts.items() if cnt >= 1}
+    # This evaluation-only membership comes from the generator's exact record
+    # of which bids were planted, not from unrelated losing bids.
+    flagged_r3 = {
+        vendor_id
+        for vendor_ids in cover_metadata.values()
+        for vendor_id in vendor_ids
+    }
 
     rings = [
         {
@@ -739,10 +736,7 @@ def generate_labels(
             "type": "rotation",
         },
     ]
-    # Only include R-3 ring when cover bids were actually planted.
-    # For configurations with fewer than first_r3 tenders (e.g. num_tenders=12),
-    # flagged_r3 is empty and the ring is omitted to avoid signalling a scenario
-    # that has no evidence in the bid data.
+    # Only include R-3 when cover bids were actually planted.
     if flagged_r3:
         rings.append({
             "ring_id": "R-3",
@@ -811,7 +805,7 @@ def generate_all(
     vendors, vendor_directors = generate_vendors(num_vendors, rng, directors)
     tenders = generate_tenders(num_tenders, rng)
     bids, cover_metadata = generate_bids(vendors, tenders, rng)
-    labels = generate_labels(tenders, bids)
+    labels = generate_labels(tenders, bids, cover_metadata)
 
     return {
         "vendors": vendors,

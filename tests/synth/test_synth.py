@@ -4,15 +4,15 @@ TenderFender P2 Synthetic Data Tests
 
 Coverage:
 - Default generation (vendors=200, tenders=300, seed=42)
-- Minimum valid counts (vendors=103, tenders=12)
+- Minimum valid counts (vendors=103, tenders=25)
 - Invalid counts (below minimums) — must fail BEFORE writing files
 - Determinism: same seed produces identical output
 - Different seeds produce different output
 - T-002 eligibility: exactly V-047 qualifies
 - T-003 eligibility: >= 10 qualifiers
 - R-1: V-045/046/047 share director P-010 and address A-007
-- R-2: V-100..V-103 rotate wins across 12 tenders
-- R-3: 10 tenders have 2-3 cover bids each 1-3% above winner
+- R-2: V-100..V-103 rotate wins across T-004..T-015 for one buyer
+- R-3: T-016..T-025 have 2-3 cover bids each 1-3% above winner
 - Schema columns (all six files)
 - Unique IDs (vendor_id, person_id, tender_id)
 - Foreign key references
@@ -42,11 +42,14 @@ from synth.generate import (
     R1_SHARED_DIRECTOR,
     R1_SHARED_ADDRESS,
     R2_VENDOR_IDS,
+    R2_ROTATION_TENDER_START,
     R2_ROTATION_TENDER_COUNT,
+    R2_ROTATION_TENDER_END,
     R3_TENDER_COUNT,
+    R3_TENDER_START,
+    R3_TENDER_END,
     R3_COVER_BIDDERS_MAX,
-    R3_OVERLAP_FIRST,
-    R3_OVERLAP_LAST,
+    R3_COVER_BIDDERS_MIN,
     T003_MIN_QUALIFIERS,
     T003_MAX_QUALIFIERS,
     _vid,
@@ -334,7 +337,9 @@ class TestR2Scenario:
 
     def test_r2_rotation_across_12_tenders(self, default_data):
         r2_vids = {_vid(n) for n in R2_VENDOR_IDS}
-        r2_tids = {_tid(n) for n in range(1, R2_ROTATION_TENDER_COUNT + 1)}
+        r2_tids = {
+            _tid(n) for n in range(R2_ROTATION_TENDER_START, R2_ROTATION_TENDER_END + 1)
+        }
 
         winning_tenders: set[str] = set()
         for bid in default_data["bids"]:
@@ -349,7 +354,9 @@ class TestR2Scenario:
 
     def test_all_r2_members_win_at_least_once(self, default_data):
         r2_vids = {_vid(n) for n in R2_VENDOR_IDS}
-        r2_tids = {_tid(n) for n in range(1, R2_ROTATION_TENDER_COUNT + 1)}
+        r2_tids = {
+            _tid(n) for n in range(R2_ROTATION_TENDER_START, R2_ROTATION_TENDER_END + 1)
+        }
 
         winners: set[str] = set()
         for bid in default_data["bids"]:
@@ -361,9 +368,30 @@ class TestR2Scenario:
             f"Not all R-2 members won. Missing: {r2_vids - winners}"
         )
 
+    def test_each_r2_member_wins_exactly_three_times_in_order(self, default_data):
+        r2_tids = [
+            _tid(n) for n in range(R2_ROTATION_TENDER_START, R2_ROTATION_TENDER_END + 1)
+        ]
+        actual_winners = [
+            next(b["vendor_id"] for b in default_data["bids"] if b["tender_id"] == tid and b["won"] == 1)
+            for tid in r2_tids
+        ]
+        expected = [_vid(R2_VENDOR_IDS[i % len(R2_VENDOR_IDS)]) for i in range(R2_ROTATION_TENDER_COUNT)]
+        assert actual_winners == expected
+        assert {vendor_id: actual_winners.count(vendor_id) for vendor_id in set(expected)} == {
+            _vid(vendor_id): 3 for vendor_id in R2_VENDOR_IDS
+        }
+
+    def test_r2_tenders_share_one_buyer(self, default_data):
+        r2_ids = {_tid(n) for n in range(R2_ROTATION_TENDER_START, R2_ROTATION_TENDER_END + 1)}
+        buyers = {t["buyer_id"] for t in default_data["tenders"] if t["tender_id"] in r2_ids}
+        assert len(buyers) == 1
+
     def test_r2_all_members_bid_on_all_rotation_tenders(self, default_data):
         r2_vids = {_vid(n) for n in R2_VENDOR_IDS}
-        r2_tids = {_tid(n) for n in range(1, R2_ROTATION_TENDER_COUNT + 1)}
+        r2_tids = {
+            _tid(n) for n in range(R2_ROTATION_TENDER_START, R2_ROTATION_TENDER_END + 1)
+        }
 
         bid_pairs = {
             (b["tender_id"], b["vendor_id"]) for b in default_data["bids"]
@@ -392,8 +420,13 @@ class TestR2Scenario:
 
 class TestR3Scenario:
     def _r3_tids(self) -> set[str]:
-        """T-003..T-012: the R-2 tenders that carry R-3 cover bids."""
-        return {_tid(n) for n in range(R3_OVERLAP_FIRST, R3_OVERLAP_LAST + 1)}
+        """T-016..T-025 are the isolated R-3 cover-bid tenders."""
+        return {_tid(n) for n in range(R3_TENDER_START, R3_TENDER_END + 1)}
+
+    def test_r3_tenders_share_one_buyer(self, default_data):
+        r3_tids = self._r3_tids()
+        buyers = {t["buyer_id"] for t in default_data["tenders"] if t["tender_id"] in r3_tids}
+        assert len(buyers) == 1
 
     def test_r3_tenders_have_cover_bids(self, default_data):
         r3_tids = self._r3_tids()
@@ -411,12 +444,13 @@ class TestR3Scenario:
 
             cover_bids = [
                 b for b in tender_bids
-                if b["vendor_id"] not in reserved
-                and b["vendor_id"] != winner["vendor_id"]
-                and 1.01 <= (b["bid_amount_cr"] / win_amount) <= 1.03
+                if b["vendor_id"] in default_data["_cover_metadata"].get(tid, [])
             ]
-            if len(cover_bids) >= 2:
-                cover_tender_count += 1
+            assert R3_COVER_BIDDERS_MIN <= len(cover_bids) <= R3_COVER_BIDDERS_MAX
+            assert all(b["vendor_id"] not in reserved for b in cover_bids)
+            assert all(b["vendor_id"] != winner["vendor_id"] for b in cover_bids)
+            assert all(1.01 <= b["bid_amount_cr"] / win_amount <= 1.03 for b in cover_bids)
+            cover_tender_count += 1
 
         assert cover_tender_count == R3_TENDER_COUNT, (
             f"Expected {R3_TENDER_COUNT} R-3 tenders with >= 2 cover bids, "
@@ -452,8 +486,9 @@ class TestR3Scenario:
                 and b["vendor_id"] != winner["vendor_id"]
             ]
 
-            assert len(planted_bids) >= 2, (
-                f"R-3 tender {tid}: expected >= 2 planted cover bids, "
+            assert R3_COVER_BIDDERS_MIN <= len(planted_bids) <= R3_COVER_BIDDERS_MAX, (
+                f"R-3 tender {tid}: expected {R3_COVER_BIDDERS_MIN}-"
+                f"{R3_COVER_BIDDERS_MAX} planted cover bids, "
                 f"found {len(planted_bids)} (planted_vids={planted_vids})"
             )
 
@@ -472,10 +507,7 @@ class TestR3Scenario:
 
     def test_r3_ring_absent_below_r3_start(self):
         """
-        When generate_all is called with fewer than R3_OVERLAP_FIRST (=3) tenders,
-        no R-3 overlay can be planted and labels must NOT include an R-3 ring.
-        (Only reachable by calling generate_all directly below MIN_TENDERS; the
-        CLI rejects such configs.)
+        A dataset with fewer than the R-3 starting tender has no planted R-3 bids.
         """
         data_2 = generate_all(num_vendors=103, num_tenders=2, seed=42)
         ring_ids = {r["ring_id"] for r in data_2["labels"]["rings"]}
@@ -484,23 +516,33 @@ class TestR3Scenario:
         )
 
     def test_r3_ring_present_when_r3_tenders_exist(self, default_data):
-        """With 300 tenders, all 10 R-3 tenders (T-003..T-012) exist; R-3 ring must be present."""
+        """With 300 tenders, all 10 R-3 tenders (T-016..T-025) exist."""
         ring_ids = {r["ring_id"] for r in default_data["labels"]["rings"]}
         assert "R-3" in ring_ids
 
     def test_r3_ring_present_in_min_config(self, min_data):
         """
-        At MIN_TENDERS=12 the R-3 overlay covers all 10 R-3 tenders (T-003..T-012).
+        At MIN_TENDERS=25 the R-3 overlay covers all 10 R-3 tenders (T-016..T-025).
         All three rings must be present in labels.json at the minimum configuration.
         """
         ring_ids = {r["ring_id"] for r in min_data["labels"]["rings"]}
         assert "R-3" in ring_ids, (
-            f"R-3 ring must be present at MIN_TENDERS=12, found rings: {ring_ids}"
+            f"R-3 ring must be present at MIN_TENDERS=25, found rings: {ring_ids}"
         )
         # Confirm all three required rings are present together
         assert {"R-1", "R-2", "R-3"}.issubset(ring_ids), (
             f"Expected R-1, R-2, R-3 at minimum config; found: {ring_ids}"
         )
+
+    def test_r3_labels_equal_exact_planted_cover_metadata(self, default_data):
+        expected = {
+            vendor_id
+            for vendors in default_data["_cover_metadata"].values()
+            for vendor_id in vendors
+        }
+        r3 = next(ring for ring in default_data["labels"]["rings"] if ring["ring_id"] == "R-3")
+        assert set(r3["vendor_ids"]) == expected
+        assert all(default_data["labels"]["planted_type"][vid] == "cover" for vid in expected)
 
 
 # ---------------------------------------------------------------------------
@@ -522,12 +564,13 @@ class TestR3RatioBoundary:
     _WINNER = 100.00   # clean 2-dp value: no rounding ambiguity at boundaries
 
     def _make_bids(self, cover_amounts: list[float]) -> list[dict]:
-        """Build a minimal valid bids list for T-003 with given cover amounts."""
+        """Build one R-3 tender with given planted cover amounts."""
+        tender_id = _tid(R3_TENDER_START)
         # Winner: V-100 (R-2 member, excluded from cover identification)
         # Cover bidders: V-200, V-201, ... (general pool, not reserved)
         bids = [
             {
-                "tender_id": _tid(3),   # T-003 is an R-3 tender
+                "tender_id": tender_id,
                 "vendor_id": _vid(100),  # R-2 member — designated winner
                 "bid_amount_cr": self._WINNER,
                 "bid_ratio": round(self._WINNER / 50.0, 4),
@@ -538,7 +581,7 @@ class TestR3RatioBoundary:
         ]
         for i, amt in enumerate(cover_amounts):
             bids.append({
-                "tender_id": _tid(3),
+                "tender_id": tender_id,
                 "vendor_id": f"V-{200 + i:03d}",   # not R-1, not R-2
                 "bid_amount_cr": round(amt, 2),
                 "bid_ratio": round(amt / 50.0, 4),
@@ -548,115 +591,122 @@ class TestR3RatioBoundary:
             })
         return bids
 
+    def _validate(self, bids: list[dict]) -> list[str]:
+        from synth.verify import validate_r3
+
+        tender_id = _tid(R3_TENDER_START)
+        cover_vids = [bid["vendor_id"] for bid in bids if bid["won"] == 0]
+        errors: list[str] = []
+        validate_r3(
+            errors,
+            bids,
+            [{"tender_id": tender_id, "buyer_id": "B-002"}],
+            {tender_id: cover_vids},
+            num_tenders=R3_TENDER_START,
+        )
+        return errors
+
     def test_lower_boundary_1_01_accepted(self):
         """ratio = 1.01 exactly: must be accepted (lower bound is inclusive)."""
-        from synth.verify import validate_r3
         bids = self._make_bids([101.00, 102.00])   # ratios: 1.01, 1.02
-        errors: list[str] = []
-        validate_r3(errors, bids, num_tenders=3)   # only T-003 checked
+        errors = self._validate(bids)
         assert not errors, f"1.01 ratio should be accepted; errors: {errors}"
 
     def test_upper_boundary_1_03_accepted(self):
         """ratio = 1.03 exactly: must be accepted (upper bound is inclusive)."""
-        from synth.verify import validate_r3
         bids = self._make_bids([101.50, 103.00])   # ratios: 1.015, 1.03
-        errors: list[str] = []
-        validate_r3(errors, bids, num_tenders=3)   # only T-003 checked
+        errors = self._validate(bids)
         assert not errors, f"1.03 ratio should be accepted; errors: {errors}"
 
     def test_below_lower_boundary_1_0099_rejected(self):
         """
         ratio = 1.0099 (i.e. cover_amount = 100.99 / winner = 100.00 = 0.9999
         — use 100.99 which gives ratio 1.0099): must not count as a cover bid.
-        With only one valid cover bid, the tender should fail the >= 2 check.
+        The planted metadata must fail the inclusive ratio range.
         """
-        from synth.verify import validate_r3
         # 100.99 / 100.00 = 1.0099  → below 1.01 → should NOT qualify
         # 102.00 / 100.00 = 1.02    → qualifies
-        # Only 1 qualifying bid → error expected
         bids = self._make_bids([100.99, 102.00])   # ratios: 1.0099, 1.02
-        errors: list[str] = []
-        validate_r3(errors, bids, num_tenders=3)   # only T-003 checked
+        errors = self._validate(bids)
         assert errors, (
             "ratio 1.0099 should be rejected; expected a validation error"
         )
-        assert any("T-003" in e and "cover bids" in e for e in errors), (
-            f"Expected cover-bid count error for T-003; got: {errors}"
+        assert any(_tid(R3_TENDER_START) in e and "ratio" in e for e in errors), (
+            f"Expected cover-bid ratio error; got: {errors}"
         )
 
     def test_above_upper_boundary_1_0301_rejected(self):
         """
         ratio = 1.0301 (cover_amount = 103.01): must not count as a cover bid.
-        With only one valid cover bid, the tender should fail the >= 2 check.
+        The planted metadata must fail the inclusive ratio range.
         """
-        from synth.verify import validate_r3
         # 103.01 / 100.00 = 1.0301  → above 1.03 → should NOT qualify
         # 101.50 / 100.00 = 1.015   → qualifies
-        # Only 1 qualifying bid → error expected
         bids = self._make_bids([103.01, 101.50])   # ratios: 1.0301, 1.015
-        errors: list[str] = []
-        validate_r3(errors, bids, num_tenders=3)   # only T-003 checked
+        errors = self._validate(bids)
         assert errors, (
             "ratio 1.0301 should be rejected; expected a validation error"
         )
-        assert any("T-003" in e and "cover bids" in e for e in errors), (
-            f"Expected cover-bid count error for T-003; got: {errors}"
+        assert any(_tid(R3_TENDER_START) in e and "ratio" in e for e in errors), (
+            f"Expected cover-bid ratio error; got: {errors}"
         )
 
     def test_both_boundaries_together(self):
         """1.01 and 1.03 together: both count, tender passes."""
-        from synth.verify import validate_r3
         bids = self._make_bids([101.00, 103.00])   # exact boundaries
-        errors: list[str] = []
-        validate_r3(errors, bids, num_tenders=3)   # only T-003 checked
+        errors = self._validate(bids)
         assert not errors, (
             f"1.01 and 1.03 together should be accepted; errors: {errors}"
         )
 
 
 # ---------------------------------------------------------------------------
-# 9b. Configuration scenarios: 12, 13, and 22 tenders
+# 9b. Configuration scenarios: minimum, minimum+1, and a larger sample
 # ---------------------------------------------------------------------------
 
 class TestConfigurationScenarios:
     """
     Explicitly validates all-three-rings presence and verification pass
-    at three boundary tender counts:
-
-    - 12 tenders: exact minimum.  R-2 (T-001..T-012) + R-3 overlay (T-003..T-012).
-    - 13 tenders: one tender beyond minimum.  T-013 is a plain noise tender.
-    - 22 tenders: old minimum before overlap design. All three rings still present.
+    at the minimum valid size and beyond it. All three demo tenders are kept
+    separate from R-2 (T-004..T-015) and R-3 (T-016..T-025).
     """
 
     def _all_rings(self, data: dict) -> set[str]:
         return {r["ring_id"] for r in data["labels"]["rings"]}
 
-    # --- 12-tender configuration ---
-
-    def test_12t_all_three_rings_present(self):
-        d = generate_all(num_vendors=103, num_tenders=12, seed=42)
+    def test_25t_all_scenarios_present_at_minimum(self):
+        d = generate_all(num_vendors=103, num_tenders=25, seed=42)
         assert {"R-1", "R-2", "R-3"}.issubset(self._all_rings(d)), (
-            f"Expected R-1, R-2, R-3 at 12 tenders; got {self._all_rings(d)}"
+            f"Expected R-1, R-2, R-3 at 25 tenders; got {self._all_rings(d)}"
         )
+        verify_all(d, num_vendors=103, num_tenders=25)
 
-    def test_12t_r3_cover_metadata_has_10_entries(self):
-        d = generate_all(num_vendors=103, num_tenders=12, seed=42)
+    def test_25t_exact_r2_and_r3_tender_ranges(self):
+        d = generate_all(num_vendors=103, num_tenders=25, seed=42)
+        r2_ids = {_tid(n) for n in range(R2_ROTATION_TENDER_START, R2_ROTATION_TENDER_END + 1)}
+        r3_ids = {_tid(n) for n in range(R3_TENDER_START, R3_TENDER_END + 1)}
+        assert len(r2_ids) == R2_ROTATION_TENDER_COUNT
+        assert len(r3_ids) == R3_TENDER_COUNT
+        assert set(d["_cover_metadata"]) == r3_ids
+
+    def test_25t_r3_cover_metadata_has_10_entries(self):
+        d = generate_all(num_vendors=103, num_tenders=25, seed=42)
         assert len(d["_cover_metadata"]) == R3_TENDER_COUNT, (
-            f"Expected 10 cover_metadata entries at 12 tenders; "
+            f"Expected 10 cover_metadata entries at 25 tenders; "
             f"got {len(d['_cover_metadata'])}"
         )
 
-    def test_12t_r3_cover_metadata_keys_are_t003_to_t012(self):
-        d = generate_all(num_vendors=103, num_tenders=12, seed=42)
-        expected = {_tid(n) for n in range(R3_OVERLAP_FIRST, R3_OVERLAP_LAST + 1)}
+    def test_25t_r3_cover_metadata_keys_are_t016_to_t025(self):
+        d = generate_all(num_vendors=103, num_tenders=25, seed=42)
+        expected = {_tid(n) for n in range(R3_TENDER_START, R3_TENDER_END + 1)}
         assert set(d["_cover_metadata"].keys()) == expected, (
             f"cover_metadata keys mismatch: {set(d['_cover_metadata'].keys())} "
             f"!= {expected}"
         )
 
-    def test_12t_cover_bidders_not_r2_members(self):
+    def test_25t_cover_bidders_not_r2_members(self):
         """Cover bidders must never be R-2 rotation members."""
-        d = generate_all(num_vendors=103, num_tenders=12, seed=42)
+        d = generate_all(num_vendors=103, num_tenders=25, seed=42)
         r2_vids = {_vid(n) for n in R2_VENDOR_IDS}
         for tid, cvids in d["_cover_metadata"].items():
             overlap = set(cvids) & r2_vids
@@ -664,9 +714,9 @@ class TestConfigurationScenarios:
                 f"R-3 tender {tid}: cover bidders {overlap} are R-2 members"
             )
 
-    def test_12t_cover_bidders_not_r1_members(self):
+    def test_25t_cover_bidders_not_r1_members(self):
         """Cover bidders must never be R-1 shell-ring members."""
-        d = generate_all(num_vendors=103, num_tenders=12, seed=42)
+        d = generate_all(num_vendors=103, num_tenders=25, seed=42)
         r1_vids = {_vid(n) for n in R1_VENDOR_IDS}
         for tid, cvids in d["_cover_metadata"].items():
             overlap = set(cvids) & r1_vids
@@ -674,14 +724,16 @@ class TestConfigurationScenarios:
                 f"R-3 tender {tid}: cover bidders {overlap} are R-1 members"
             )
 
-    def test_12t_r2_winner_rotation_preserved(self):
+    def test_25t_r2_winner_rotation_preserved(self):
         """
         R-2 winner rotation must be unaffected by the R-3 overlay.
         Each R-2 tender must still have exactly one R-2 member as winner.
         """
-        d = generate_all(num_vendors=103, num_tenders=12, seed=42)
+        d = generate_all(num_vendors=103, num_tenders=25, seed=42)
         r2_vids = {_vid(n) for n in R2_VENDOR_IDS}
-        r2_tids = {_tid(n) for n in range(1, R2_ROTATION_TENDER_COUNT + 1)}
+        r2_tids = {
+            _tid(n) for n in range(R2_ROTATION_TENDER_START, R2_ROTATION_TENDER_END + 1)
+        }
         for tid in r2_tids:
             winner = next(
                 (b for b in d["bids"] if b["tender_id"] == tid and b["won"] == 1),
@@ -692,52 +744,43 @@ class TestConfigurationScenarios:
                 f"R-2 tender {tid} winner is {winner['vendor_id']}, not an R-2 member"
             )
 
-    def test_12t_verification_passes(self):
-        d = generate_all(num_vendors=103, num_tenders=12, seed=42)
-        verify_all(d, num_vendors=103, num_tenders=12)  # must not raise
+    def test_demo_tenders_have_no_r2_or_r3_overlay(self):
+        d = generate_all(num_vendors=103, num_tenders=25, seed=42)
+        demo_ids = {_tid(1), _tid(2), _tid(3)}
+        r1_ids = {_vid(n) for n in R1_VENDOR_IDS}
+        r2_ids = {_vid(n) for n in R2_VENDOR_IDS}
+        demo_bids = [bid for bid in d["bids"] if bid["tender_id"] in demo_ids]
+        assert not any(bid["vendor_id"] in r2_ids for bid in demo_bids)
+        assert not (demo_ids & set(d["_cover_metadata"]))
+        assert not any(bid["vendor_id"] in r1_ids | r2_ids for bid in demo_bids if bid["tender_id"] == _tid(3))
+        demo_vendors = {bid["vendor_id"] for bid in demo_bids}
+        r3_cover_vendors = {v for ids in d["_cover_metadata"].values() for v in ids}
+        assert not demo_vendors & r3_cover_vendors
 
-    # --- 13-tender configuration ---
+    def test_25t_r2_winners_share_buyer_and_each_win_three(self):
+        d = generate_all(num_vendors=103, num_tenders=25, seed=42)
+        r2_tender_ids = {_tid(n) for n in range(R2_ROTATION_TENDER_START, R2_ROTATION_TENDER_END + 1)}
+        buyers = {t["buyer_id"] for t in d["tenders"] if t["tender_id"] in r2_tender_ids}
+        assert len(buyers) == 1
+        winners = [b["vendor_id"] for b in d["bids"] if b["tender_id"] in r2_tender_ids and b["won"] == 1]
+        assert len(winners) == 12
+        assert {_vid(vendor_id): winners.count(_vid(vendor_id)) for vendor_id in R2_VENDOR_IDS} == {
+            _vid(vendor_id): 3 for vendor_id in R2_VENDOR_IDS
+        }
 
-    def test_13t_all_three_rings_present(self):
-        d = generate_all(num_vendors=103, num_tenders=13, seed=42)
+    def test_26t_extra_tender_is_not_planted(self):
+        d = generate_all(num_vendors=103, num_tenders=26, seed=42)
         assert {"R-1", "R-2", "R-3"}.issubset(self._all_rings(d)), (
-            f"Expected R-1, R-2, R-3 at 13 tenders; got {self._all_rings(d)}"
+            f"Expected R-1, R-2, R-3 at 26 tenders; got {self._all_rings(d)}"
         )
+        assert _tid(26) not in d["_cover_metadata"]
+        verify_all(d, num_vendors=103, num_tenders=26)
 
-    def test_13t_t013_is_noise_only(self):
-        """T-013 is the extra tender; it must not appear in cover_metadata."""
-        d = generate_all(num_vendors=103, num_tenders=13, seed=42)
-        assert _tid(13) not in d["_cover_metadata"], (
-            "T-013 should be a plain noise tender with no cover_metadata entry"
-        )
-
-    def test_13t_verification_passes(self):
-        d = generate_all(num_vendors=103, num_tenders=13, seed=42)
-        verify_all(d, num_vendors=103, num_tenders=13)  # must not raise
-
-    # --- 22-tender configuration ---
-
-    def test_22t_all_three_rings_present(self):
-        d = generate_all(num_vendors=103, num_tenders=22, seed=42)
-        assert {"R-1", "R-2", "R-3"}.issubset(self._all_rings(d)), (
-            f"Expected R-1, R-2, R-3 at 22 tenders; got {self._all_rings(d)}"
-        )
-
-    def test_22t_cover_metadata_still_t003_to_t012(self):
-        """
-        At 22 tenders the R-3 signal is still only on T-003..T-012.
-        T-013..T-022 are plain noise tenders.
-        """
-        d = generate_all(num_vendors=103, num_tenders=22, seed=42)
-        expected = {_tid(n) for n in range(R3_OVERLAP_FIRST, R3_OVERLAP_LAST + 1)}
-        assert set(d["_cover_metadata"].keys()) == expected, (
-            f"At 22 tenders, cover_metadata should only cover T-003..T-012; "
-            f"got {sorted(d['_cover_metadata'].keys())}"
-        )
-
-    def test_22t_verification_passes(self):
-        d = generate_all(num_vendors=103, num_tenders=22, seed=42)
-        verify_all(d, num_vendors=103, num_tenders=22)  # must not raise
+    def test_35t_planted_ranges_remain_fixed(self):
+        d = generate_all(num_vendors=103, num_tenders=35, seed=42)
+        expected = {_tid(n) for n in range(R3_TENDER_START, R3_TENDER_END + 1)}
+        assert set(d["_cover_metadata"]) == expected
+        verify_all(d, num_vendors=103, num_tenders=35)
 
 
 # ---------------------------------------------------------------------------
