@@ -24,8 +24,13 @@ CACHE_DIR  := artifacts/decisions
 
 setup:
 	@test -x $(PY) || { command -v uv >/dev/null 2>&1 && uv venv --python 3.14 .venv || python3.14 -m venv .venv; }
-	@if command -v uv >/dev/null 2>&1; then uv pip install --python $(PY) -r requirements.txt; \
-	 else $(PY) -m pip install -r requirements.txt; fi
+	@# torch from the CPU-only index first (SoT 5); requirements.txt's unpinned `torch` is then already satisfied, everything else comes from PyPI.
+	@if command -v uv >/dev/null 2>&1; then \
+	   uv pip install --python $(PY) torch --index-url https://download.pytorch.org/whl/cpu && \
+	   uv pip install --python $(PY) -r requirements.txt; \
+	 else \
+	   $(PY) -m pip install torch --index-url https://download.pytorch.org/whl/cpu && \
+	   $(PY) -m pip install -r requirements.txt; fi
 	$(PY) -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('$(EMBEDDING_MODEL)', cache_folder='$(SENTENCE_TRANSFORMERS_HOME)'); print('embedding model cached in $(SENTENCE_TRANSFORMERS_HOME)')"
 
 synth:

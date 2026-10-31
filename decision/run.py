@@ -144,8 +144,8 @@ def run(fusion_dir: Path, kb_dir: Path, out_dir: Path, cache_dir: Path, *, mode:
         ordered = ["tender_id", "title", "risk_level", "rule_finding_ids", "graph_flag_ring_ids", "linked_vendors",
                    "summary", "decision", "reasoning", "citations", "recommended_actions", "decision_source", "disclaimer"]
         final = {k: final[k] for k in ordered}
-        assert final["risk_level"] == fusion["risk_level"] and final["decision"] == fusion["decision"], \
-            "risk_level/decision must never change"
+        if final["risk_level"] != fusion["risk_level"] or final["decision"] != fusion["decision"]:
+            raise DecisionError(f"{tid}: risk_level/decision must never change")
         out = out_dir / f"{tid}.json"
         out.write_text(json.dumps(final, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         written.append(out)

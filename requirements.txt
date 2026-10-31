@@ -13,9 +13,8 @@ uvicorn==0.54.0
 httpx==0.28.1
 requests==2.34.2
 
-# Not pinned: not installed/verified by P3. torch is pulled in transitively by sentence-transformers
-# (the default PyPI wheel on linux x64 is the CUDA build; SoT 5 says CPU: install from
-# https://download.pytorch.org/whl/cpu if disk/time matters). z3-solver was installed by `make setup` here but its version is not pinned (P1 owns the Z3 choice).
+# Not pinned: not installed/verified by P3. `make setup` installs torch first from
+# https://download.pytorch.org/whl/cpu (SoT 5: CPU only; the default PyPI linux wheel is the CUDA build), so the line below is already satisfied. z3-solver was installed by `make setup` here but its version is not pinned (P1 owns the Z3 choice).
 torch
 z3-solver
 # torch_geometric: intentionally NOT listed; P2 owns the PyG install check (SoT 11 H0-H2). Add it here once confirmed.

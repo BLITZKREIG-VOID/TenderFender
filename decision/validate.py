@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import re
 
-REF_RE = re.compile(r"\b(?:KB-\d{3}|F-\d+|R-\d+)\b")
+# Every reference-like token, case-insensitive, including malformed ones (KB-12, KB-0042, kb-004,
+# R-01, F-1a). Each must then be an exact member of the allowed set; nothing is silently ignored.
+REF_RE = re.compile(r"(?<![A-Za-z0-9])(?:KB|F|R)-\d+[A-Za-z0-9]*", re.I)
 
 # Wording rule (SoT 1): risk indicators only, never conclusions of guilt/illegality.
 # `corrupt` is matched as a whole word so that official titles containing
@@ -63,11 +65,15 @@ def validate_decision(text_fields: dict, allowed_refs: set[str], placeholder_ids
     for t in texts:
         refs.update(extract_refs(t))
 
-    for ref in sorted(refs, key=_ref_sort_key):
+    valid: list[str] = []
+    for ref in sorted(refs):
         if ref in placeholder_ids:
             errors.append(f"placeholder passage cited: {ref}")
         elif ref not in allowed_refs:
-            errors.append(f"unknown reference (not a retrieved passage, finding or ring of this tender): {ref}")
+            errors.append("malformed or unknown reference (must exactly match a retrieved passage, "
+                          f"finding or ring of this tender): {ref}")
+        else:
+            valid.append(ref)
 
     for t in texts:
         for pat in FORBIDDEN_PATTERNS:
@@ -77,4 +83,4 @@ def validate_decision(text_fields: dict, allowed_refs: set[str], placeholder_ids
 
     if errors:
         raise DecisionValidationError(errors)
-    return [{"ref": r, "kind": ref_kind(r)} for r in sorted(refs, key=_ref_sort_key)]
+    return [{"ref": r, "kind": ref_kind(r)} for r in sorted(valid, key=_ref_sort_key)]

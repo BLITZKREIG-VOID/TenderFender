@@ -47,3 +47,17 @@ def test_empty_fields_rejected():
         validate_decision({"reasoning": "", "recommended_actions": []}, ALLOWED, set())
     with pytest.raises(DecisionValidationError):
         validate_decision({"reasoning": "x"}, ALLOWED, set())
+
+
+@pytest.mark.parametrize("text", ["See [KB-12].", "Per KB-0042 rule", "Per kb-004", "See R-01.", "See F-1a."])
+def test_malformed_refs_rejected(text):
+    allowed = {"F-1", "R-1", "KB-004"}
+    with pytest.raises(DecisionValidationError, match="malformed or unknown reference"):
+        validate_decision(ok(text), allowed, set())
+    with pytest.raises(DecisionValidationError, match="malformed or unknown reference"):
+        validate_decision(ok(actions=[text]), allowed, set())
+
+
+def test_valid_bracketed_refs_accepted():
+    cites = validate_decision(ok("See [KB-004] [F-1] [R-1]."), {"F-1", "R-1", "KB-004"}, set())
+    assert [c["ref"] for c in cites] == ["KB-004", "F-1", "R-1"]
