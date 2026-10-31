@@ -3,12 +3,16 @@
 One CloudFront distribution fronts everything:
 
 ```
-browser ── https ──> CloudFront ─┬─ /api/*  → Lambda Function URL (FastAPI via Mangum, python3.14, x86_64, 512 MB, 15 s)
+browser ── https ──> CloudFront ─┬─ /api/*  → Lambda Function URL (FastAPI via Mangum, python3.14, x86_64, 1024 MB, 15 s)
                                  └─ default → private S3 bucket (built UI, Origin Access Control)
                                               + CloudFront Function: extension-less paths → /index.html (SPA routing)
 ```
 
-- `/api/*` uses `CachingDisabled` + `AllViewerExceptHostHeader` and allows GET/HEAD/OPTIONS/PUT/POST/PATCH/DELETE.
+- `/api/tenders` and `/api/tenders/*/graph` are read-only and only change on deploy, so they are cached at the edge
+  (`CachingOptimized`; every deploy invalidates `/*`). Other `/api/*` paths, including `/analysis` (changed by the confirm
+  `POST`), use `CachingDisabled` + `AllViewerExceptHostHeader` and allow GET/HEAD/OPTIONS/PUT/POST/PATCH/DELETE.
+- Price class `PriceClass_200` (default) includes India edge locations; Lambda runs in the deploy region
+  (default `ap-south-1`). 1024 MB gives the function more CPU for faster cold starts and stays within the free tier at demo traffic.
 - SPA routing is done by a CloudFront Function on the default behavior only; there are **no** distribution-wide custom error
   responses, so API 404s are returned unchanged.
 - The Function URL uses `AuthType NONE` (the confirm `POST` makes SigV4/OAC impractical). The template grants both

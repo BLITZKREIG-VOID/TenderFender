@@ -16,7 +16,7 @@ Parameters:
     Description: Optional. If set, creates a $1 monthly AWS Budget that emails this address at 80% of actual spend.
   PriceClass:
     Type: String
-    Default: PriceClass_100
+    Default: PriceClass_200
     AllowedValues: [PriceClass_100, PriceClass_200, PriceClass_All]
     Description: CloudFront price class (edge locations used; data transfer to the internet is free up to 1 TB/month regardless).
 
@@ -140,7 +140,7 @@ Resources:
       Runtime: python3.14
       Architectures: [x86_64]
       Handler: api.lambda_handler.handler
-      MemorySize: 512
+      MemorySize: 1024
       Timeout: 15
       Role: !GetAtt ApiRole.Arn
       Code:
@@ -209,6 +209,23 @@ Resources:
             - EventType: viewer-request
               FunctionARN: !GetAtt SpaRewriteFunction.FunctionMetadata.FunctionARN
         CacheBehaviors:
+          # Read-only, deploy-static endpoints: cached at the edge (Managed-CachingOptimized, 1-day default TTL;
+          # every deploy invalidates /*). Fewer Lambda invocations and no cold start for repeat views.
+          # /analysis stays uncached because POST .../confirm changes it.
+          - PathPattern: /api/tenders
+            TargetOriginId: api
+            ViewerProtocolPolicy: https-only
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6 # Managed-CachingOptimized
+          - PathPattern: /api/tenders/*/graph
+            TargetOriginId: api
+            ViewerProtocolPolicy: https-only
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6 # Managed-CachingOptimized
           - PathPattern: /api/*
             TargetOriginId: api
             ViewerProtocolPolicy: https-only
