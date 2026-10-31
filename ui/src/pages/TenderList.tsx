@@ -2,7 +2,8 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import type { TenderSummary } from "../api/client";
-import { LoadingState, EmptyState, ErrorCard } from "../components/UIStates";
+import { EmptyState, ErrorCard } from "../components/UIStates";
+import { Skeleton } from "../components/Skeleton";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -10,6 +11,20 @@ import {
   ChevronRight,
   Building2,
 } from "lucide-react";
+
+export function TenderListSkeleton() {
+  return (
+    <div className="space-y-4 w-full">
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="flex justify-between items-center p-5 bg-white border border-gray-200 rounded-xl shadow-sm">
+          <Skeleton className="h-5 w-24" />
+          <Skeleton className="h-5 w-1/3" />
+          <Skeleton className="h-8 w-28 rounded-md" />
+        </div>
+      ))}
+    </div>
+  );
+}
 
 const riskBadge = (level: string) => {
   const map: Record<string, { bg: string; text: string; icon: ReactNode }> = {
@@ -82,12 +97,7 @@ export default function TenderList() {
   }, []);
 
   if (loading) {
-    return (
-      <LoadingState
-        message="Loading Procurement Tenders..."
-        submessage="Querying mock/artifacts database for evaluated tenders, rule findings, and collusion scores."
-      />
-    );
+    return <TenderListSkeleton />;
   }
 
   if (error) {

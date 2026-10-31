@@ -3,28 +3,28 @@
   "formalization_status": "unconfirmed",
   "atoms": [
     {
-      "id": "CL1.1",
-      "clause_id": "CL1",
+      "id": "CL2.1",
+      "clause_id": "CL2",
       "field": "registration_class",
       "op": "in",
       "value": ["Class-A"],
-      "source_text": "Only Class-A registered contractors are eligible to bid."
-    },
-    {
-      "id": "CL2.1",
-      "clause_id": "CL2",
-      "field": "turnover_cr",
-      "op": ">=",
-      "value": 100,
-      "source_text": "The bidder must demonstrate annual turnover of at least ₹100 crore."
+      "source_text": "Only contractors registered in Class-A are eligible to bid."
     },
     {
       "id": "CL3.1",
       "clause_id": "CL3",
+      "field": "turnover_cr",
+      "op": ">=",
+      "value": 100,
+      "source_text": "The bidder must have an annual turnover of at least ₹100 crore."
+    },
+    {
+      "id": "CL4.1",
+      "clause_id": "CL4",
       "field": "years_experience",
       "op": ">=",
       "value": 15,
-      "source_text": "Minimum 15 years of experience in similar projects is required."
+      "source_text": "The bidder must have at least 15 years of experience in the construction of similar buildings."
     }
   ],
   "findings": [
@@ -32,14 +32,14 @@
       "finding_id": "F-1",
       "type": "tailored_eligibility",
       "severity": "high",
-      "clause_ids": ["CL1", "CL2", "CL3"],
+      "clause_ids": ["CL2", "CL3", "CL4"],
       "source_texts": [
-        "Only Class-A registered contractors are eligible to bid.",
-        "The bidder must demonstrate annual turnover of at least ₹100 crore.",
-        "Minimum 15 years of experience in similar projects is required."
+        "Only contractors registered in Class-A are eligible to bid.",
+        "The bidder must have an annual turnover of at least ₹100 crore.",
+        "The bidder must have at least 15 years of experience in the construction of similar buildings."
       ],
       "proof": {
-        "method": "z3_unsat_core",
+        "method": "z3_model",
         "detail": "satisfiable; exactly 1 of 200 vendors qualifies: V-047"
       },
       "explanation": "The combination of Class-A registration, turnover >= 100 cr, and experience >= 15 years is satisfied by exactly one vendor (V-047), indicating potentially tailored eligibility criteria."
