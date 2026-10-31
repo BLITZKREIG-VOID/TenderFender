@@ -26,7 +26,7 @@ for d in artifacts/rules artifacts/graph artifacts/fused kb/passages data/tender
   fi
 done
 find "$OUT" -name __pycache__ -type d -prune -exec rm -rf {} +
-rm -rf "$OUT/bin"
+rm -rf "${OUT:?}/bin"
 rm -f "$OUT/api/requirements-api.txt"
 
 # Content hash over file paths + bytes: identical inputs give an identical S3 key (idempotent deploys).
