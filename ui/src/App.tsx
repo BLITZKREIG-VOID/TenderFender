@@ -42,6 +42,7 @@ function App() {
           <Routes>
             <Route path="/" element={<TenderList />} />
             <Route path="/tender/:id" element={<TenderDetail />} />
+            <Route path="/tenders/:id" element={<TenderDetail />} />
           </Routes>
         </main>
 

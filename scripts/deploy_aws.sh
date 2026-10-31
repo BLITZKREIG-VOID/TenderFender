@@ -102,7 +102,7 @@ URL="$(out SiteUrl)"
 
 # ── 7. Smoke test ─────────────────────────────────────────────────────────────
 log "Smoke test"
-for path in "" /api/health /api/tenders /api/tenders/T-002/analysis /tenders/T-002; do
+for path in "" /api/health /api/tenders /api/tenders/T-002/analysis /tender/T-002; do
   target="$URL$path"
   echo "Testing GET $target"
   start_time="$(date +%s%N)"
