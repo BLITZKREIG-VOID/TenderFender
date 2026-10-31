@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const client = axios.create({
-  baseURL: "http://localhost:8000/api",
+  baseURL: import.meta.env.VITE_API_BASE ?? "/api",
   headers: {
     "Content-Type": "application/json",
   },
@@ -77,7 +77,13 @@ export interface Clause {
 
 export interface Passage {
   passage_id: string;
-  kind: string;
+  source_title?: string;
+  source_url?: string;
+  section?: string;
+  retrieved?: string;
+  topics?: string[];
+  text?: string;
+  missing?: boolean;
 }
 
 export interface AnalysisResponse {

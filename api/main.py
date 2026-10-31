@@ -18,7 +18,9 @@ from api.loaders import (
     load_fused,
     load_graph,
     load_rules,
+    load_tender_clauses,
 )
+from api.passages import load_passage
 
 
 # ── App setup ────────────────────────────────────────────────────────────────
@@ -117,9 +119,9 @@ def tender_analysis(tender_id: str):
 
     rules = _get_rules(tender_id)
 
-    # Extract clause texts from rules atoms
-    clauses: list[dict[str, Any]] = []
-    if rules and "atoms" in rules:
+    # Clause texts: real clause list from data/tenders/<id>.json, else rules atoms
+    clauses = load_tender_clauses(tender_id)
+    if not clauses and rules and "atoms" in rules:
         seen_clauses: set[str] = set()
         for atom in rules["atoms"]:
             cid = atom["clause_id"]
@@ -130,15 +132,13 @@ def tender_analysis(tender_id: str):
                     "text": atom.get("source_text", ""),
                 })
 
-    # Extract cited passages (placeholder metadata — full passages come from kb/)
+    # Guideline passages cited by the fused decision, read from kb/passages
     passages: list[dict[str, Any]] = []
-    if "citations" in fused:
-        for cite in fused["citations"]:
-            if cite.get("kind") == "guideline":
-                passages.append({
-                    "passage_id": cite["ref"],
-                    "kind": "guideline",
-                })
+    seen_passages: set[str] = set()
+    for cite in fused.get("citations", []):
+        if cite.get("kind") == "guideline" and cite["ref"] not in seen_passages:
+            seen_passages.add(cite["ref"])
+            passages.append(load_passage(cite["ref"]))
 
     return {
         "fused": fused,

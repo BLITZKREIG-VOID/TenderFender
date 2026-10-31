@@ -155,3 +155,61 @@ def test_confirm_atom_not_found_atom():
     resp = client.post("/api/tenders/T-001/atoms/FAKE.1/confirm")
     assert resp.status_code == 404
 
+
+
+# ── Passages & clauses ───────────────────────────────────────────────────────
+
+PASSAGE_KEYS = {"passage_id", "source_title", "source_url", "section", "retrieved", "topics", "text"}
+
+
+def test_analysis_passages_have_kb_fields():
+    data = client.get("/api/tenders/T-002/analysis").json()
+    cited = [c["ref"] for c in data["fused"]["citations"] if c["kind"] == "guideline"]
+    assert cited
+    assert [p["passage_id"] for p in data["passages"]] == cited
+    for p in data["passages"]:
+        assert set(p) == PASSAGE_KEYS
+        assert "missing" not in p
+        assert p["source_title"] and p["source_url"].startswith("http")
+        assert p["section"] and p["retrieved"] and p["text"]
+        assert isinstance(p["topics"], list) and p["topics"]
+
+
+def test_analysis_passage_matches_file():
+    p = client.get("/api/tenders/T-001/analysis").json()["passages"][0]
+    assert p["passage_id"] == "KB-012"
+    assert p["section"] == "Rule 173 (i)"
+    assert "eligibility" in p["topics"]
+    assert p["text"].startswith("Excerpt")
+
+
+def test_analysis_missing_passage_does_not_crash(tmp_path, monkeypatch):
+    (tmp_path / "KB-009.md").write_text(
+        "---\npassage_id: KB-009\nsource_title: T\nsource_url: http://x\n"
+        "section: S\nretrieved: 2026-01-01\ntopics: [a, b]\n---\nbody text\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("KB_DIR", str(tmp_path))
+    # T-002 cites KB-014 / KB-013, which are absent from tmp_path
+    resp = client.get("/api/tenders/T-002/analysis")
+    assert resp.status_code == 200
+    passages = resp.json()["passages"]
+    assert passages and all(p == {"passage_id": p["passage_id"], "missing": True} for p in passages)
+    # T-003 cites KB-009, which exists here
+    p = client.get("/api/tenders/T-003/analysis").json()["passages"][0]
+    assert p["topics"] == ["a", "b"] and p["text"] == "body text" and "missing" not in p
+
+
+def test_analysis_malformed_passage_is_missing(tmp_path, monkeypatch):
+    (tmp_path / "KB-009.md").write_text("no front matter here", encoding="utf-8")
+    monkeypatch.setenv("KB_DIR", str(tmp_path))
+    p = client.get("/api/tenders/T-003/analysis").json()["passages"][0]
+    assert p == {"passage_id": "KB-009", "missing": True}
+
+
+def test_clauses_come_from_tender_data():
+    data = client.get("/api/tenders/T-002/analysis").json()
+    by_id = {c["clause_id"]: c["text"] for c in data["clauses"]}
+    assert len(by_id) == 7
+    assert by_id["CL3"] == "The bidder must have an annual turnover of at least ₹100 crore."
+    assert by_id["CL5"].startswith("Bids must be submitted")
