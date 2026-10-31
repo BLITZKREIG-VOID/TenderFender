@@ -5,10 +5,13 @@ from __future__ import annotations
 import argparse
 import json
 import statistics
+import sys
 from pathlib import Path
 
-from graph.build import build_graph
-from graph.evaluation import evaluate_graphsage
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from graph.build import build_graph  # noqa: E402
+from graph.evaluation import evaluate_graphsage  # noqa: E402
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -10,6 +10,11 @@ Callers must call ``verify_all()`` before writing any file.
 
 from __future__ import annotations
 
+import argparse
+import csv
+import json
+import sys
+from pathlib import Path
 from typing import Any
 
 from synth.generate import (
@@ -463,7 +468,7 @@ def validate_demo_isolation(
     cover_metadata: dict[str, list[str]],
     num_tenders: int,
 ) -> None:
-    """Keep R-2/R-3 overlays off demos and keep T-003 clear of R-1 bidders."""
+    """Keep R-2/R-3 overlays and cover-like behaviour off demo tenders; keep R-1 off demo bidders."""
     r1_vids = {_vid(n) for n in R1_VENDOR_IDS}
     r2_vids = {_vid(n) for n in R2_VENDOR_IDS}
     demo_ids = {_tid(n) for n in range(1, min(3, num_tenders) + 1)}
@@ -477,8 +482,8 @@ def validate_demo_isolation(
             continue
         if bid["vendor_id"] in r2_vids:
             errors.append(f"Demo isolation: R-2 vendor {bid['vendor_id']} bids on {tid}")
-        if tid == _tid(3) and bid["vendor_id"] in r1_vids:
-            errors.append(f"Demo isolation: R-1 vendor {bid['vendor_id']} bids on clean control T-003")
+        if bid["vendor_id"] in r1_vids:
+            errors.append(f"Demo isolation: R-1 vendor {bid['vendor_id']} bids on demo tender {tid}")
 
     demo_bidders = {
         bid["vendor_id"] for bid in bids if bid["tender_id"] in demo_ids
@@ -489,6 +494,19 @@ def validate_demo_isolation(
     overlap = demo_bidders & cover_bidders
     if overlap:
         errors.append(f"Demo isolation: R-3 cover bidders appear in demo tenders: {sorted(overlap)}")
+
+    # No demo bidder may show cover-like behaviour (a losing bid 1-3 % above the
+    # winner) on any tender: demo bidders are clean controls.
+    winners = {b["tender_id"]: b["bid_amount_cr"] for b in bids if b["won"] == 1}
+    cover_like = {
+        b["vendor_id"] for b in bids
+        if b["won"] == 0 and b["tender_id"] in winners and winners[b["tender_id"]] > 0
+        and 1.01 <= b["bid_amount_cr"] / winners[b["tender_id"]] <= 1.03
+    }
+    if demo_bidders & cover_like:
+        errors.append(
+            f"Demo isolation: demo bidders with cover-like bids: {sorted(demo_bidders & cover_like)}"
+        )
 
 
 def validate_r3_labels(
@@ -637,3 +655,105 @@ def verify_all(
 
     if errors:
         raise VerificationError(errors)
+
+
+# ---------------------------------------------------------------------------
+# CLI: verify the files that are actually on disk
+# ---------------------------------------------------------------------------
+
+DATA_FILES = (
+    "vendors.csv", "directors.csv", "vendor_directors.csv",
+    "tenders.csv", "bids.csv", "labels.json",
+)
+
+_VENDOR_TYPES = {"turnover_cr": float, "years_experience": int}
+_TENDER_TYPES = {"estimated_value_cr": float, "bid_days": int}
+_BID_TYPES = {"bid_amount_cr": float, "bid_ratio": float, "rank": int, "won": int}
+
+
+def _read_csv(path: Path, types: dict[str, Any]) -> list[dict[str, Any]]:
+    with path.open(newline="", encoding="utf-8") as stream:
+        rows = list(csv.DictReader(stream))
+    for row in rows:
+        for column, cast in types.items():
+            if column in row:
+                row[column] = cast(row[column])
+    return rows
+
+
+def _reconstruct_cover_metadata(
+    bids: list[dict[str, Any]],
+    tenders: list[dict[str, Any]],
+    labels: dict[str, Any],
+) -> dict[str, list[str]]:
+    """
+    The in-memory generator records which cover bids it planted; that private
+    record is not written to disk. From disk it is reconstructed as: on each R-3
+    tender, the non-winning bids by vendors in the labelled R-3 (cover) ring that
+    sit 1-3 % above the winner. Verification-only; graph/ never reads labels.
+    """
+    r3 = next((r for r in labels.get("rings", []) if r.get("ring_id") == "R-3"), None)
+    cover_vids = set(r3.get("vendor_ids", [])) if r3 else set()
+    r3_tids = {_tid(n) for n in range(R3_TENDER_START, R3_TENDER_END + 1)}
+    winners = {b["tender_id"]: b["bid_amount_cr"] for b in bids if b["won"] == 1}
+    metadata: dict[str, list[str]] = {}
+    for bid in bids:
+        tid = bid["tender_id"]
+        if tid not in r3_tids or tid not in winners or bid["won"] == 1:
+            continue
+        if bid["vendor_id"] in cover_vids and 1.01 <= bid["bid_amount_cr"] / winners[tid] <= 1.03:
+            metadata.setdefault(tid, []).append(bid["vendor_id"])
+    return metadata
+
+
+def load_data_dir(data_dir: Path) -> dict[str, Any]:
+    """Load the six data files from ``data_dir`` into the ``verify_all`` shape."""
+    missing = [name for name in DATA_FILES if not (data_dir / name).is_file()]
+    if missing:
+        raise FileNotFoundError(f"{data_dir}: missing data file(s) {missing}")
+    vendors = _read_csv(data_dir / "vendors.csv", _VENDOR_TYPES)
+    directors = _read_csv(data_dir / "directors.csv", {})
+    vendor_directors = _read_csv(data_dir / "vendor_directors.csv", {})
+    tenders = _read_csv(data_dir / "tenders.csv", _TENDER_TYPES)
+    bids = _read_csv(data_dir / "bids.csv", _BID_TYPES)
+    labels = json.loads((data_dir / "labels.json").read_text(encoding="utf-8"))
+    return {
+        "vendors": vendors,
+        "directors": directors,
+        "vendor_directors": vendor_directors,
+        "tenders": tenders,
+        "bids": bids,
+        "labels": labels,
+        "_cover_metadata": _reconstruct_cover_metadata(bids, tenders, labels),
+    }
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="python -m synth.verify",
+        description="Verify the six synthetic data files on disk against the SoT section 7 contracts.",
+    )
+    parser.add_argument("--data-dir", default="data", help="directory holding the six data files (default: data)")
+    args = parser.parse_args(argv)
+    data_dir = Path(args.data_dir)
+    try:
+        data = load_data_dir(data_dir)
+        verify_all(data, num_vendors=len(data["vendors"]), num_tenders=len(data["tenders"]))
+    except VerificationError as exc:
+        print(f"[verify-synth] FAIL {data_dir}\n{exc}", file=sys.stderr)
+        return 1
+    except (OSError, ValueError, KeyError, json.JSONDecodeError) as exc:
+        print(f"[verify-synth] FAIL could not load {data_dir}: {exc!r}", file=sys.stderr)
+        return 1
+    print(
+        f"[verify-synth] OK {data_dir}: vendors={len(data['vendors'])}, "
+        f"directors={len(data['directors'])}, "
+        f"vendor_director_pairs={len(data['vendor_directors'])}, "
+        f"tenders={len(data['tenders'])}, bids={len(data['bids'])}, "
+        f"rings={len(data['labels'].get('rings', []))}"
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -526,6 +526,25 @@ def _clamp_cover_amount(winner_amount: float, raw_cover: float) -> float:
     return max(lo, min(hi, amount))
 
 
+def _in_cover_window(amount: float, winner_amount: float, margin: float = 0.0) -> bool:
+    """True if ``amount`` sits 1-3 % above ``winner_amount`` (optionally widened)."""
+    if winner_amount <= 0:
+        return False
+    ratio = amount / winner_amount
+    return R3_COVER_ABOVE_MIN + 1.0 - margin <= ratio <= R3_COVER_ABOVE_MAX + 1.0 + margin
+
+
+def _cover_like_vendors(bids: list[dict[str, Any]]) -> set[str]:
+    """Vendors with any losing bid 1-3 % above its tender's winner (observed behaviour)."""
+    winners = {b["tender_id"]: b["bid_amount_cr"] for b in bids if b["won"] == 1}
+    return {
+        b["vendor_id"] for b in bids
+        if b["won"] == 0
+        and b["tender_id"] in winners
+        and _in_cover_window(b["bid_amount_cr"], winners[b["tender_id"]], margin=0.005)
+    }
+
+
 def generate_bids(
     vendors: list[dict[str, Any]],
     tenders: list[dict[str, Any]],
@@ -549,8 +568,10 @@ def generate_bids(
     2. R-3 tenders T-016..T-025 have a random winner and noise bidders, plus
        2–3 planted cover bids 1–3% above the winner. Cover bidders are never
        R-1 or R-2 members.
-    3. Demo and remaining tenders receive ordinary noise bids only. T-003's
-       bidder pool excludes R-1 and R-2 so it remains a clean control.
+    3. Remaining tenders receive ordinary noise bids. The demo tenders
+       T-001..T-003 are generated last, with bidders drawn only from vendors
+       that have no R-1/R-2 role, are not planted cover bidders and show no
+       cover-like (1-3 % above winner) bid anywhere, so they stay clean controls.
 
     Schema (SOURCE_OF_TRUTH.md §7):
       tender_id, vendor_id, bid_amount_cr, bid_ratio, rank, won, submitted_at
@@ -623,21 +644,24 @@ def generate_bids(
                 "submitted_at": submitted_at.isoformat(),
             })
 
-    # --- Demo and remaining tenders ---
+    # --- Remaining tenders, then demo tenders ---
+    # The demo tenders T-001..T-003 are generated LAST so their bidders can be
+    # drawn from vendors that have no planted role and show no cover-bid
+    # behaviour anywhere else in the dataset (see _cover_like_vendors).
+    existing_tids = {t["tender_id"] for t in tender_list}
+    demo_order = sorted(demo_tender_ids & existing_tids)
     remaining_tids = [
         t["tender_id"] for t in tender_list
         if t["tender_id"] not in r2_tender_ids
     ]
+    k_by_tid = {tid: k for k, tid in enumerate(remaining_tids)}
+    build_order = [tid for tid in remaining_tids if tid not in demo_tender_ids]
 
-    for k, tid in enumerate(remaining_tids):
+    def _build_tender(tid: str, tender_pool: list[str]) -> None:
+        is_demo = tid in demo_tender_ids
         tender_obj = next(t for t in tender_list if t["tender_id"] == tid)
         estimated = tender_obj["estimated_value_cr"]
 
-        tender_pool = general_vids
-        if tid == _tid(3):
-            # Keep the clean-control tender away from every flagged ownership
-            # and rotation member while leaving T-001/T-002 otherwise normal.
-            tender_pool = [vid for vid in general_vids if vid not in r1_vids]
         winner_vid = rng.choice(tender_pool)
         winner_amount = round(estimated * rng.uniform(0.75, 0.98), 2)
 
@@ -650,17 +674,16 @@ def generate_bids(
         )
         for ev in extra_vids:
             amt = round(estimated * rng.uniform(0.80, 1.25), 2)
+            if is_demo and _in_cover_window(amt, winner_amount, margin=0.005):
+                # Demo tenders must not contain chance near-winner bids.
+                amt = round(winner_amount * 1.05, 2)
             bid_amounts.append((ev, amt))
 
         if tid in r3_overlay_set:
             cover_count = rng.randint(R3_COVER_BIDDERS_MIN, R3_COVER_BIDDERS_MAX)
             already_bidding = {vendor_id for vendor_id, _ in bid_amounts}
-            demo_bidders = {
-                bid["vendor_id"] for bid in bids if bid["tender_id"] in demo_tender_ids
-            }
             available_covers = [
-                vid for vid in cover_bidder_pool
-                if vid not in already_bidding and vid not in demo_bidders
+                vid for vid in cover_bidder_pool if vid not in already_bidding
             ]
             if len(available_covers) < cover_count:
                 raise ValueError(
@@ -677,7 +700,7 @@ def generate_bids(
         bid_amounts.sort(key=lambda x: x[1])
 
         submitted_at = base_ts + datetime.timedelta(
-            days=R2_ROTATION_TENDER_COUNT + k
+            days=R2_ROTATION_TENDER_COUNT + k_by_tid[tid]
         )
 
         for rank, (vid, amount) in enumerate(bid_amounts, start=1):
@@ -692,6 +715,17 @@ def generate_bids(
                 "won": won,
                 "submitted_at": submitted_at.isoformat(),
             })
+
+    for tid in build_order:
+        _build_tender(tid, general_vids)
+
+    # Demo bidder pool: no R-1/R-2 role, not a planted cover bidder, and no
+    # near-winner (cover-like) bid on any other tender.
+    planted_cover_vids = {vid for vids in cover_metadata.values() for vid in vids}
+    excluded_demo = reserved_vids | planted_cover_vids | _cover_like_vendors(bids)
+    demo_pool = [vid for vid in general_vids if vid not in excluded_demo]
+    for tid in demo_order:
+        _build_tender(tid, demo_pool)
 
     bids.sort(key=lambda x: (x["tender_id"], x["rank"]))
     return bids, cover_metadata

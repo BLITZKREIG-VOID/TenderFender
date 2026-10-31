@@ -84,12 +84,51 @@ def _display_projection(
     return nodes, edges
 
 
+# Connector preference when several equally short display paths link two vendors:
+# a shared director is the stronger ownership link (SoT section 8.3 example),
+# then a shared address, then same-buyer bidding.
+_CONNECTOR_PRIORITY = {"directed_by": 0, "located_at": 1, "bid_to": 2}
+
+
+def _shortest_paths(
+    adjacency: dict[str, list[tuple[str, str]]], source: str, target: str,
+) -> list[tuple[list[str], list[str]]]:
+    """Return every shortest (nodes, edge_types) path from source to target."""
+    distance = {source: 0}
+    queue = [source]
+    for current in queue:
+        if current == target:
+            break
+        for neighbor, _ in adjacency[current]:
+            if neighbor not in distance:
+                distance[neighbor] = distance[current] + 1
+                queue.append(neighbor)
+    if target not in distance:
+        return []
+
+    found: list[tuple[list[str], list[str]]] = []
+
+    def walk(current: str, nodes: list[str], types: list[str]) -> None:
+        if current == target:
+            found.append((nodes, types))
+            return
+        for neighbor, edge_type in sorted(set(adjacency[current])):
+            if distance.get(neighbor) == distance[current] + 1 and distance[neighbor] <= distance[target]:
+                walk(neighbor, [*nodes, neighbor], [*types, edge_type])
+
+    walk(source, [source], [])
+    return found
+
+
 def build_paths(
     rings: list[RingCandidate],
     nodes: dict[str, dict[str, Any]],
     edges: dict[tuple[str, str, str], dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Emit shortest display paths between flagged vendors in each ring."""
+    """Emit every shortest display path between flagged vendors in each ring.
+
+    For one vendor pair, a shared-director path sorts before a shared-address path.
+    """
     adjacency: dict[str, list[tuple[str, str]]] = defaultdict(list)
     for source, target, edge_type in edges:
         adjacency[source].append((target, edge_type))
@@ -98,24 +137,14 @@ def build_paths(
     output: list[dict[str, Any]] = []
     for ring in rings:
         for source, target in combinations(ring.vendor_ids, 2):
-            queue: list[tuple[str, list[str], list[str]]] = [(source, [source], [])]
-            visited = {source}
-            found: tuple[list[str], list[str]] | None = None
-            while queue:
-                current, path_nodes, path_types = queue.pop(0)
-                if current == target:
-                    found = (path_nodes, path_types)
-                    break
-                for neighbor, edge_type in sorted(adjacency[current]):
-                    if neighbor in visited:
-                        continue
-                    visited.add(neighbor)
-                    queue.append((neighbor, [*path_nodes, neighbor], [*path_types, edge_type]))
-            if found:
-                path_nodes, path_types = found
+            for path_nodes, path_types in _shortest_paths(adjacency, source, target):
                 output.append({"from": source, "to": target, "nodes": path_nodes, "edge_types": path_types})
                 output.append({"from": target, "to": source, "nodes": list(reversed(path_nodes)), "edge_types": list(reversed(path_types))})
-    return sorted(output, key=lambda path: (path["from"], path["to"]))
+    return sorted(output, key=lambda path: (
+        path["from"], path["to"],
+        [_CONNECTOR_PRIORITY.get(edge_type, 9) for edge_type in path["edge_types"]],
+        path["nodes"],
+    ))
 
 
 def build_display_graph(
