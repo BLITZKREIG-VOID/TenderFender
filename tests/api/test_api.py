@@ -213,3 +213,42 @@ def test_clauses_come_from_tender_data():
     assert len(by_id) == 7
     assert by_id["CL3"] == "The bidder must have an annual turnover of at least ₹100 crore."
     assert by_id["CL5"].startswith("Bids must be submitted")
+
+# ── Static UI Serving & SPA Routing ──────────────────────────────────────────
+
+def test_static_ui_serving_with_temp_dist(tmp_path):
+    dist_dir = tmp_path / "ui_dist"
+    dist_dir.mkdir()
+    (dist_dir / "index.html").write_text("<html>SPA Index</html>")
+    (dist_dir / "favicon.svg").write_text("<svg>favicon</svg>")
+    
+    assets_dir = dist_dir / "assets"
+    assets_dir.mkdir()
+    (assets_dir / "app-12345.js").write_text("console.log('app');")
+
+    os.environ["UI_DIST"] = str(dist_dir)
+    try:
+        from importlib import reload
+        import api.main
+        reload(api.main)
+        from api.main import app as dynamic_app
+        dyn_client = TestClient(dynamic_app)
+
+        r1 = dyn_client.get("/")
+        assert r1.status_code == 200
+        assert "SPA Index" in r1.text
+        assert "no-cache" in r1.headers.get("cache-control", "")
+
+        r2 = dyn_client.get("/assets/app-12345.js")
+        assert r2.status_code == 200
+        assert "immutable" in r2.headers.get("cache-control", "")
+
+        r3 = dyn_client.get("/tenders/T-002")
+        assert r3.status_code == 200
+        assert "SPA Index" in r3.text
+
+        r4 = dyn_client.get("/api/nope")
+        assert r4.status_code == 404
+    finally:
+        os.environ.pop("UI_DIST", None)
+        reload(api.main)

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tear down everything deploy_aws.sh created: site bucket contents, the stack, and the deploy bucket.
+# Tear down everything deploy_aws.sh created: the CloudFormation stack and the deploy bucket.
 # Env: AWS_REGION (default ap-south-1), STACK_NAME (default tenderfender), YES=1 to skip the prompt.
 set -euo pipefail
 
@@ -36,13 +36,7 @@ empty_versioned_bucket() {
 }
 
 if aws cloudformation describe-stacks --stack-name "$STACK_NAME" >/dev/null 2>&1; then
-  SITE_BUCKET="$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
-    --query "Stacks[0].Outputs[?OutputKey=='SiteBucketName'].OutputValue" --output text)"
-  if [ -n "$SITE_BUCKET" ] && [ "$SITE_BUCKET" != "None" ]; then
-    echo "Emptying s3://$SITE_BUCKET"
-    aws s3 rm "s3://$SITE_BUCKET" --recursive --only-show-errors
-  fi
-  echo "Deleting stack $STACK_NAME (CloudFront takes a few minutes)"
+  echo "Deleting stack $STACK_NAME"
   aws cloudformation delete-stack --stack-name "$STACK_NAME"
   aws cloudformation wait stack-delete-complete --stack-name "$STACK_NAME"
 else

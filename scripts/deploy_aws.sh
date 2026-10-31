@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Deploy TenderFender to AWS (CloudFront + S3 + Lambda Function URL). Idempotent: re-run to update.
+# Deploy TenderFender to AWS (Lambda Function URL serving API + built UI). Idempotent: re-run to update.
 #
 # Env: AWS_REGION (default ap-south-1), STACK_NAME (default tenderfender), BUDGET_EMAIL (optional $1/month alert),
-#      SKIP_GATES=1 (skip artifact/acceptance/demo-guard checks), LAMBDA_PYTHON (default 3.14).
+#      KEEP_WARM (default true), SKIP_GATES=1 (skip artifact/acceptance/demo-guard checks), LAMBDA_PYTHON (default 3.14).
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -12,6 +12,7 @@ export AWS_DEFAULT_REGION="$AWS_REGION"
 export AWS_PAGER=""
 STACK_NAME="${STACK_NAME:-tenderfender}"
 BUDGET_EMAIL="${BUDGET_EMAIL:-}"
+KEEP_WARM="${KEEP_WARM:-true}"
 SKIP_GATES="${SKIP_GATES:-0}"
 
 log() { printf '\n==> %s\n' "$*"; }
@@ -72,7 +73,6 @@ aws s3api put-public-access-block --bucket "$DEPLOY_BUCKET" --public-access-bloc
 aws s3api put-bucket-versioning --bucket "$DEPLOY_BUCKET" --versioning-configuration Status=Enabled
 aws s3api put-bucket-encryption --bucket "$DEPLOY_BUCKET" --server-side-encryption-configuration \
   '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
-# Keep storage tiny: expire old package objects/versions after 30 days.
 aws s3api put-bucket-lifecycle-configuration --bucket "$DEPLOY_BUCKET" --lifecycle-configuration \
   '{"Rules":[{"ID":"expire-old-packages","Status":"Enabled","Filter":{"Prefix":"lambda/"},"Expiration":{"Days":30},"NoncurrentVersionExpiration":{"NoncurrentDays":1},"AbortIncompleteMultipartUpload":{"DaysAfterInitiation":1}}]}'
 
@@ -85,41 +85,35 @@ else
 fi
 
 # ── 6. CloudFormation ─────────────────────────────────────────────────────────
-log "CloudFormation stack $STACK_NAME (first deploy waits ~5 min for CloudFront)"
+log "CloudFormation stack $STACK_NAME"
 aws cloudformation deploy \
   --stack-name "$STACK_NAME" \
   --template-file infra/template.yaml \
   --s3-bucket "$DEPLOY_BUCKET" --s3-prefix cfn \
   --capabilities CAPABILITY_IAM \
   --no-fail-on-empty-changeset \
-  --parameter-overrides "CodeBucket=$DEPLOY_BUCKET" "CodeKey=$CODE_KEY" "BudgetEmail=$BUDGET_EMAIL"
+  --parameter-overrides "CodeBucket=$DEPLOY_BUCKET" "CodeKey=$CODE_KEY" "BudgetEmail=$BUDGET_EMAIL" "KeepWarm=$KEEP_WARM"
 
 out() {
   aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
     --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" --output text
 }
-SITE_BUCKET="$(out SiteBucketName)"
-DIST_ID="$(out DistributionId)"
 URL="$(out SiteUrl)"
 
-# ── 7. UI sync (hashed assets first, index.html last) ─────────────────────────
-log "Sync UI to s3://$SITE_BUCKET"
-aws s3 sync ui/dist/assets "s3://$SITE_BUCKET/assets" --delete \
-  --cache-control "public,max-age=31536000,immutable" --only-show-errors
-aws s3 sync ui/dist "s3://$SITE_BUCKET" --delete --exclude "assets/*" \
-  --cache-control "no-cache" --only-show-errors
-
-# ── 8. Invalidation ───────────────────────────────────────────────────────────
-log "CloudFront invalidation ($DIST_ID)"
-aws cloudfront create-invalidation --distribution-id "$DIST_ID" --paths "/*" --query 'Invalidation.Id' --output text
-
-# ── 9/10. URL + smoke test ────────────────────────────────────────────────────
+# ── 7. Smoke test ─────────────────────────────────────────────────────────────
 log "Smoke test"
-for path in /api/health /api/tenders; do
-  echo "GET $URL$path"
-  curl -fsS --retry 6 --retry-delay 5 --retry-all-errors --max-time 20 "$URL$path"
-  echo
+for path in "" /api/health /api/tenders /api/tenders/T-002/analysis /tenders/T-002; do
+  target="$URL$path"
+  echo "Testing GET $target"
+  start_time="$(date +%s%N)"
+  resp_file="$(mktemp)"
+  http_code="$(curl -s -o "$resp_file" -w "%{http_code}" --retry 6 --retry-delay 2 --max-time 15 "$target")"
+  end_time="$(date +%s%N)"
+  duration_ms=$(( (end_time - start_time) / 1000000 ))
+  echo "  HTTP status: $http_code (time_total: ${duration_ms}ms)"
+  [ "$http_code" = "200" ] || { echo "ERROR: $target returned HTTP $http_code" >&2; exit 1; }
+  rm -f "$resp_file"
 done
 
 echo
-echo "Deployed: $URL"
+echo "Deployed successfully: $URL"

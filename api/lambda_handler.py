@@ -13,5 +13,15 @@ from mangum import Mangum
 
 from api.main import app
 
-# lifespan="off": the app defines no startup/shutdown hooks.
-handler = Mangum(app, lifespan="off")
+
+class LambdaHandler:
+    def __init__(self):
+        self.mangum = Mangum(app, lifespan="off")
+
+    def __call__(self, event: dict, context) -> dict:
+        if isinstance(event, dict) and event.get("source") == "aws.events":
+            return {"warm": True}
+        return self.mangum(event, context)
+
+
+handler = LambdaHandler()

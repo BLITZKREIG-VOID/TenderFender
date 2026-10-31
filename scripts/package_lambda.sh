@@ -17,6 +17,16 @@ uv pip install --quiet --target "$OUT" --python-platform x86_64-manylinux2014 \
 
 # Application code and the data the API reads (api/loaders.py resolves everything relative to the package root).
 cp -r api "$OUT/api"
+
+# Built UI (required for single Lambda hosting of API and React frontend)
+if [ -d "ui/dist" ] && [ -f "ui/dist/index.html" ]; then
+  mkdir -p "$OUT/ui_dist"
+  cp -r ui/dist/* "$OUT/ui_dist/"
+else
+  echo "package-lambda: ERROR: ui/dist/index.html not found. Run "npm --prefix ui ci && VITE_API_BASE=/api npm --prefix ui run build" first." >&2
+  exit 1
+fi
+
 for d in artifacts/rules artifacts/graph artifacts/fused kb/passages data/tenders; do
   if [ -d "$d" ]; then
     mkdir -p "$OUT/$(dirname "$d")"
