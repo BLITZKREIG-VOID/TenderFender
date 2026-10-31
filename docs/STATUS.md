@@ -1,9 +1,9 @@
-# TenderFender Deployment Status
+# TenderFender Final Status
 
 - **Live URL**: https://cl5srhq2lbhpd775etjbpso6sy0fwrtt.lambda-url.ap-south-1.on.aws/
 - **AWS Region**: ap-south-1
 - **Stack Name**: tenderfender
-- **Stack Status**: CREATE_COMPLETE
+- **Stack Status**: deployed from `main` @ `166de33` (stack updated; smoke test green)
 - **Teardown Command**: `make destroy` (or `aws cloudformation delete-stack --stack-name tenderfender`)
 
 ## Evidence Table
@@ -28,3 +28,33 @@
 - **T-003**: `template` (no evidence)
 
 Note: `make pipeline` defaults to `DECISION_MODE=auto` (SoT §13 D29): saved decision when its `input_hash` matches, template when there is no evidence, loud failure if stale with no `OPENROUTER_API_KEY`. `DECISION_MODE=template` is an explicit opt-in.
+
+## Final Status Board (SoT §16)
+
+| Person | Last checkpoint | Evidence (command + result) | Blockers |
+|---|---|---|---|
+| P1 (Arnav) | Rules, 3 demo tenders, 18 guideline passages, demo script, slides merged (PR #3, #8) | `make rules`: T-001 contradiction CL2/CL5, T-002 tailored eligibility (V-047 only), T-003 zero findings; `make validate-contracts`: 50/50 files valid | None |
+| P2 (Anirudh) | Synthetic data, graph screens, GraphSAGE and evaluation merged (PR #4, #7, #9) | `make graph`: baseline PR-AUC 1.0, GNN (GraphSAGE) PR-AUC ~0.30, reported honestly as synthetic/experimental; `make evaluate` exit 0 | None |
+| P3 (Hardhik, Lead) | Contracts, fusion, RAG decision layer, saved AI decisions, Makefile `DECISION_MODE=auto` (PR #5, #6, #11, #13, #16, #23) | Fresh clone, offline, no key: `make pipeline` exit 0, T-001/T-002 `decision_source` `cache`, T-003 `template`; `make test` 299 passed; `make acceptance` 14/14 | DoD #6 human read pending (below) |
+| P4 (Harsh) | API, UI, mocks, AWS Lambda deployment, real screenshots merged (PR #1, #2, #10, #12, #14, #15, #17, #22) | `pytest tests/api -q`: 20 passed; live smoke test 200 on `/`, `/tender/T-002`, `/api/*`; screenshots `docs/screenshots/01..06` | None |
+
+## Definition of Done (SoT §12)
+
+| # | Item | Status | Evidence |
+|---|---|---|---|
+| 1 | `make pipeline` exits 0 from a clean clone, offline | PASS | Fresh clone, `env -u OPENROUTER_API_KEY`, `HF_HUB_OFFLINE=1`: exit 0 (PR #23); earlier rehearsal in `docs/REHEARSAL.md` §1 |
+| 2 | T-001: CL2/CL5 contradiction; medium / review | PASS | `docs/REHEARSAL.md` §2; `make acceptance` 14/14 |
+| 3 | T-002: `qualifying_vendors == ["V-047"]`; high / escalate; V-047 in R-1 | PASS | `docs/REHEARSAL.md` §2; `make acceptance` 14/14 |
+| 4 | T-003: zero findings; low / clear | PASS | `docs/REHEARSAL.md` §2; `make acceptance` 14/14 |
+| 5 | Graph: baseline finds R-1 and R-2; baseline and GNN metrics on a ring-group holdout, labeled synthetic | PASS | Baseline PR-AUC 1.0 vs GNN ~0.30 (synthetic data; GNN experimental); `docs/REHEARSAL.md` §2 |
+| 6 | Decisions: citations resolve, no PLACEHOLDER cited; human check of each reasoning claim | Citations: PASS. Human read: **NEEDS-HUMAN** | Citation checks pass in `make acceptance`. The human read of reasoning against cited sources is not done; the review sheet is `docs/REHEARSAL.md` §3 |
+| 7 | UI: list with badges, detail with risk card, clauses, confirm ticks, graph, decision panel, disclaimer | PASS on the live site; `MOCK=1` not re-checked in a browser | Real screenshots from the live URL and DOM evidence in PR #22 (`docs/screenshots/01..06`) |
+| 8 | `make validate-contracts` and `make test` pass | PASS | 50/50 files valid; 299 passed (PR #23) |
+
+## Pull Requests
+
+#1 p4/app (initial backend, mocks, UI) · #2 UI refactor · #3 P1 demo tenders · #4 P2 synthetic generator · #5 P3 contracts, fusion, decision layer · #6 OpenRouter writer · #7 P2 graph and GraphSAGE · #8 P1 rules, passages, slides · #9 P2 fixes · #10 P4 fixes · #11 P3 integration · #12 AWS deploy · #13 SoT D20–D27 and CC-04 · #14 deploy tuning · #15 Lambda-only template · #16 LLM decisions · #17 deploy status · #18 H40 rehearsal · #19 rehearsal fixes · #20 README · #21 UI verification · #22 real screenshots · #23 final polish (`DECISION_MODE=auto`, `/tenders/:id` alias, README audit, D29) · #24 this status update.
+
+## Teardown
+
+`make destroy` (deletes the `tenderfender` stack and the deployment bucket).
