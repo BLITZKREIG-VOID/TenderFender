@@ -31,7 +31,7 @@ setup:
 	 else \
 	   $(PY) -m pip install torch --index-url https://download.pytorch.org/whl/cpu && \
 	   $(PY) -m pip install -r requirements.txt; fi
-	$(PY) -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('$(EMBEDDING_MODEL)', cache_folder='$(SENTENCE_TRANSFORMERS_HOME)'); print('embedding model cached in $(SENTENCE_TRANSFORMERS_HOME)')"
+	$(PY) -c "import os; from sentence_transformers import SentenceTransformer; home = os.environ['SENTENCE_TRANSFORMERS_HOME']; SentenceTransformer(os.environ['EMBEDDING_MODEL'], cache_folder=home); print('embedding model cached in', home)"
 
 synth:
 	$(PY) -m synth.generator --seed 42
@@ -47,11 +47,11 @@ graph:
 	$(PY) -m graph.run
 
 fuse:
-	$(PY) -m fusion.run --rules-dir $(RULES_DIR) --graph $(GRAPH_JSON) --data-dir $(DATA_DIR) --out-dir $(FUSION_DIR)
+	$(PY) -m fusion.run --rules-dir "$(RULES_DIR)" --graph "$(GRAPH_JSON)" --data-dir "$(DATA_DIR)" --out-dir "$(FUSION_DIR)"
 
 decide:
-	$(PY) -m decision.run --fusion-dir $(FUSION_DIR) --kb-dir $(KB_DIR) --out-dir $(FUSED_DIR) \
-	  --cache-dir $(CACHE_DIR) --mode $(DECISION_MODE) --retriever $(RETRIEVER)
+	$(PY) -m decision.run --fusion-dir "$(FUSION_DIR)" --kb-dir "$(KB_DIR)" --out-dir "$(FUSED_DIR)" \
+	  --cache-dir "$(CACHE_DIR)" --mode "$(DECISION_MODE)" --retriever "$(RETRIEVER)"
 
 # Sequential recipe lines so any failing step stops the pipeline (also under `make -j`).
 pipeline:
@@ -74,12 +74,12 @@ validate-artifacts:
 	PYTHONPATH=. $(PY) scripts/validate_contracts.py --artifacts-only
 
 acceptance:
-	PYTHONPATH=. $(PY) scripts/acceptance.py --rules-dir $(RULES_DIR) --graph $(GRAPH_JSON) \
-	  --fused-dir $(FUSED_DIR) --data-dir $(DATA_DIR) --kb-dir $(KB_DIR)
+	PYTHONPATH=. $(PY) scripts/acceptance.py --rules-dir "$(RULES_DIR)" --graph "$(GRAPH_JSON)" \
+	  --fused-dir "$(FUSED_DIR)" --data-dir "$(DATA_DIR)" --kb-dir "$(KB_DIR)"
 
 acceptance-mock:
 	PYTHONPATH=. $(PY) scripts/acceptance.py --rules-dir mocks/rules --graph mocks/graph/graph_output.json \
-	  --fused-dir $(FUSED_DIR) --data-dir contracts/examples/data --kb-dir kb/passages
+	  --fused-dir "$(FUSED_DIR)" --data-dir contracts/examples/data --kb-dir kb/passages
 evaluate:
 	$(PY) scripts/evaluate.py
 
@@ -90,7 +90,7 @@ ui:
 	npm --prefix ui run dev
 
 demo-guard:
-	PYTHONPATH=. DEMO=1 $(PY) scripts/demo_guard.py --kb-dir $(KB_DIR) --fused-dir $(FUSED_DIR)
+	PYTHONPATH=. DEMO=1 $(PY) scripts/demo_guard.py --kb-dir "$(KB_DIR)" --fused-dir "$(FUSED_DIR)"
 
 demo: demo-guard
 	DEMO=1 bash scripts/demo.sh

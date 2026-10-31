@@ -13,6 +13,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -22,6 +23,8 @@ from decision.validate import DecisionValidationError, validate_decision
 
 DISCLAIMER = "Risk indicators only; not a finding of wrongdoing. Recommendation requires human review."
 MODES = ("cache", "llm", "template", "auto")
+# Independent of fusion (SoT D5): the deterministic risk -> decision mapping (SoT 8.3), re-checked on every input.
+DECISION_BY_RISK = {"low": "clear", "medium": "review", "high": "escalate"}
 
 
 class DecisionError(Exception):
@@ -50,9 +53,12 @@ def _load_cache(path: Path) -> dict | None:
     if not path.is_file():
         return None
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         raise DecisionError(f"corrupt cache file {path}: {exc}") from exc
+    if not isinstance(data, dict):
+        raise DecisionError(f"corrupt cache file {path}: top-level JSON value must be an object")
+    return data
 
 
 def _cache_usable(entry: dict | None, input_hash: str) -> bool:
@@ -90,7 +96,7 @@ def _decide_one(fusion: dict, retrieved: write.Retrieved, input_hash: str, retri
         if entry.get("input_hash") != input_hash:
             raise DecisionError(f"{tid}: cached decision is stale (input_hash mismatch) at {cache_path}")
         fields = {"reasoning": entry.get("reasoning"), "recommended_actions": entry.get("recommended_actions")}
-        derived = validate_decision(fields, allowed, placeholder_ids)  # re-validate on load
+        derived = validate_decision(fields, allowed, placeholder_ids, fusion["decision"])  # re-validate on load
         if entry.get("citations") != derived:
             raise DecisionValidationError([f"{tid}: cached citations do not match refs in cached text"])
         return fields, "cache"
@@ -129,13 +135,19 @@ def run(fusion_dir: Path, kb_dir: Path, out_dir: Path, cache_dir: Path, *, mode:
     for ff in files:
         fusion = json.loads(ff.read_text(encoding="utf-8"))
         tid = fusion["tender_id"]
+        if not isinstance(tid, str) or not re.fullmatch(r"T-\d{3}", tid) or ff.stem != tid:
+            raise DecisionError(f"{ff}: tender_id {tid!r} must match T-NNN and the file name")
+        if DECISION_BY_RISK.get(fusion["risk_level"]) != fusion["decision"]:
+            raise DecisionError(f"{tid}: decision {fusion['decision']!r} does not match risk_level "
+                                f"{fusion['risk_level']!r} (expected {DECISION_BY_RISK.get(fusion['risk_level'])!r})")
         retrieved = retrieve(build_queries(fusion["_inputs"]), passages, retriever, top_k=top_k,
                              min_score=min_score, allow_placeholder=allow_placeholder)
         input_hash = compute_input_hash(fusion, retrieved, retriever.name)
         fields, source = _decide_one(fusion, retrieved, input_hash, retriever.name, mode=mode,
                                      cache_path=cache_dir / f"{tid}.json", placeholder_ids=placeholder_ids,
                                      transport=transport)
-        citations = validate_decision(fields, write.allowed_refs(fusion["_inputs"], retrieved), placeholder_ids)
+        citations = validate_decision(fields, write.allowed_refs(fusion["_inputs"], retrieved), placeholder_ids,
+                                      fusion["decision"])
 
         final = {k: v for k, v in fusion.items() if k != "_inputs"}
         final.update({"reasoning": fields["reasoning"], "citations": citations,
@@ -144,8 +156,6 @@ def run(fusion_dir: Path, kb_dir: Path, out_dir: Path, cache_dir: Path, *, mode:
         ordered = ["tender_id", "title", "risk_level", "rule_finding_ids", "graph_flag_ring_ids", "linked_vendors",
                    "summary", "decision", "reasoning", "citations", "recommended_actions", "decision_source", "disclaimer"]
         final = {k: final[k] for k in ordered}
-        if final["risk_level"] != fusion["risk_level"] or final["decision"] != fusion["decision"]:
-            raise DecisionError(f"{tid}: risk_level/decision must never change")
         out = out_dir / f"{tid}.json"
         out.write_text(json.dumps(final, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         written.append(out)

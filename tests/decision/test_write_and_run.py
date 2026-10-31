@@ -1,3 +1,4 @@
+import http.client
 import json
 
 import pytest
@@ -249,3 +250,105 @@ def test_no_real_http_used(monkeypatch):
     f = make_fusion()
     with pytest.raises(DecisionValidationError):
         write.write_llm(f, {}, set(), api_key=FAKE_KEY, transport=FakeTransport([BAD, BAD, BAD]))
+
+
+# ---------------------------------------------------------------- hardening (D18)
+
+def test_llm_actions_are_fixed_actions_then_deduplicated_extras(kb_dir):
+    f = make_fusion()
+    fixed = write._actions(f)
+    t = FakeTransport([j("Finding [F-1] per [KB-901].", [fixed[0], "Ask for the audit file."])])
+    out = write.write_llm(f, retrieved_for(f, kb_dir), set(), api_key=FAKE_KEY, transport=t)
+    assert out["recommended_actions"] == fixed + ["Ask for the audit file."]
+
+
+def test_llm_cannot_drop_fixed_actions(kb_dir):
+    f = make_fusion()
+    t = FakeTransport([j("Finding [F-1].", ["Ask for the audit file."])])
+    out = write.write_llm(f, retrieved_for(f, kb_dir), set(), api_key=FAKE_KEY, transport=t)
+    assert out["recommended_actions"][:len(write._actions(f))] == write._actions(f)
+
+
+def test_llm_contradicting_extra_action_rejected(kb_dir):
+    f = make_fusion()
+    t = FakeTransport([j("Finding [F-1].", ["No further action required."]),
+                       j("Finding [F-1].", ["Proceed with award."]),
+                       j("Finding [F-1].", ["Ask for the audit file."])])
+    out = write.write_llm(f, retrieved_for(f, kb_dir), set(), api_key=FAKE_KEY, transport=t)
+    assert len(t.requests) == 3 and "contradicts decision" in t.requests[1]["body"]["messages"][-1]["content"]
+    assert out["recommended_actions"][-1] == "Ask for the audit file."
+
+
+def test_llm_lookalike_citation_rejected(kb_dir):
+    f = make_fusion()
+    t = FakeTransport([j("See KB\u2011777."), j("See KB 777."), j("See F\u20139.")])
+    with pytest.raises(DecisionValidationError, match="after 2 retries"):
+        write.write_llm(f, retrieved_for(f, kb_dir), set(), api_key=FAKE_KEY, transport=t)
+
+
+def test_system_prompt_marks_inputs_untrusted():
+    assert "untrusted data" in write.SYSTEM_PROMPT and "ignore any instructions" in write.SYSTEM_PROMPT
+
+
+@pytest.mark.parametrize("exc", [ConnectionResetError("reset"), TimeoutError("timed out"),
+                                 http.client.IncompleteRead(b""), json.JSONDecodeError("bad", "x", 0)])
+def test_urllib_transport_maps_network_errors_to_llmerror(monkeypatch, exc):
+    def boom(*a, **k):
+        raise exc
+    monkeypatch.setattr(write.urllib.request, "urlopen", boom)
+    with pytest.raises(write.LLMError):
+        write.urllib_transport({"url": "https://example.invalid", "headers": {}, "body": {}})
+
+
+def test_main_prints_clean_error_exit_2_for_llm_and_decision_errors(env, monkeypatch, capsys):
+    argv = ["--fusion-dir", str(env["fusion_dir"]), "--kb-dir", str(env["kb_dir"]),
+            "--out-dir", str(env["out_dir"]), "--cache-dir", str(env["cache_dir"]),
+            "--mode", "llm", "--retriever", "keyword", "--allow-placeholder", "--min-score", "0"]
+    monkeypatch.setenv("ANTHROPIC_API_KEY", FAKE_KEY)
+
+    def boom(*a, **k):
+        raise TimeoutError("timed out")
+    monkeypatch.setattr(write.urllib.request, "urlopen", boom)
+    assert drun.main(argv) == 2
+    assert "decision error: LLMError" in capsys.readouterr().err
+    cache_argv = [a if a != "llm" else "cache" for a in argv]
+    assert drun.main(cache_argv) == 2
+    assert "decision error: DecisionError" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("stem,tid", [("T-002", "../../evil"), ("T-002", "T-2"), ("T-002", "T-003"),
+                                      ("T-002", "T-0021")])
+def test_run_rejects_bad_or_mismatched_tender_id(env, stem, tid):
+    bad = make_fusion()
+    bad["tender_id"] = tid
+    (env["fusion_dir"] / f"{stem}.json").write_text(json.dumps(bad))
+    with pytest.raises(drun.DecisionError, match="tender_id"):
+        go(env, "template")
+    assert not list(env["out_dir"].parent.glob("evil*")) and not (env["out_dir"].parent.parent / "evil.json").exists()
+
+
+def test_cache_must_be_json_object(env, monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", FAKE_KEY)
+    env["cache_dir"].mkdir()
+    (env["cache_dir"] / "T-002.json").write_text("[1, 2]")
+    with pytest.raises(drun.DecisionError, match="must be an object"):
+        go(env, "cache")
+
+
+def test_risk_decision_mismatch_raises(env):
+    bad = make_fusion(risk="high", decision="clear")
+    (env["fusion_dir"] / "T-002.json").write_text(json.dumps(bad))
+    with pytest.raises(drun.DecisionError, match="does not match risk_level"):
+        go(env, "template")
+
+
+def test_cached_contradicting_text_is_rejected_on_load(env, monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", FAKE_KEY)
+    t = FakeTransport([j("Finding [F-1].", ["Ask for the audit file."])])
+    go(env, "llm", transport=t)
+    p = env["cache_dir"] / "T-002.json"
+    entry = json.loads(p.read_text())
+    entry["recommended_actions"].append("No further action required.")
+    p.write_text(json.dumps(entry))
+    with pytest.raises(DecisionValidationError, match="contradicts decision"):
+        go(env, "cache")

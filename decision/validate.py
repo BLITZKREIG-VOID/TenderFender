@@ -3,20 +3,40 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 
 # Every reference-like token, case-insensitive, including malformed ones (KB-12, KB-0042, kb-004,
-# R-01, F-1a). Each must then be an exact member of the allowed set; nothing is silently ignored.
-REF_RE = re.compile(r"(?<![A-Za-z0-9])(?:KB|F|R)-\d+[A-Za-z0-9]*", re.I)
+# R-01, F-1a, "KB 777", "KB‑777", "F–9"). Runs on NFKC-normalized text. The prefix must be a standalone
+# token (not preceded by an alphanumeric, not followed by a letter), so "Rule 173", "Form 5", "FY 2024",
+# "Section 3" never match. Each match must then be exactly an allowed canonical ref; nothing is ignored.
+REF_RE = re.compile(
+    r"(?<![A-Za-z0-9])(?:KB|F|R)(?![A-Za-z])\s*[-\u2010-\u2015\u2212\uFE58\uFE63\uFF0D]?\s*\d+\w*", re.I)
 
 # Wording rule (SoT 1): risk indicators only, never conclusions of guilt/illegality.
 # `corrupt` is matched as a whole word so that official titles containing
 # "Corruption" (e.g. an Act's name) are not rejected.
 FORBIDDEN_PATTERNS = [
-    re.compile(r"\bcorrupt\b", re.I),
+    re.compile(r"\bcorrupt(?:ly)?\b", re.I),
     re.compile(r"\bguilty\b", re.I),
     re.compile(r"\bproves?\s+(?:the\s+)?illegal\w*", re.I),
     re.compile(r"\b(?:is|are|was|were|committed|constitutes?)\s+(?:a\s+|an\s+)?fraud(?:ulent)?\b", re.I),
+    re.compile(r"\b(?:is|are|was|were)\s+(?:\w+\s+)?fraudulent\b", re.I),
 ]
+
+# Phrases that contradict the fixed (deterministic) decision.
+CONTRADICTIONS_FOR_REVIEW = (
+    "no further action", "no action required", "proceed with award", "no review needed",
+    "no further review", "safe to award",
+)
+CONTRADICTIONS_FOR_CLEAR = ("escalate to", "suspend the tender")
+
+
+def contradiction_phrases(decision: str | None) -> tuple[str, ...]:
+    if decision in ("review", "escalate"):
+        return CONTRADICTIONS_FOR_REVIEW
+    if decision == "clear":
+        return CONTRADICTIONS_FOR_CLEAR
+    return ()
 
 
 class DecisionValidationError(Exception):
@@ -25,8 +45,12 @@ class DecisionValidationError(Exception):
         super().__init__("; ".join(self.errors))
 
 
+def normalize_text(text: str) -> str:
+    return unicodedata.normalize("NFKC", text)
+
+
 def extract_refs(text: str) -> list[str]:
-    return REF_RE.findall(text)
+    return REF_RE.findall(normalize_text(text))
 
 
 def ref_kind(ref: str) -> str:
@@ -44,7 +68,8 @@ def _ref_sort_key(ref: str) -> tuple[int, int]:
     return (order[ref_kind(ref)], int(ref.split("-", 1)[1]))
 
 
-def validate_decision(text_fields: dict, allowed_refs: set[str], placeholder_ids: set[str]) -> list[dict]:
+def validate_decision(text_fields: dict, allowed_refs: set[str], placeholder_ids: set[str],
+                      decision: str | None = None) -> list[dict]:
     """Validate `{"reasoning": str, "recommended_actions": [str]}`.
 
     Returns the citations list derived from refs found in the text (never trusted
@@ -63,7 +88,13 @@ def validate_decision(text_fields: dict, allowed_refs: set[str], placeholder_ids
     texts = [reasoning, *actions]
     refs: set[str] = set()
     for t in texts:
-        refs.update(extract_refs(t))
+        for ch in t:
+            if unicodedata.category(ch) == "Cf":
+                errors.append(f"forbidden invisible format character U+{ord(ch):04X}")
+                break
+    texts = [normalize_text(t) for t in texts]
+    for t in texts:
+        refs.update(REF_RE.findall(t))
 
     valid: list[str] = []
     for ref in sorted(refs):
@@ -75,11 +106,16 @@ def validate_decision(text_fields: dict, allowed_refs: set[str], placeholder_ids
         else:
             valid.append(ref)
 
+    phrases = contradiction_phrases(decision)
     for t in texts:
         for pat in FORBIDDEN_PATTERNS:
             m = pat.search(t)
             if m:
                 errors.append(f"forbidden wording: {m.group(0)!r}")
+        squeezed = " ".join(t.lower().split())
+        for phrase in phrases:
+            if phrase in squeezed:
+                errors.append(f"text contradicts decision {decision!r}: {phrase!r}")
 
     if errors:
         raise DecisionValidationError(errors)
