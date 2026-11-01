@@ -26,7 +26,7 @@ CACHE_DIR  := artifacts/decisions
 
 .PHONY: setup synth verify-synth rules graph fuse decide pipeline pipeline-mock pipeline-real \
         validate-contracts validate-artifacts acceptance acceptance-mock demo-guard evaluate api ui demo test \
-        build-ui package-lambda deploy destroy
+        build-ui package-lambda deploy destroy check-passages decision-review pipeline-real
 
 setup:
 	@test -x $(PY) || { command -v uv >/dev/null 2>&1 && uv venv --python 3.14 .venv || python3.14 -m venv .venv; }
@@ -38,6 +38,9 @@ setup:
 	   $(PY) -m pip install torch --index-url https://download.pytorch.org/whl/cpu && \
 	   $(PY) -m pip install -r requirements.txt; fi
 	$(PY) -c "import os; from sentence_transformers import SentenceTransformer; home = os.environ['SENTENCE_TRANSFORMERS_HOME']; SentenceTransformer(os.environ['EMBEDDING_MODEL'], cache_folder=home); print('embedding model cached in', home)"
+
+check-passages:
+	$(PY) scripts/check_passages.py
 
 synth:
 	$(PY) -m synth.generator --seed 42
@@ -113,6 +116,10 @@ demo: demo-guard
 
 test:
 	$(PY) -m pytest tests/
+
+# Human review sheet for DoD #6; keeps verdicts already filled in docs/DECISION_REVIEW.md.
+decision-review:
+	$(PY) scripts/decision_review.py --fused-dir "$(FUSED_DIR)" --kb-dir "$(KB_DIR)" --out docs/DECISION_REVIEW.md
 
 # ── AWS free-tier deployment (docs/DEPLOY.md) ────────────────────────────────
 build-ui:

@@ -127,7 +127,8 @@ make ui
 ## 8. Results & Honesty
 
 - **Test Suite & Acceptance:** `make test` passes 299 tests successfully; `make acceptance` passes 14/14 validation checks.
-- **Baseline vs GNN Metrics:** On synthetic holdout data, the deterministic network baseline achieves PR-AUC 1.0, while GraphSAGE achieves PR-AUC ~0.30 due to synthetic graph structure limitations. Both are reported transparently.
+- **Baseline vs GNN Metrics:** On synthetic holdout data, the deterministic network baseline reaches PR-AUC 1.0 (agreement with planted patterns on synthetic data, not accuracy), while GraphSAGE achieves PR-AUC ~0.30 due to synthetic graph structure limitations. Both are reported transparently.
+- **What the baseline PR-AUC 1.0 means:** it is *agreement with planted patterns on synthetic data, not accuracy*. The screen thresholds equal the generator's planted parameters: the cover-bid screen looks for bids 1.01–1.03 times the winning bid (`COVER_MIN_RATIO = 1.01`, `COVER_MAX_RATIO = 1.03` in `graph/screens.py`), and the generator plants cover bids in exactly that window (`_clamp_cover_amount` in `synth/generate.py` clamps every cover bid into [1.01, 1.03]); the rotation screen scores against `ROTATION_TENDER_CAP = 12` tenders, and the generator plants rotation over exactly 12 tenders (`R2_ROTATION_TENDER_COUNT = 12`). The baseline therefore recovers what was planted by construction. It says nothing about performance on real procurement data, where bids, rings and thresholds are not known in advance.
 - **Decision Sources:** T-001 and T-002 reasoning was written by the LLM (`nvidia/nemotron-3-ultra-550b-a55b:free`), saved in `artifacts/decisions/`, and is served from that cache (`decision_source: cache`); T-003 has no evidence and uses the deterministic template writer (`decision_source: template`).
 
 ---
