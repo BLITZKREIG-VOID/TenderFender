@@ -276,6 +276,9 @@ def reject_atom(tender_id: str, atom_id: str, body: RejectBody | None = None):
     )
 
 
+from api.llm_routes import router as llm_router; app.include_router(llm_router)
+
+
 # ── Static UI Serving ────────────────────────────────────────────────────────
 ui_dist_dir = os.environ.get("UI_DIST", os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "ui_dist")))
 if os.path.isdir(ui_dist_dir):
