@@ -1290,3 +1290,47 @@ class TestNoAccidentalSharedLinks:
         capsys.readouterr()
         assert verify_main(["--data-dir", str(tmp_path)]) == 1
         assert "accidental shared address_id" in capsys.readouterr().err
+
+
+class TestNoAccidentalSharedDirectors:
+    def test_only_r1_vendors_share_a_director(self, default_data):
+        r1 = {_vid(n) for n in R1_VENDOR_IDS}
+        holders: dict[str, set[str]] = {}
+        for row in default_data["vendor_directors"]:
+            holders.setdefault(row["person_id"], set()).add(row["vendor_id"])
+        shared = {p: v for p, v in holders.items() if len(v) > 1}
+        assert shared == {_pid(R1_SHARED_DIRECTOR): r1}
+
+    def test_every_director_is_assigned_and_every_vendor_has_one(self, default_data):
+        assigned = {r["person_id"] for r in default_data["vendor_directors"]}
+        assert assigned == {d["person_id"] for d in default_data["directors"]}
+        assert {r["vendor_id"] for r in default_data["vendor_directors"]} == {
+            v["vendor_id"] for v in default_data["vendors"]
+        }
+
+    def test_injected_shared_director_fails_in_memory(self):
+        data = generate_all(num_vendors=200, num_tenders=300, seed=42)
+        stolen = next(
+            r["person_id"] for r in data["vendor_directors"] if r["vendor_id"] == "V-093"
+        )
+        data["vendor_directors"].append({"vendor_id": "V-094", "person_id": stolen})
+        with pytest.raises(VerificationError, match="accidental shared director"):
+            verify_all(data, num_vendors=200, num_tenders=300)
+
+    def test_injected_shared_director_fails_in_disk_cli(self, tmp_path, capsys):
+        from synth.verify import main as verify_main
+
+        run(num_vendors=200, num_tenders=300, seed=42, output_dir=tmp_path)
+        path = tmp_path / "vendor_directors.csv"
+        with path.open(newline="", encoding="utf-8") as fh:
+            rows = list(csv.DictReader(fh))
+        stolen = next(r["person_id"] for r in rows if r["vendor_id"] == "V-093")
+        rows.append({"vendor_id": "V-094", "person_id": stolen})
+        with path.open("w", newline="", encoding="utf-8") as fh:
+            w = csv.DictWriter(fh, fieldnames=["vendor_id", "person_id"])
+            w.writeheader()
+            w.writerows(rows)
+
+        capsys.readouterr()
+        assert verify_main(["--data-dir", str(tmp_path)]) == 1
+        assert "accidental shared director" in capsys.readouterr().err

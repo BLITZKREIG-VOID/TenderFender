@@ -313,26 +313,35 @@ def validate_r1(
 def validate_no_accidental_shared_links(
     errors: list[str],
     vendors: list[dict[str, Any]],
+    vendor_directors: list[dict[str, Any]],
     labels: dict[str, Any],
 ) -> None:
     """
-    Two vendors may share an address_id or contact_id only when both belong to
-    the same planted ring in ``labels.rings``. Any other shared pair is an
-    accidental link (e.g. an ID-counter collision) that would create a false
-    graph edge. Works on in-memory and on-disk data alike: only ``vendors`` and
-    ``labels`` are read.
+    Two vendors may share an address_id, contact_id or director (person_id)
+    only when both belong to the same planted ring in ``labels.rings``. Any
+    other shared pair is an accidental link (e.g. an ID-counter collision or a
+    reused director) that would create a false graph edge. Works on in-memory
+    and on-disk data alike: only the tables and ``labels`` are read.
     """
     ring_of: dict[str, set[str]] = {}
     for ring in labels.get("rings", []):
         for vid in ring.get("vendor_ids", []):
             ring_of.setdefault(vid, set()).add(ring.get("ring_id"))
 
-    for field in ("address_id", "contact_id"):
-        holders: dict[str, list[str]] = {}
-        for v in vendors:
-            holders.setdefault(v[field], []).append(v["vendor_id"])
-        for value, vids in sorted(holders.items()):
-            vids = sorted(vids)
+    keyed: list[tuple[str, list[tuple[str, str]]]] = [
+        (field, [(v["vendor_id"], v[field]) for v in vendors])
+        for field in ("address_id", "contact_id")
+    ]
+    keyed.append(
+        ("director", [(r["vendor_id"], r["person_id"]) for r in vendor_directors])
+    )
+
+    for field, pairs in keyed:
+        holders: dict[str, set[str]] = {}
+        for vid, value in pairs:
+            holders.setdefault(value, set()).add(vid)
+        for value, holder_ids in sorted(holders.items()):
+            vids = sorted(holder_ids)
             for i, a in enumerate(vids):
                 for b in vids[i + 1:]:
                     if not (ring_of.get(a, set()) & ring_of.get(b, set())):
@@ -676,7 +685,7 @@ def verify_all(
 
     # --- Planted scenarios ---
     validate_r1(errors, vendors, vendor_directors)
-    validate_no_accidental_shared_links(errors, vendors, labels)
+    validate_no_accidental_shared_links(errors, vendors, vendor_directors, labels)
     cover_metadata = data.get("_cover_metadata", {})
     validate_r2(errors, tenders, bids, num_tenders=num_tenders)
     validate_r3(errors, bids, tenders, cover_metadata, num_tenders=num_tenders)
