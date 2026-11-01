@@ -6,14 +6,16 @@ Due to an initial AWS account restriction (CloudFront distributions require acco
 
 ```
 browser ── https ──> Lambda Function URL (AuthType NONE)
-                     ├─ /api/*          → FastAPI API (Mangum handler, python3.14, x86_64, 1024 MB, 15 s)
+                     ├─ /api/*          → FastAPI API (Mangum handler, python3.14, x86_64, 1024 MB, 60 s)
                      └─ /* / /assets/*  → Built React UI static files from ui_dist (with GZip compression, immutable cache for assets, no-cache for index.html)
 ```
 
+- **Cognito User Pool:** Sign-in with email/password and optional Google OAuth 2.0. Uses the authorization code grant with PKCE (public app client, no client secret) with scopes `openid email profile`. Managed login page hosted at `<AuthDomainPrefix>.auth.<region>.amazoncognito.com`. Callback and logout URLs configured for the Function URL and local dev (`http://localhost:5173/auth/callback`).
+- **DynamoDB Users Table:** `${Stack}-users` provisioned at 10 RCU / 10 WCU (within the 25/25 always-free tier), partition key `pk` (`USER#<sub>`), sort key `sk`. TTL on `expires_at` cleans up 3-day daily usage counters. Uses default AWS-owned encryption (no KMS customer key charges).
+- **Cost Guard Budgets:** Three $100 monthly COST budgets with 15 absolute-value email alerts ($10, $20, $30, $40, $50, $55, $60, $65, $70, $75, $80, $85, $90, $95, $100) created when `BUDGET_EMAIL` is set.
 - **Keep-Warm Schedule:** An EventBridge rule (`AWS::Events::Rule`) with a `rate(5 minutes)` expression invokes the Lambda function periodically (`KeepWarm` parameter, default `true`), eliminating cold-start latency for demo use.
 - **Function URL AuthType:** `AuthType NONE`. Both `lambda:InvokeFunctionUrl` and `lambda:InvokeFunction` permissions are granted.
-- **Sizing:** 1024 MB RAM provides optimal CPU allocation under AWS Lambda's proportional CPU-to-memory scaling model, ensuring fast static file serving and quick JSON artifact loading within the 15-second timeout.
-
+- **Sizing:** 1024 MB RAM provides optimal CPU allocation under AWS Lambda's proportional CPU-to-memory scaling model. Timeout is set to 60 seconds (with a 50 s upstream LLM deadline) to enforce strict cost guardrails.
 ---
 
 ## Why CloudFront Was Removed & How to Add It Back Later
@@ -29,6 +31,38 @@ Once AWS Support verifies your account, you can re-enable CloudFront by:
 
 ---
 
+## Google OAuth Setup Steps
+
+To enable Google sign-in alongside Cognito email/password:
+
+1. **Open Google Cloud Console:**
+   Navigate to [APIs & Services > Credentials](https://console.cloud.google.com/apis/credentials).
+2. **Configure OAuth Consent Screen:**
+   - Select **User Type: External**.
+   - Fill in App Name (`TenderFender`), User support email, and Developer contact email.
+   - Add scopes: `openid`, `.../auth/userinfo.email`, and `.../auth/userinfo.profile`.
+3. **Create OAuth 2.0 Client ID:**
+   - Click **Create Credentials > OAuth client ID**.
+   - Application type: **Web application**.
+   - Name: `TenderFender Cognito Client`.
+   - **Authorized redirect URIs:** enter the Cognito managed-login domain callback:
+     ```text
+     https://<AuthDomainPrefix>.auth.<region>.amazoncognito.com/oauth2/idpresponse
+     ```
+     *(Example for region `ap-south-1` and domain prefix `tenderfender-123456789012`: `https://tenderfender-123456789012.auth.ap-south-1.amazoncognito.com/oauth2/idpresponse`)*.
+4. **Obtain Credentials:**
+   Copy the generated **Client ID** (`...apps.googleusercontent.com`) and **Client Secret**.
+5. **Deploy with Google Credentials:**
+   Pass them as environment variables to `make deploy` or `deploy_aws.sh`:
+   ```bash
+   GOOGLE_CLIENT_ID="<client-id>.apps.googleusercontent.com" \
+   GOOGLE_CLIENT_SECRET="<client-secret>" \
+   BUDGET_EMAIL="you@example.com" \
+   make deploy
+   ```
+   CloudFormation receives these via `NoEcho: true` parameters, ensuring credentials are never exposed in CloudFormation outputs, console logs, or Git commits.
+
+---
 ## Prerequisites
 
 - AWS CLI v2, `uv`, Node.js + npm, `make`, and the repo's Python env (`make setup`) for gates.
@@ -43,19 +77,35 @@ Once AWS Support verifies your account, you can re-enable CloudFront by:
 
 ```bash
 make deploy                                   # gates → UI build → lambda package → cloudformation stack → smoke test
-BUDGET_EMAIL=you@example.com make deploy      # also create $1/month budget with 80% email alert
+BUDGET_EMAIL=you@example.com make deploy      # also create 3 budgets with 15 spend alerts ($10..$100)
+GOOGLE_CLIENT_ID="id" GOOGLE_CLIENT_SECRET="sec" make deploy # enable Google sign-in
+AUTH_DOMAIN_PREFIX=my-prefix make deploy      # customize Cognito domain prefix
 KEEP_WARM=false make deploy                   # deploy without the 5-minute EventBridge keep-warm rule
 SKIP_GATES=1 make deploy                      # skip artifact / `make acceptance` / `make demo-guard` checks
 make package-lambda                           # build build/lambda.zip
 make build-ui                                 # npm ci + VITE_API_BASE=/api build into ui/dist
-```
 
 ---
 
 ## Free-Tier & Cost Math
 
 ### Free-Tier Allowances (Always Free / Monthly)
-- **AWS Lambda:** 1,000,000 requests and 400,000 GB-seconds per month [Pricing](https://aws.amazon.com/lambda/pricing/).
+- **AWS Lambda:** 1,000,000 requests and 400,000 GB-seconds per month [Pricing](https://aws.amazon.com/lambda/pricing/). Sized at 1024 MB with 60 s timeout.
+- **Amazon Cognito (Lite / Essentials Tier):**
+  - **10,000 Monthly Active Users (MAU) free indefinitely** for users signing in directly or via social identity providers (Google). The free tier does not expire after 12 months.
+  - Lite tier price is $0.0055/MAU thereafter (up to 100,000 MAUs); Essentials tier is $0.015/MAU thereafter.
+  - Managed login domain format: `<prefix>.auth.<region>.amazoncognito.com`.
+  - Verified on AWS Pricing page: [Amazon Cognito Pricing](https://aws.amazon.com/cognito/pricing/).
+- **Amazon DynamoDB:**
+- **25 RCU and 25 WCU provisioned capacity** are always free per account under the AWS Free Tier.
+- The users table is sized at 10 RCU / 10 WCU provisioned, consuming only 40% of the free allowance.
+- 25 GB of data storage is free.
+  - Default AWS-owned encryption involves no AWS KMS customer key charges ($0/month).
+  - Verified on AWS Pricing page: [Amazon DynamoDB Pricing](https://aws.amazon.com/dynamodb/pricing/).
+- **AWS Budgets:**
+  - **Budget monitoring and email alert notifications are completely free of charge** (budgets without automated actions).
+  - The first two action-enabled budgets are free; each subsequent action-enabled budget incurs $0.10/day. Our configuration uses notification-only alerts (no actions), which incur **$0.00**.
+  - Verified on AWS Pricing page: [AWS Budgets Pricing](https://aws.amazon.com/aws-cost-management/aws-budgets/pricing/).
 - **Amazon EventBridge:** 1,000,000 events per month free (Keep-warm uses 8,640 invocations/month).
 - **S3 (Deploy Bucket):** Storage and requests for deployment zips are negligible; lifecycle policies expire old versions after 30 days.
 
@@ -63,6 +113,17 @@ make build-ui                                 # npm ci + VITE_API_BASE=/api buil
 - **Invocations:** Every 5 minutes = 12 times/hour × 24 hours × 30 days = **8,640 invocations/month**.
 - **GB-Seconds (at 1024 MB = 1 GB):** Assuming average keep-warm execution takes 0.2 seconds: 8,640 × 1 GB × 0.2 s = **1,728 GB-seconds/month** (well within the 400,000 GB-s free tier).
 
+### Cost Guardrails & Global Caps
+- **Per-user daily caps:** regen 10, compile 5, chat 30, detect 20.
+- **Global daily caps:** `llm_total` (regen + compile + chat) 150/day, `detect_total` 300/day. Worst-case spending: 150 × 60 s × 1 GB = 9,000 GB-s/day ≈ 270,000 GB-s/month, well within the 400k GB-s/month free tier.
+
+### Kill Switch
+To disable LLM routes immediately (returning HTTP 503 `{"error": "...", "code": "llm_disabled"}`) while keeping the public demo, viewer, and rules engine online:
+```bash
+aws lambda update-function-configuration \
+  --function-name tenderfender-api \
+  --environment "Variables={MOCK=0,CONFIRMATIONS_PATH=/tmp/confirmations.json,USERS_TABLE=tenderfender-users,COGNITO_USER_POOL_ID=...,COGNITO_CLIENT_ID=...,COGNITO_DOMAIN=...,LLM_FEATURES_ENABLED=false}"
+```
 ---
 
 ## Teardown
