@@ -84,6 +84,11 @@ def test_rt_analysis_reads_rules_real_and_real_clauses_with_source(client):
     assert data["rules"]["not_checked"][0]["clause_id"] == "CL2"
     assert (data["source_portal"], data["source_url"], data["retrieved"], data["source_ref"]) == (
         "CPPP", "https://example.invalid/format-example", "2026-01-01", "FORMAT-EXAMPLE")
+    assert "attribution" in data
+    assert data["attribution"] == (
+        "Excerpts reproduced from CPPP public tender notices (https://example.invalid/format-example). "
+        "Automated checks; may be wrong. Risk indicators for human review, not a judgement on ISRO or any bidder."
+    )
     by_id = {c["clause_id"]: c for c in data["clauses"]}
     assert by_id["CL1"]["source_clause_no"] == "1" and by_id["CL1"]["text"] == CLAUSE
     assert by_id["CL2"]["source_clause_no"] == "2(a)" and by_id["CL2"]["needs_review"] is True

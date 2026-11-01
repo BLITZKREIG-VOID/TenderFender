@@ -5,6 +5,7 @@ import csv
 import json
 import os
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -178,14 +179,34 @@ def main(argv: list[str] | None = None) -> int:
                 continue
 
         else:
-            try:
-                atoms = compile_tender(tender_data)
-            except Exception as e:
-                sys.stderr.write(f"Error compiling tender {tender_id}: {e}\n")
-                success = False
-                continue
+            atoms = None
+            for tender_attempt in range(3):
+                try:
+                    atoms = compile_tender(tender_data)
+                    break
+                except Exception as e:
+                    err_str = str(e)
+                    if "429" in err_str and tender_attempt < 2:
+                        sys.stderr.write(
+                            f"Warning: 429 rate limit compiling {tender_id}; waiting 60s (retry {tender_attempt + 1}/2)...\n"
+                        )
+                        time.sleep(60)
+                        continue
+                    sys.stderr.write(f"Error compiling tender {tender_id}: {e}\n")
+                    success = False
+                    break
 
+            if atoms is None:
+                continue
             if args.write_cache:
+                if len(atoms) == 0:
+                    sys.stderr.write(
+                        f"Error: Refusing to write empty cache for {tender_id}; compile produced 0 atoms\n"
+                    )
+                    if cache_file.exists():
+                        cache_file.unlink(missing_ok=True)
+                    success = False
+                    continue
                 try:
                     cache_file.parent.mkdir(parents=True, exist_ok=True)
                     with open(cache_file, "w", encoding="utf-8") as f:

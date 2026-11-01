@@ -173,8 +173,14 @@ def tender_analysis(tender_id: str):
     if real is not None:
         for key in ("source_portal", "source_url", "source_ref", "retrieved"):
             response[key] = real.get(key)
+        portal = real.get("source_portal") or "DOS/ISRO"
+        url = real.get("source_url") or ""
+        source_name = "DOS/ISRO public tender notices" if "ISRO" in portal or "DOS" in portal else f"{portal} public tender notices"
+        response["attribution"] = (
+            f"Excerpts reproduced from {source_name} ({url}). "
+            "Automated checks; may be wrong. Risk indicators for human review, not a judgement on ISRO or any bidder."
+        )
     return response
-
 
 @app.get("/api/tenders/{tender_id}/graph")
 def tender_graph(tender_id: str):

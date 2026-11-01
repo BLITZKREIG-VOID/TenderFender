@@ -121,6 +121,7 @@ export interface AnalysisResponse {
   source_url?: string | null;
   source_ref?: string | null;
   retrieved?: string | null;
+  attribution?: string | null;
   fused: FusedData;
   rules: RulesData;
   atom_status: Record<string, AtomStatusEntry>;

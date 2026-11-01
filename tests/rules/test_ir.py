@@ -106,3 +106,89 @@ def test_cached_ir_source_text_equals_clause_text():
         for a in atoms:
             assert a.clause_id in clause_map, f"Clause {a.clause_id} not found in {tid}"
             assert a.source_text == clause_map[a.clause_id], f"Mismatch in {tid} atom {a.id}"
+
+def test_widened_numeric_fields_valid():
+    fields_and_vals = [
+        ("turnover_lakh", 51.96),
+        ("turnover_pct", 30.0),
+        ("turnover_period_years", 3),
+        ("max_loss_years", 2),
+        ("solvency_lakh", 41.57),
+        ("solvency_pct", 40.0),
+        ("estimated_cost_lakh", 103.92),
+        ("emd_amount_lakh", 2.0784),
+    ]
+    for field, val in fields_and_vals:
+        atom = Atom(
+            id="CL1.1",
+            clause_id="CL1",
+            field=field,  # type: ignore
+            op=">=" if "pct" in field or "lakh" in field else "==",
+            value=val,
+            source_text="Sample text",
+        )
+        assert atom.field == field
+        assert atom.value == val
+
+
+def test_similar_works_valid():
+    atom = Atom(
+        id="CL6.1",
+        clause_id="CL6",
+        field="similar_works",
+        op=">=",
+        value={
+            "years": 7,
+            "alternatives": [
+                {"count": 3, "pct": 40.0, "amount_lakh": 41.57},
+                {"count": 2, "pct": 60.0, "amount_lakh": 62.35},
+                {"count": 1, "pct": 80.0, "amount_lakh": 83.14},
+            ],
+        },
+        source_text="Sample work experience text",
+    )
+    assert atom.field == "similar_works"
+    assert len(atom.value["alternatives"]) == 3
+
+
+def test_similar_works_invalid():
+    with pytest.raises(ValidationError):
+        # missing alternatives
+        Atom(
+            id="CL6.1",
+            clause_id="CL6",
+            field="similar_works",
+            op=">=",
+            value={"years": 7},
+            source_text="Sample text",
+        )
+    with pytest.raises(ValidationError):
+        # empty alternatives
+        Atom(
+            id="CL6.1",
+            clause_id="CL6",
+            field="similar_works",
+            op=">=",
+            value={"alternatives": []},
+            source_text="Sample text",
+        )
+    with pytest.raises(ValidationError):
+        # invalid op
+        Atom(
+            id="CL6.1",
+            clause_id="CL6",
+            field="similar_works",
+            op="<=",  # type: ignore
+            value={"alternatives": [{"count": 1, "pct": 50.0}]},
+            source_text="Sample text",
+        )
+    with pytest.raises(ValidationError):
+        # alternative without pct or amount_lakh
+        Atom(
+            id="CL6.1",
+            clause_id="CL6",
+            field="similar_works",
+            op=">=",
+            value={"alternatives": [{"count": 1}]},
+            source_text="Sample text",
+        )
