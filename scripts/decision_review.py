@@ -1,0 +1,198 @@
+#!/usr/bin/env python3
+"""Generate the human review sheet for saved fused decisions (SoT DoD #6).
+
+For every decision in --fused-dir the `reasoning` text is split into claims
+(sentences, `[REF]` markers kept). Each claim is listed with the full verbatim
+text of every cited evidence item (KB passage, rule finding, graph ring) so a
+human can mark `Supported? (yes/no)` and add a note.
+
+Re-running keeps verdicts already filled in the existing --out file, matched by
+(tender id, claim text). Output is deterministic.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import sys
+from pathlib import Path
+
+REF_RE = re.compile(r"\[([^\[\]]+)\]")
+SENT_SPLIT_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9\"'(\u201c\u2018\u20b9])")
+NO_CITATION = "no citation: check it against the findings"
+TEMPLATE_NOTE = "template, fixed wording"
+HEADER = "| # | Claim | Cited evidence | Supported? (yes/no) | Note |"
+SEPARATOR = "|---|---|---|---|---|"
+CELL_SPLIT_RE = re.compile(r"(?<!\\)\|")
+TENDER_HEADING_RE = re.compile(r"^## (\S+)")
+
+
+def esc(text: str) -> str:
+    """Make text safe inside one markdown table cell."""
+    text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    text = text.replace("|", "\\|")
+    return re.sub(r"\s*\n\s*", "<br>", text.strip())
+
+
+def split_claims(reasoning: str) -> list[str]:
+    text = " ".join(reasoning.split())
+    return [s.strip() for s in SENT_SPLIT_RE.split(text) if s.strip()]
+
+
+def cited_refs(claim: str) -> list[str]:
+    refs: list[str] = []
+    for group in REF_RE.findall(claim):
+        for ref in re.split(r"[,;]\s*", group):
+            ref = ref.strip()
+            if re.fullmatch(r"(KB|F|R)-\d+", ref) and ref not in refs:
+                refs.append(ref)
+    return refs
+
+
+def load_passage(kb_dir: Path, ref: str) -> str:
+    path = kb_dir / f"{ref}.md"
+    if not path.is_file():
+        return f"**{ref}**: NOT FOUND in {kb_dir}"
+    raw = path.read_text(encoding="utf-8")
+    meta: dict[str, str] = {}
+    body = raw
+    if raw.startswith("---"):
+        parts = raw.split("---", 2)
+        if len(parts) == 3:
+            for line in parts[1].strip().splitlines():
+                key, _, value = line.partition(":")
+                meta[key.strip()] = value.strip()
+            body = parts[2]
+    return (
+        f"**{ref}** | source_title: {meta.get('source_title', '?')} | section: {meta.get('section', '?')}"
+        f" | source_url: {meta.get('source_url', '?')}\n{body.strip()}"
+    )
+
+
+def load_findings(tender_id: str, rules_dirs: list[Path]) -> dict[str, dict]:
+    found: dict[str, dict] = {}
+    for d in rules_dirs:
+        path = d / f"{tender_id}.json"
+        if path.is_file():
+            for f in json.loads(path.read_text(encoding="utf-8")).get("findings", []):
+                found[f["finding_id"]] = f
+    return found
+
+
+def describe_finding(ref: str, f: dict | None) -> str:
+    if f is None:
+        return f"**{ref}**: NOT FOUND in rules output"
+    texts = " / ".join(f'"{t}"' for t in f.get("source_texts", []))
+    proof = f.get("proof", {})
+    return (
+        f"**{ref}** | type: {f.get('type')} | severity: {f.get('severity')} | clauses: {', '.join(f.get('clause_ids', []))}\n"
+        f"explanation: {f.get('explanation', '')}\nsource_texts: {texts}\nproof: {proof.get('method', '')}: {proof.get('detail', '')}"
+    )
+
+
+def describe_ring(ref: str, ring: dict | None) -> str:
+    if ring is None:
+        return f"**{ref}**: NOT FOUND in graph output"
+    return (
+        f"**{ref}** | link_types: {', '.join(ring.get('link_types', []))} | score: {ring.get('score')}\n"
+        f"members: {', '.join(ring.get('vendor_ids', []))}"
+    )
+
+
+def parse_existing(path: Path) -> dict[tuple[str, str], tuple[str, str]]:
+    """(tender, escaped claim) -> (verdict, note) for rows with a verdict or a note."""
+    verdicts: dict[tuple[str, str], tuple[str, str]] = {}
+    if not path.is_file():
+        return verdicts
+    tender = ""
+    for line in path.read_text(encoding="utf-8").splitlines():
+        m = TENDER_HEADING_RE.match(line)
+        if m:
+            tender = m.group(1)
+            continue
+        if not tender or not line.startswith("|") or line in (HEADER, SEPARATOR):
+            continue
+        cells = CELL_SPLIT_RE.split(line)
+        if len(cells) < 7:
+            continue
+        claim = cells[2].strip()
+        verdict = cells[-3].strip().lower()
+        note = "|".join(cells[5:-1]).strip()
+        if verdict or note:
+            verdicts[(tender, claim)] = (verdict, note)
+    return verdicts
+
+
+def build(fused_dir: Path, kb_dir: Path, rules_dirs: list[Path], graph_path: Path,
+          existing: dict[tuple[str, str], tuple[str, str]]) -> str:
+    rings: dict[str, dict] = {}
+    if graph_path.is_file():
+        rings = {r["ring_id"]: r for r in json.loads(graph_path.read_text(encoding="utf-8")).get("rings", [])}
+    out = [
+        "# Decision review sheet (DoD #6)",
+        "",
+        "Generated by `make decision-review` (`scripts/decision_review.py`). Do not reformat the tables: re-running",
+        "carries over the `Supported? (yes/no)` and `Note` cells by (tender, claim text).",
+        "",
+        "For each claim, read the cited evidence in the same row and answer `yes` if the evidence supports the",
+        "claim as worded, `no` if it does not (say why in `Note`). These are risk indicators for human review,",
+        "not findings of wrongdoing.",
+        "",
+    ]
+    for path in sorted(fused_dir.glob("*.json")):
+        dec = json.loads(path.read_text(encoding="utf-8"))
+        tid = dec["tender_id"]
+        source = dec.get("decision_source", "?")
+        claims = split_claims(dec.get("reasoning", ""))
+        findings = load_findings(tid, rules_dirs)
+        out += [f"## {tid}", "", f"- decision_source: `{source}`",
+                f"- risk_level: `{dec.get('risk_level')}`, decision: `{dec.get('decision')}`",
+                f"- claims: {len(claims)}", ""]
+        if source == "template":
+            out += [f"{TEMPLATE_NOTE}: no AI-written claims to verify. Reasoning text:", "",
+                    f"> {dec.get('reasoning', '').strip()}", ""]
+            continue
+        out += [HEADER, SEPARATOR]
+        for i, claim in enumerate(claims, 1):
+            parts = []
+            for ref in cited_refs(claim):
+                if ref.startswith("KB-"):
+                    parts.append(load_passage(kb_dir, ref))
+                elif ref.startswith("F-"):
+                    parts.append(describe_finding(ref, findings.get(ref)))
+                else:
+                    parts.append(describe_ring(ref, rings.get(ref)))
+            evidence = esc("\n\n".join(parts)) if parts else NO_CITATION
+            claim_cell = esc(claim)
+            verdict, note = existing.get((tid, claim_cell), ("", ""))
+            out.append(f"| {i} | {claim_cell} | {evidence} | {verdict} | {note} |")
+        out.append("")
+    return "\n".join(out).rstrip("\n") + "\n"
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--fused-dir", default="artifacts/fused")
+    ap.add_argument("--kb-dir", default="kb/passages")
+    ap.add_argument("--out", default="docs/DECISION_REVIEW.md")
+    ap.add_argument("--rules-dir", action="append", default=None,
+                    help="rules output dir (repeatable; default artifacts/rules and artifacts/rules_real if present)")
+    ap.add_argument("--graph", default="artifacts/graph/graph_output.json")
+    args = ap.parse_args(argv)
+
+    fused_dir = Path(args.fused_dir)
+    if not fused_dir.is_dir() or not list(fused_dir.glob("*.json")):
+        print(f"decision_review: no fused decisions in {fused_dir} (run `make pipeline`)", file=sys.stderr)
+        return 2
+    rules_dirs = [Path(d) for d in (args.rules_dir or ["artifacts/rules", "artifacts/rules_real"])]
+    out_path = Path(args.out)
+    text = build(fused_dir, Path(args.kb_dir), [d for d in rules_dirs if d.is_dir()],
+                 Path(args.graph), parse_existing(out_path))
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(text, encoding="utf-8")
+    print(f"decision_review: wrote {out_path}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
