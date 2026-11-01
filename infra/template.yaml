@@ -1,6 +1,7 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >-
-  TenderFender: a single Lambda Function URL serving both the FastAPI API and the built React UI.
+  TenderFender: a single Lambda Function URL serving both the FastAPI API and the built React UI,
+  plus Cognito sign-in (email/password and Google), a DynamoDB users table and cost-alert budgets.
   Sized for the AWS Free Tier with optional EventBridge keep-warm schedule.
 
 Parameters:
@@ -13,7 +14,33 @@ Parameters:
   BudgetEmail:
     Type: String
     Default: ""
-    Description: Optional. If set, creates a $1 monthly AWS Budget that emails this address at 80% of actual spend.
+    Description: >-
+      Optional. If set, creates three $100 monthly COST budgets that email this address when actual spend
+      passes $10, $20, $30, $40, $50, then every $5 up to $100 (15 alerts; AWS allows 5 per budget).
+  AuthDomainPrefix:
+    Type: String
+    AllowedPattern: "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"
+    Description: >-
+      Cognito managed-login prefix domain: <prefix>.auth.<region>.amazoncognito.com. Globally unique per
+      Region; lowercase letters, digits and hyphens; must not contain aws, amazon or cognito.
+  SiteUrl:
+    Type: String
+    Default: ""
+    AllowedPattern: "^$|^https://[a-z0-9.-]+/$"
+    Description: >-
+      This stack's Function URL (with trailing slash), passed back in by deploy_aws.sh to register the Cognito
+      callback/logout URLs. Empty on the first deploy: the Function URL does not exist yet, and referencing it
+      directly would be a circular dependency (Lambda env -> app client -> Function URL -> Lambda).
+  GoogleClientId:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: Optional. Google OAuth web client id. Empty = no Google sign-in (email/password only).
+  GoogleClientSecret:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: Google OAuth web client secret (required when GoogleClientId is set).
   KeepWarm:
     Type: String
     Default: "true"
@@ -23,6 +50,15 @@ Parameters:
 Conditions:
   HasBudgetEmail: !Not [!Equals [!Ref BudgetEmail, ""]]
   IsKeepWarm: !Equals [!Ref KeepWarm, "true"]
+  HasSiteUrl: !Not [!Equals [!Ref SiteUrl, ""]]
+  HasGoogle: !Not [!Equals [!Ref GoogleClientId, ""]]
+
+Rules:
+  GoogleSecretWithClientId:
+    RuleCondition: !Not [!Equals [!Ref GoogleClientId, ""]]
+    Assertions:
+      - Assert: !Not [!Equals [!Ref GoogleClientSecret, ""]]
+        AssertDescription: GoogleClientSecret is required when GoogleClientId is set.
 
 Resources:
   # ── API Lambda ─────────────────────────────────────────────────────────────
@@ -54,6 +90,27 @@ Resources:
                   - logs:CreateLogStream
                   - logs:PutLogEvents
                 Resource: !Sub "${ApiLogGroup.Arn}:*"
+        - PolicyName: users-table-access
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:BatchWriteItem
+                Resource: !GetAtt UsersTable.Arn
+        - PolicyName: cognito-admin-delete-user
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cognito-idp:AdminDeleteUser
+                Resource: !GetAtt UserPool.Arn
 
   ApiFunction:
     Type: AWS::Lambda::Function
@@ -65,7 +122,7 @@ Resources:
       Architectures: [x86_64]
       Handler: api.lambda_handler.handler
       MemorySize: 1024
-      Timeout: 15
+      Timeout: 120
       Role: !GetAtt ApiRole.Arn
       Code:
         S3Bucket: !Ref CodeBucket
@@ -74,6 +131,13 @@ Resources:
         Variables:
           MOCK: "0"
           CONFIRMATIONS_PATH: /tmp/confirmations.json
+          USERS_TABLE: !Ref UsersTable
+          COGNITO_USER_POOL_ID: !Ref UserPool
+          COGNITO_CLIENT_ID: !Ref UserPoolClient
+          COGNITO_DOMAIN: !Sub "${AuthDomainPrefix}.auth.${AWS::Region}.amazoncognito.com"
+          DAILY_LIMIT_REGEN: "20"
+          DAILY_LIMIT_COMPILE: "10"
+          DAILY_LIMIT_CHAT: "50"
 
   ApiFunctionUrl:
     Type: AWS::Lambda::Url
@@ -110,7 +174,6 @@ Resources:
         - Id: KeepWarmTarget
           Arn: !GetAtt ApiFunction.Arn
 
-      
   KeepWarmPermission:
     Type: AWS::Lambda::Permission
     Condition: IsKeepWarm
@@ -120,24 +183,272 @@ Resources:
       Principal: events.amazonaws.com
       SourceArn: !GetAtt KeepWarmRule.Arn
 
-  # ── Cost guard (optional) ──────────────────────────────────────────────────
-  CostBudget:
+  # ── Cognito User Pool & Auth ──────────────────────────────────────────────
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub "${AWS::StackName}-users"
+      UserPoolTier: LITE
+      UsernameAttributes:
+        - email
+      AutoVerifiedAttributes:
+        - email
+      EmailConfiguration:
+        EmailSendingAccount: COGNITO_DEFAULT
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: false
+          RequireNumbers: false
+          RequireSymbols: false
+          RequireUppercase: false
+          TemporaryPasswordValidityDays: 7
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: verified_email
+            Priority: 1
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: false
+      DeletionProtection: INACTIVE
+
+  GoogleIdentityProvider:
+    Type: AWS::Cognito::UserPoolIdentityProvider
+    Condition: HasGoogle
+    Properties:
+      UserPoolId: !Ref UserPool
+      ProviderName: Google
+      ProviderType: Google
+      ProviderDetails:
+        client_id: !Ref GoogleClientId
+        client_secret: !Ref GoogleClientSecret
+        authorize_scopes: "openid email profile"
+      AttributeMapping:
+        email: email
+        name: name
+        username: sub
+
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Ref AuthDomainPrefix
+      UserPoolId: !Ref UserPool
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub "${AWS::StackName}-web"
+      UserPoolId: !Ref UserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthScopes:
+        - openid
+        - email
+        - profile
+      SupportedIdentityProviders:
+        !If
+          - HasGoogle
+          - - !Ref GoogleIdentityProvider
+            - COGNITO
+          - - COGNITO
+      PreventUserExistenceErrors: ENABLED
+      CallbackURLs:
+        !If
+          - HasSiteUrl
+          - - !Sub "${SiteUrl}auth/callback"
+            - "http://localhost:5173/auth/callback"
+          - - "http://localhost:5173/auth/callback"
+      LogoutURLs:
+        !If
+          - HasSiteUrl
+          - - !Ref SiteUrl
+            - "http://localhost:5173/"
+          - - "http://localhost:5173/"
+
+  # ── DynamoDB Users Table ──────────────────────────────────────────────────
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${AWS::StackName}-users"
+      BillingMode: PROVISIONED
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: expires_at
+        Enabled: true
+
+  # ── Cost Guards (3 budgets, 15 absolute-value thresholds) ──────────────────
+  CostBudget10To50:
     Type: AWS::Budgets::Budget
     Condition: HasBudgetEmail
     Properties:
       Budget:
-        BudgetName: !Sub "${AWS::StackName}-monthly-1usd"
+        BudgetName: !Sub "${AWS::StackName}-spend-10-to-50"
         BudgetType: COST
         TimeUnit: MONTHLY
         BudgetLimit:
-          Amount: 1
+          Amount: 100
+          Unit: USD
+      NotificationsWithSubscribers:
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 10
+            ThresholdType: ABSOLUTE_VALUE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref BudgetEmail
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 20
+            ThresholdType: ABSOLUTE_VALUE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref BudgetEmail
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 30
+            ThresholdType: ABSOLUTE_VALUE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref BudgetEmail
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 40
+            ThresholdType: ABSOLUTE_VALUE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref BudgetEmail
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 50
+            ThresholdType: ABSOLUTE_VALUE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref BudgetEmail
+
+  CostBudget55To75:
+    Type: AWS::Budgets::Budget
+    Condition: HasBudgetEmail
+    Properties:
+      Budget:
+        BudgetName: !Sub "${AWS::StackName}-spend-55-to-75"
+        BudgetType: COST
+        TimeUnit: MONTHLY
+        BudgetLimit:
+          Amount: 100
+          Unit: USD
+      NotificationsWithSubscribers:
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 55
+            ThresholdType: ABSOLUTE_VALUE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref BudgetEmail
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 60
+            ThresholdType: ABSOLUTE_VALUE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref BudgetEmail
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 65
+            ThresholdType: ABSOLUTE_VALUE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref BudgetEmail
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 70
+            ThresholdType: ABSOLUTE_VALUE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref BudgetEmail
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 75
+            ThresholdType: ABSOLUTE_VALUE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref BudgetEmail
+
+  CostBudget80To100:
+    Type: AWS::Budgets::Budget
+    Condition: HasBudgetEmail
+    Properties:
+      Budget:
+        BudgetName: !Sub "${AWS::StackName}-spend-80-to-100"
+        BudgetType: COST
+        TimeUnit: MONTHLY
+        BudgetLimit:
+          Amount: 100
           Unit: USD
       NotificationsWithSubscribers:
         - Notification:
             NotificationType: ACTUAL
             ComparisonOperator: GREATER_THAN
             Threshold: 80
-            ThresholdType: PERCENTAGE
+            ThresholdType: ABSOLUTE_VALUE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref BudgetEmail
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 85
+            ThresholdType: ABSOLUTE_VALUE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref BudgetEmail
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 90
+            ThresholdType: ABSOLUTE_VALUE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref BudgetEmail
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 95
+            ThresholdType: ABSOLUTE_VALUE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref BudgetEmail
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 100
+            ThresholdType: ABSOLUTE_VALUE
           Subscribers:
             - SubscriptionType: EMAIL
               Address: !Ref BudgetEmail
@@ -150,3 +461,15 @@ Outputs:
     Value: !Ref ApiFunction
   FunctionUrl:
     Value: !GetAtt ApiFunctionUrl.FunctionUrl
+  UserPoolId:
+    Description: Cognito User Pool ID
+    Value: !Ref UserPool
+  UserPoolClientId:
+    Description: Cognito Web Client ID
+    Value: !Ref UserPoolClient
+  AuthDomain:
+    Description: Cognito Managed Login Domain
+    Value: !Sub "${AuthDomainPrefix}.auth.${AWS::Region}.amazoncognito.com"
+  UsersTableName:
+    Description: DynamoDB Users Table Name
+    Value: !Ref UsersTable
