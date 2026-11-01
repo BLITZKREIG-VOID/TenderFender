@@ -46,6 +46,8 @@ def load_json(path: Path) -> tuple[dict | None, str | None]:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="TenderFender DoD acceptance tests (SoT section 12)")
     ap.add_argument("--rules-dir", type=Path, default=Path("artifacts/rules"), help="Rules output directory")
+    ap.add_argument("--rules-real-dir", type=Path, default=Path("artifacts/rules_real"),
+                    help="Rules output directory for real (RT-) tenders; only read when fused RT-*.json exist")
     ap.add_argument("--graph", type=Path, default=Path("artifacts/graph/graph_output.json"), help="Graph output JSON")
     ap.add_argument("--fused-dir", type=Path, default=Path("artifacts/fused"), help="Fused output directory")
     ap.add_argument("--data-dir", type=Path, default=Path("data"), help="Data directory containing bids.csv")
@@ -276,7 +278,7 @@ def main(argv: list[str] | None = None) -> int:
                 cit_errors.append(err)
                 continue
             tid = doc.get("tender_id", ff.stem)
-            rp = args.rules_dir / f"{tid}.json"
+            rp = (args.rules_real_dir if str(tid).startswith("RT-") else args.rules_dir) / f"{tid}.json"
             rdoc, rerr = load_json(rp)
 
             for cit in doc.get("citations", []):

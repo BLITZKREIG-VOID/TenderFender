@@ -95,6 +95,7 @@ make ui
 | `make decide` | Run RAG decision engine (`DECISION_MODE=auto` by default: saved decision if its hash matches, template when there is no evidence, LLM only if a key is set and the cache is stale; writes `artifacts/fused/`). |
 | `make pipeline` | Execute full end-to-end pipeline (`synth` → `verify-synth` → `rules` → `graph` → `fuse` → `decide`). |
 | `make pipeline-mock` | Run fusion and decision pipeline using mock intermediate files. |
+| `make pipeline-real` | Real tenders in `data/real/tenders`: rules (confirmed IR) → fusion `--real` → decision → `artifacts/fused/RT-xxx.json`. Exits non-zero with "no real tenders" if none; needs `ir_RT-xxx.confirmed.json` (`docs/REVIEW_ATOMS.md`) or `ALLOW_UNCONFIRMED=1`. Use `DECISION_MODE=template` (no key) or `llm` (needs `OPENROUTER_API_KEY`); the default `auto` fails loudly for an uncached tender with findings and no key. Never touches T- artifacts. |
 | `make validate-contracts` | Validate JSON schemas and example contracts. |
 | `make validate-artifacts` | Validate generated pipeline artifacts against schemas. |
 | `make acceptance` | Run automated acceptance test suite against generated artifacts. |

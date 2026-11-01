@@ -17,10 +17,14 @@ EMBEDDING_MODEL ?= all-MiniLM-L6-v2
 export EMBEDDING_MODEL
 
 FUSION_DIR := artifacts/fusion
+# Real-tender pipeline (SoT 8.4 real-tender fusion rule, D33). Never touches the T- artifacts.
+REAL_DATA_DIR   ?= data/real
+RULES_REAL_DIR  ?= artifacts/rules_real
+FUSION_REAL_DIR ?= artifacts/fusion_real
 FUSED_DIR  := artifacts/fused
 CACHE_DIR  := artifacts/decisions
 
-.PHONY: setup synth verify-synth rules graph fuse decide pipeline pipeline-mock \
+.PHONY: setup synth verify-synth rules graph fuse decide pipeline pipeline-mock pipeline-real \
         validate-contracts validate-artifacts acceptance acceptance-mock demo-guard evaluate api ui demo test \
         build-ui package-lambda deploy destroy check-passages decision-review pipeline-real
 
@@ -71,6 +75,16 @@ pipeline:
 pipeline-mock:
 	$(MAKE) fuse RULES_DIR=mocks/rules GRAPH_JSON=mocks/graph/graph_output.json DATA_DIR=contracts/examples/data
 	$(MAKE) decide
+
+# Real tenders: rules (confirmed IR; ALLOW_UNCONFIRMED=1 to use unconfirmed) -> fusion --real -> decision -> artifacts/fused/RT-xxx.json.
+# DECISION_MODE as above (default auto fails loudly for an uncached RT tender with findings and no OPENROUTER_API_KEY);
+# `make pipeline-real DECISION_MODE=template` writes labelled template text, `DECISION_MODE=llm` needs OPENROUTER_API_KEY.
+pipeline-real:
+	@ls $(REAL_DATA_DIR)/tenders/RT-[0-9][0-9][0-9].json >/dev/null 2>&1 || { echo "no real tenders in $(REAL_DATA_DIR)/tenders (see docs/REVIEW_ATOMS.md and scripts/import_tender.py)" >&2; exit 1; }
+	$(PY) -m rules.run --data-dir "$(REAL_DATA_DIR)" --out-dir "$(RULES_REAL_DIR)" --require-confirmed
+	$(PY) -m fusion.run --real --rules-dir "$(RULES_REAL_DIR)" --data-dir "$(REAL_DATA_DIR)" --out-dir "$(FUSION_REAL_DIR)"
+	$(PY) -m decision.run --fusion-dir "$(FUSION_REAL_DIR)" --kb-dir "$(KB_DIR)" --out-dir "$(FUSED_DIR)" \
+	  --cache-dir "$(CACHE_DIR)" --mode "$(DECISION_MODE)" --retriever "$(RETRIEVER)"
 
 validate-contracts:
 	PYTHONPATH=. $(PY) scripts/validate_contracts.py

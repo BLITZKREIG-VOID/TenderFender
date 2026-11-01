@@ -99,3 +99,38 @@ def fuse(rules: dict, graph: dict, bidders: set[str], title: str) -> dict:
         "decision": DECISION_BY_RISK[risk],
         "_inputs": {"findings": rules["findings"], "rings": referenced},
     }
+
+
+NETWORK_CHECK_NOT_APPLICABLE = {"status": "not_applicable", "reason": "needs bid data (post-award)"}
+
+
+def fuse_real(rules: dict, title: str) -> dict:
+    """Real-tender fusion (SoT 8.4, CC-06): risk from rule findings only.
+
+    No bid data exists pre-award, so there are no flagged rings and no bidders; the vendor check is skipped, so
+    `tailored_eligibility` is impossible. The same `risk_level` rule applies (a high-severity finding -> medium)."""
+    tender_id = rules["tender_id"]
+    if (rules.get("vendor_check") or {}).get("status") != "skipped":
+        raise ValueError(f"{tender_id}: real-tender fusion requires rules.vendor_check.status == 'skipped'")
+    findings = rules["findings"]
+    risk = risk_level(rules, [], set())
+    if findings:
+        found = (f"{len(findings)} rule finding(s) ("
+                 + ", ".join(f"{f['finding_id']}: {f['type']}" for f in findings) + ")")
+    else:
+        found = "no rule findings"
+    summary = (f"Risk indicators for {tender_id}: {found}; network check not applicable "
+               f"({NETWORK_CHECK_NOT_APPLICABLE['reason']}). Risk level: {risk}.")
+    return {
+        "tender_id": tender_id,
+        "title": title,
+        "source": "real",
+        "risk_level": risk,
+        "rule_finding_ids": [f["finding_id"] for f in findings],
+        "graph_flag_ring_ids": [],
+        "linked_vendors": [],
+        "network_check": dict(NETWORK_CHECK_NOT_APPLICABLE),
+        "summary": summary,
+        "decision": DECISION_BY_RISK[risk],
+        "_inputs": {"findings": findings, "rings": []},
+    }

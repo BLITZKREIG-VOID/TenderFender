@@ -21,8 +21,10 @@ from api.loaders import (
     list_fused_ids,
     load_fused,
     load_graph,
+    load_real_tender,
     load_rules,
     load_tender_clauses,
+    tender_source,
 )
 from api import confirmations
 from api.passages import load_passage
@@ -82,6 +84,7 @@ class TenderSummary(BaseModel):
     title: str
     risk_level: str
     decision: str
+    source: str
 
 
 class ConfirmResponse(BaseModel):
@@ -122,6 +125,7 @@ def list_tenders():
                 title=fused.get("title", ""),
                 risk_level=fused["risk_level"],
                 decision=fused["decision"],
+                source=tender_source(fused, tid),
             )
         )
     return results
@@ -157,13 +161,19 @@ def tender_analysis(tender_id: str):
             seen_passages.add(cite["ref"])
             passages.append(load_passage(cite["ref"]))
 
-    return {
+    response: dict[str, Any] = {
+        "source": tender_source(fused, tender_id),
         "fused": fused,
         "rules": rules,
         "atom_status": atom_status,
         "clauses": clauses,
         "passages": passages,
     }
+    real = load_real_tender(tender_id)
+    if real is not None:
+        for key in ("source_portal", "source_url", "source_ref", "retrieved"):
+            response[key] = real.get(key)
+    return response
 
 
 @app.get("/api/tenders/{tender_id}/graph")
@@ -175,6 +185,18 @@ def tender_graph(tender_id: str):
     fused = load_fused(tender_id)
     if fused is None:
         raise _error(404, f"Tender {tender_id} not found")
+
+    if tender_source(fused, tender_id) == "real":
+        # No bid data before award: an empty graph plus the explicit reason, never a 404 the UI must guess about.
+        return {
+            "graph": {"nodes": [], "edges": []},
+            "highlighted_paths": [],
+            "rings": [],
+            "vendor_scores": {},
+            "metrics": {},
+            "network_check": fused.get("network_check")
+            or {"status": "not_applicable", "reason": "needs bid data (post-award)"},
+        }
 
     graph_data = load_graph()
     if graph_data is None:

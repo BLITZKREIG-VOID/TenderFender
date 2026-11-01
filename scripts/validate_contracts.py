@@ -45,8 +45,10 @@ def check_fused(doc: dict, name: str) -> list[str]:
     if DECISION_BY_RISK.get(doc.get("risk_level")) != doc.get("decision"):
         errs.append(f"decision {doc.get('decision')!r} inconsistent with risk_level {doc.get('risk_level')!r} "
                     "(low->clear, medium->review, high->escalate)")
-    if name.startswith("T-") and doc.get("tender_id") != name.split(".")[0]:
+    if name.startswith(("T-", "RT-")) and doc.get("tender_id") != name.split(".")[0]:
         errs.append(f"tender_id {doc.get('tender_id')!r} does not match file name {name}")
+    if doc.get("network_check") and (doc.get("graph_flag_ring_ids") or doc.get("linked_vendors")):
+        errs.append("network_check not_applicable requires empty graph_flag_ring_ids and linked_vendors")
     cited = set()
     for c in doc.get("citations", []):
         ref, kind = c.get("ref", ""), c.get("kind")
@@ -206,7 +208,7 @@ def main(argv: list[str] | None = None) -> int:
         for p in sorted(ex.glob("rules_*T-*.json")):
             check(p, "rules_output", check_rules)
         check(ex / "graph_output.json", "graph_output")
-        for p in sorted(ex.glob("fused_T-*.json")):
+        for p in sorted(ex.glob("fused_*T-*.json")):
             check(p, "fused", check_fused)
         for name in ("tender", "real_tender", "kb_passage", "labels"):
             check(ex / f"{name}.json", name)

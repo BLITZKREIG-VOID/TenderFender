@@ -1,7 +1,8 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
-import type { TenderSummary } from "../api/client";
+import type { TenderSummary, TenderSource } from "../api/client";
+import SourceTag, { sourceLabel } from "../components/SourceTag";
 import { EmptyState, ErrorCard } from "../components/UIStates";
 import { Skeleton } from "../components/Skeleton";
 import {
@@ -75,6 +76,7 @@ export default function TenderList() {
   const [tenders, setTenders] = useState<TenderSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<"all" | TenderSource>("all");
 
   const fetchTenders = () => {
     setLoading(true);
@@ -121,6 +123,11 @@ export default function TenderList() {
     );
   }
 
+  // Grouped: real tenders first, then the synthetic demo set; the filter narrows to one group.
+  const groups: TenderSource[] = ["real", "synthetic_demo"];
+  const shownGroups = groups.filter((g) => filter === "all" || filter === g);
+  const shownCount = tenders.filter((t) => filter === "all" || t.source === filter).length;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b-2 border-gray-300">
@@ -137,6 +144,29 @@ export default function TenderList() {
           Total Tenders: <span className="font-mono text-base">{tenders.length}</span>
         </div>
       </div>
+
+      <div role="group" aria-label="Filter tenders by source" className="flex flex-wrap gap-2">
+        {(["all", ...groups] as const).map((f) => (
+          <button
+            key={f}
+            type="button"
+            aria-pressed={filter === f}
+            onClick={() => setFilter(f)}
+            className={`px-3 py-1.5 rounded-md text-xs sm:text-sm font-black uppercase tracking-wider border-2 border-black cursor-pointer focus:outline-hidden focus:ring-4 focus:ring-blue-600 ${
+              filter === f ? "bg-black text-white" : "bg-white text-black hover:bg-gray-100"
+            }`}
+          >
+            {f === "all" ? "All" : sourceLabel(f)} (
+            {f === "all" ? tenders.length : tenders.filter((t) => t.source === f).length})
+          </button>
+        ))}
+      </div>
+
+      {shownCount === 0 && (
+        <p className="text-sm font-bold text-gray-800">
+          No tenders in this group. Real tenders appear after <code>make pipeline-real</code>.
+        </p>
+      )}
 
       <div className="bg-white rounded-xl shadow-md border-4 border-gray-900 overflow-hidden">
         <table className="min-w-full divide-y-2 divide-gray-300 text-left">
@@ -174,8 +204,17 @@ export default function TenderList() {
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y-2 divide-gray-200">
-            {tenders.map((t) => (
+          {shownGroups.map((g) => {
+            const rows = tenders.filter((t) => t.source === g);
+            if (rows.length === 0) return null;
+            return (
+          <tbody key={g} className="divide-y-2 divide-gray-200 border-t-2 border-gray-300">
+            <tr className="bg-gray-100">
+              <th colSpan={5} scope="colgroup" className="px-6 py-2 text-xs font-black uppercase tracking-wider text-gray-900">
+                {sourceLabel(g)} ({rows.length})
+              </th>
+            </tr>
+            {rows.map((t) => (
               <tr
                 key={t.tender_id}
                 className="hover:bg-blue-50/60 transition-colors group focus-within:bg-blue-50"
@@ -195,6 +234,9 @@ export default function TenderList() {
                   >
                     {t.title}
                   </Link>
+                  <div className="mt-1">
+                    <SourceTag source={t.source} />
+                  </div>
                 </td>
                 <td className="px-6 py-5 whitespace-nowrap">{riskBadge(t.risk_level)}</td>
                 <td className="px-6 py-5 whitespace-nowrap">{decisionBadge(t.decision)}</td>
@@ -210,6 +252,8 @@ export default function TenderList() {
               </tr>
             ))}
           </tbody>
+            );
+          })}
         </table>
       </div>
     </div>
