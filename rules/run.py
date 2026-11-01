@@ -13,7 +13,7 @@ from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
 
 from rules.checks import run_checks
-from rules.compile_llm import compile_tender
+from rules.compile_llm import CompileError, RateLimitDailyExhausted, compile_tender, compile_tender_batched
 from rules.ir import Atom, load_atoms
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -45,6 +45,10 @@ def main(argv: list[str] | None = None) -> int:
         "--require-confirmed", action="store_true",
         help="RT- tenders only: read ir_<id>.confirmed.json (see docs/REVIEW_ATOMS.md); if absent, fail unless "
              "ALLOW_UNCONFIRMED=1, in which case the unconfirmed cached IR is used and the output stays 'unconfirmed'",
+    )
+    parser.add_argument(
+        "--batch", action="store_true",
+        help="Compile clauses in a single batched LLM request per tender (default for RT- tenders)",
     )
 
     args = parser.parse_args(argv)
@@ -168,6 +172,13 @@ def main(argv: list[str] | None = None) -> int:
                     clause_match_errors.append(
                         f"Atom {atom.id} references clause {atom.clause_id} which does not exist in {tender_id}"
                     )
+                elif tender_id.startswith("RT-"):
+                    atom_src = " ".join(atom.source_text.split()) if atom.source_text else ""
+                    clause_src = " ".join(tender_clauses[atom.clause_id].split())
+                    if not atom_src or atom_src not in clause_src:
+                        clause_match_errors.append(
+                            f"Atom {atom.id} source_text is not a substring of clause {atom.clause_id} text after whitespace normalisation"
+                        )
                 elif atom.source_text != tender_clauses[atom.clause_id]:
                     clause_match_errors.append(
                         f"Atom {atom.id} source_text does not match clause {atom.clause_id} text exactly"
@@ -180,22 +191,55 @@ def main(argv: list[str] | None = None) -> int:
 
         else:
             atoms = None
-            for tender_attempt in range(3):
+            use_batch = args.batch or tender_id.startswith("RT-")
+            if use_batch:
                 try:
-                    atoms = compile_tender(tender_data)
-                    break
+                    atoms = compile_tender_batched(tender_data)
+                except RateLimitDailyExhausted as e:
+                    sys.stderr.write(f"FATAL: {e}\n")
+                    return 1
                 except Exception as e:
                     err_str = str(e)
-                    if "429" in err_str and tender_attempt < 2:
+                    if (
+                        "openrouter_free_tier_daily" in err_str
+                        or "X-RateLimit-Remaining: 0" in err_str
+                        or "X-RateLimit-Remaining=0" in err_str
+                    ):
                         sys.stderr.write(
-                            f"Warning: 429 rate limit compiling {tender_id}; waiting 60s (retry {tender_attempt + 1}/2)...\n"
+                            f"FATAL: OpenRouter daily rate limit exhausted; stopping run immediately: {e}\n"
                         )
-                        time.sleep(60)
-                        continue
+                        return 1
                     sys.stderr.write(f"Error compiling tender {tender_id}: {e}\n")
                     success = False
-                    break
-
+                    continue
+            else:
+                for tender_attempt in range(3):
+                    try:
+                        atoms = compile_tender(tender_data)
+                        break
+                    except RateLimitDailyExhausted as e:
+                        sys.stderr.write(f"FATAL: {e}\n")
+                        return 1
+                    except Exception as e:
+                        err_str = str(e)
+                        if (
+                            "openrouter_free_tier_daily" in err_str
+                            or "X-RateLimit-Remaining: 0" in err_str
+                            or "X-RateLimit-Remaining=0" in err_str
+                        ):
+                            sys.stderr.write(
+                                f"FATAL: OpenRouter daily rate limit exhausted; stopping run immediately: {e}\n"
+                            )
+                            return 1
+                        if "429" in err_str and tender_attempt < 2:
+                            sys.stderr.write(
+                                f"Warning: 429 rate limit compiling {tender_id}; waiting 60s (retry {tender_attempt + 1}/2)...\n"
+                            )
+                            time.sleep(60)
+                            continue
+                        sys.stderr.write(f"Error compiling tender {tender_id}: {e}\n")
+                        success = False
+                        break
             if atoms is None:
                 continue
             if args.write_cache:

@@ -244,3 +244,21 @@ The deterministic `amount_mismatch` check inspects every clause that states both
 - Absolute rounding tolerance: ₹0.01 Lakh (`1,000` INR)
 
 Across all 14 tenders, every printed figure in the official ISRO notices matches the computed percentage of estimated cost within normal rounding (maximum discrepancy observed was ₹0.005 Lakh = ₹500 on multi-crore works, well below the ₹0.01 Lakh threshold). Consequently, no tender has an erroneous printed figure, yielding 0 `amount_mismatch` findings.
+
+## 7. Batched Compilation and Quota Management (2026-11-01)
+
+### How to Compile (Command)
+
+To compile all 14 RT tenders in batched mode into `data/real/tenders/ir_RT-0NN.json`:
+
+```bash
+source ~/.config/tenderfender/openrouter.env && RULES_USE_CACHE=0 PYTHONPATH=. $PY -m rules.run --data-dir data/real --out-dir artifacts/rules_real --write-cache --batch
+```
+
+*(Note: Batched mode `--batch` sends ONE LLM request per tender containing all its clauses and requests a JSON object keyed by `clause_id`. Batched mode is also the default for RT- tenders).*
+
+### Quota Note
+
+- **Daily Request Limit:** OpenRouter free-tier models (`nvidia/nemotron-3-ultra-550b-a55b:free`) enforce an account-level daily limit of 50 requests/day (`openrouter_free_tier_daily`).
+- **Request Reduction:** In per-clause mode, 14 tenders with ~135 total clauses required ~135 requests, exceeding the 50 req/day quota and triggering HTTP 429. Batched compilation compiles each tender in a single request, taking only 14 requests total (leaving ample headroom under the 50 req/day ceiling).
+- **429 Daily Limit Detection:** If an HTTP 429 occurs with `limit_source == openrouter_free_tier_daily` or `X-RateLimit-Remaining: 0`, the compiler halts the entire run immediately with a fatal error displaying the exact UTC reset timestamp (`00:00:00 UTC`), preventing 60s retry sleeps that burn remaining quota.

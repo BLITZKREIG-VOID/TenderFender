@@ -7,7 +7,14 @@ import urllib.error
 import pytest
 
 from rules import compile_llm
-from rules.compile_llm import CompileError, _call_api, compile_clause
+from rules.compile_llm import (
+    CompileError,
+    HTTP503Error,
+    RateLimitDailyExhausted,
+    _call_api,
+    compile_clause,
+    compile_tender_batched,
+)
 
 ATOM = {
     "id": "CL2.1",
@@ -199,3 +206,167 @@ def test_http_error_is_not_retried(http):
     with pytest.raises(CompileError, match="HTTP 429"):
         compile_clause("CL2", "Clause text")
     assert len(seen) == 1
+
+
+BATCH_TENDER = {
+    "tender_id": "RT-001",
+    "clauses": [
+        {"clause_id": "CL1", "text": "Annual turnover of bidder shall be at least 50 crore."},
+        {"clause_id": "CL2", "text": "Bidder must have 5 years experience in similar works."},
+    ],
+}
+
+BATCH_VALID_REPLY = {
+    "CL1": [
+        {
+            "id": "CL1.1",
+            "clause_id": "CL1",
+            "field": "turnover_cr",
+            "op": ">=",
+            "value": 50,
+            "source_text": "turnover of bidder shall be at least 50 crore",
+        }
+    ],
+    "CL2": [
+        {
+            "id": "CL2.1",
+            "clause_id": "CL2",
+            "field": "years_experience",
+            "op": ">=",
+            "value": 5,
+            "source_text": "5 years experience",
+        }
+    ],
+}
+
+
+def test_batched_request_shape(http):
+    replies, seen = http
+    replies.append(chat(json.dumps(BATCH_VALID_REPLY)))
+    atoms = compile_tender_batched(BATCH_TENDER)
+    assert len(atoms) == 2
+    assert [a.id for a in atoms] == ["CL1.1", "CL2.1"]
+    assert len(seen) == 1
+
+    req = seen[0]
+    assert req.get_method() == "POST"
+    assert req.get_header("Authorization") == "Bearer test-key"
+    body = json.loads(req.data)
+    assert body["model"] == compile_llm.DEFAULT_MODEL
+    user_msg = body["messages"][1]["content"]
+    assert "Clause ID: CL1" in user_msg
+    assert "Annual turnover of bidder shall be at least 50 crore." in user_msg
+    assert "Clause ID: CL2" in user_msg
+    assert "Bidder must have 5 years experience in similar works." in user_msg
+
+
+def test_batched_key_clause_mismatch_rejected(http):
+    replies, seen = http
+    bad_reply = {
+        "CL1": [
+            {
+                "id": "CL1.1",
+                "clause_id": "CL2",  # mismatch: key is CL1 but atom is CL2
+                "field": "turnover_cr",
+                "op": ">=",
+                "value": 50,
+                "source_text": "turnover of bidder shall be at least 50 crore",
+            }
+        ],
+        "CL2": [],
+    }
+    replies.extend([chat(json.dumps(bad_reply))] * 3)
+    with pytest.raises(CompileError, match="after 3 attempts"):
+        compile_tender_batched(BATCH_TENDER)
+    assert len(seen) == 3
+
+
+def test_batched_source_text_not_substring_rejected(http):
+    replies, seen = http
+    bad_reply = {
+        "CL1": [
+            {
+                "id": "CL1.1",
+                "clause_id": "CL1",
+                "field": "turnover_cr",
+                "op": ">=",
+                "value": 50,
+                "source_text": "completely fabricated text not in clause",
+            }
+        ],
+        "CL2": [],
+    }
+    replies.extend([chat(json.dumps(bad_reply)), chat(json.dumps(BATCH_VALID_REPLY))])
+    atoms = compile_tender_batched(BATCH_TENDER)
+    assert len(atoms) == 2
+    assert len(seen) == 2
+    second_body = json.loads(seen[1].data)["messages"]
+    assert "Validation error:" in second_body[-1]["content"]
+
+
+def test_batched_daily_limit_429_stops_run(http):
+    replies, seen = http
+    body_dict = {
+        "error": {
+            "message": "Rate limit exceeded: free-models-per-day. Add 10 credits to unlock 1000 free model requests per day",
+            "code": 429,
+            "metadata": {
+                "headers": {
+                    "X-RateLimit-Limit": "50",
+                    "X-RateLimit-Remaining": "0",
+                    "X-RateLimit-Reset": "1793577600000",
+                },
+                "limit_source": "openrouter_free_tier_daily",
+            },
+        }
+    }
+    err = urllib.error.HTTPError(
+        compile_llm.API_URL,
+        429,
+        "Too Many Requests",
+        {"X-RateLimit-Remaining": "0"},
+        io.BytesIO(json.dumps(body_dict).encode("utf-8")),
+    )
+    replies.append(err)
+    with pytest.raises(RateLimitDailyExhausted) as exc_info:
+        compile_tender_batched(BATCH_TENDER)
+    assert len(seen) == 1
+    assert "openrouter_free_tier_daily" in str(exc_info.value)
+    assert "2026-11-02 00:00:00 UTC" in str(exc_info.value)
+    assert exc_info.value.reset_time == "2026-11-02 00:00:00 UTC"
+
+
+def test_batched_retry_budget_transient_503(http):
+    replies, seen = http
+    err503_1 = urllib.error.HTTPError(
+        compile_llm.API_URL, 503, "Service Unavailable", {}, io.BytesIO(b"overloaded 1")
+    )
+    err503_2 = urllib.error.HTTPError(
+        compile_llm.API_URL, 503, "Service Unavailable", {}, io.BytesIO(b"overloaded 2")
+    )
+    replies.extend([err503_1, err503_2, chat(json.dumps(BATCH_VALID_REPLY))])
+    atoms = compile_tender_batched(BATCH_TENDER)
+    assert len(atoms) == 2
+    assert len(seen) == 3
+
+
+def test_batched_retry_budget_exhaustion(http):
+    replies, seen = http
+    err503 = urllib.error.HTTPError(
+        compile_llm.API_URL, 503, "Service Unavailable", {}, io.BytesIO(b"overloaded")
+    )
+    replies.extend([err503] * 3)
+    with pytest.raises(CompileError, match="after 3 attempts"):
+        compile_tender_batched(BATCH_TENDER)
+    assert len(seen) == 3
+
+
+def test_batched_retry_budget_mixed(http):
+    replies, seen = http
+    err503 = urllib.error.HTTPError(
+        compile_llm.API_URL, 503, "Service Unavailable", {}, io.BytesIO(b"overloaded")
+    )
+    replies.extend([err503, chat("invalid json"), chat(json.dumps(BATCH_VALID_REPLY))])
+    atoms = compile_tender_batched(BATCH_TENDER)
+    assert len(atoms) == 2
+    assert len(seen) == 3
