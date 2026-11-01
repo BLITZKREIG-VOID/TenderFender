@@ -46,7 +46,7 @@
       "required": ["finding_id", "type", "severity", "clause_ids", "source_texts", "proof", "explanation"],
       "properties": {
         "finding_id": {"type": "string", "pattern": "^F-\\d+$"},
-        "type": {"enum": ["contradiction", "tailored_eligibility", "no_qualifier"]},
+        "type": {"enum": ["contradiction", "tailored_eligibility", "no_qualifier", "amount_mismatch"]},
         "severity": {"enum": ["high", "medium", "low"]},
         "clause_ids": {"type": "array", "items": {"type": "string", "pattern": "^CL\\d+$"}, "minItems": 1},
         "source_texts": {"type": "array", "items": {"type": "string"}},

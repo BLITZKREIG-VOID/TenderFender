@@ -22,6 +22,120 @@ def _format_atom_value(val: Any) -> str:
     return str(val)
 
 
+TOLERANCE_RELATIVE = 0.005  # 0.5% relative tolerance
+TOLERANCE_ABSOLUTE_LAKH = 0.01  # ₹0.01 lakh = ₹1,000 rounding tolerance
+
+
+def check_amount_mismatches(atoms: list[Atom]) -> list[dict[str, Any]]:
+    cost_atom = next((a for a in atoms if a.field == "estimated_cost_lakh"), None)
+    if not cost_atom or not isinstance(cost_atom.value, (int, float)) or cost_atom.value <= 0:
+        return []
+
+    cost = float(cost_atom.value)
+    findings: list[dict[str, Any]] = []
+
+    by_clause: dict[str, list[Atom]] = {}
+    for a in atoms:
+        by_clause.setdefault(a.clause_id, []).append(a)
+
+    for cid, catoms in by_clause.items():
+        # Check solvency: solvency_pct vs solvency_lakh
+        solv_pct = next((a for a in catoms if a.field == "solvency_pct"), None)
+        solv_lakh = next((a for a in catoms if a.field == "solvency_lakh"), None)
+        if solv_pct and solv_lakh and isinstance(solv_pct.value, (int, float)) and isinstance(solv_lakh.value, (int, float)):
+            pct = float(solv_pct.value)
+            printed = float(solv_lakh.value)
+            expected = cost * pct / 100.0
+            diff = abs(printed - expected)
+            rel_diff = diff / expected if expected > 0 else 0
+            if diff > TOLERANCE_ABSOLUTE_LAKH and rel_diff > TOLERANCE_RELATIVE:
+                findings.append({
+                    "finding_id": f"F-{len(findings) + 1}",
+                    "type": "amount_mismatch",
+                    "severity": "medium",
+                    "clause_ids": [cid],
+                    "source_texts": [solv_pct.source_text],
+                    "proof": {
+                        "method": "amount_mismatch_check",
+                        "detail": f"solvency: stated {pct}% of estimated cost {cost} Lakhs = {expected:.2f} Lakhs, but printed amount is {printed:.2f} Lakhs (diff: {diff:.4f} Lakhs)",
+                    },
+                    "explanation": f"Clause {cid} states solvency of {pct}% of estimated cost ({cost} Lakhs), which computes to {expected:.2f} Lakhs, but printed figure is {printed:.2f} Lakhs.",
+                })
+
+        # Check turnover: turnover_pct vs turnover_lakh
+        to_pct = next((a for a in catoms if a.field == "turnover_pct"), None)
+        to_lakh = next((a for a in catoms if a.field == "turnover_lakh"), None)
+        if to_pct and to_lakh and isinstance(to_pct.value, (int, float)) and isinstance(to_lakh.value, (int, float)):
+            pct = float(to_pct.value)
+            printed = float(to_lakh.value)
+            expected = cost * pct / 100.0
+            diff = abs(printed - expected)
+            rel_diff = diff / expected if expected > 0 else 0
+            if diff > TOLERANCE_ABSOLUTE_LAKH and rel_diff > TOLERANCE_RELATIVE:
+                findings.append({
+                    "finding_id": f"F-{len(findings) + 1}",
+                    "type": "amount_mismatch",
+                    "severity": "medium",
+                    "clause_ids": [cid],
+                    "source_texts": [to_pct.source_text],
+                    "proof": {
+                        "method": "amount_mismatch_check",
+                        "detail": f"turnover: stated {pct}% of estimated cost {cost} Lakhs = {expected:.2f} Lakhs, but printed amount is {printed:.2f} Lakhs (diff: {diff:.4f} Lakhs)",
+                    },
+                    "explanation": f"Clause {cid} states turnover of {pct}% of estimated cost ({cost} Lakhs), which computes to {expected:.2f} Lakhs, but printed figure is {printed:.2f} Lakhs.",
+                })
+
+        # Check EMD: emd_pct vs emd_amount_lakh
+        emd_p = next((a for a in catoms if a.field == "emd_pct"), None)
+        emd_a = next((a for a in catoms if a.field == "emd_amount_lakh"), None)
+        if emd_p and emd_a and isinstance(emd_p.value, (int, float)) and isinstance(emd_a.value, (int, float)):
+            pct = float(emd_p.value)
+            printed = float(emd_a.value)
+            expected = cost * pct / 100.0
+            diff = abs(printed - expected)
+            rel_diff = diff / expected if expected > 0 else 0
+            if diff > TOLERANCE_ABSOLUTE_LAKH and rel_diff > TOLERANCE_RELATIVE:
+                findings.append({
+                    "finding_id": f"F-{len(findings) + 1}",
+                    "type": "amount_mismatch",
+                    "severity": "medium",
+                    "clause_ids": [cid],
+                    "source_texts": [emd_p.source_text],
+                    "proof": {
+                        "method": "amount_mismatch_check",
+                        "detail": f"EMD: stated {pct}% of estimated cost {cost} Lakhs = {expected:.2f} Lakhs, but printed amount is {printed:.2f} Lakhs (diff: {diff:.4f} Lakhs)",
+                    },
+                    "explanation": f"Clause {cid} states EMD of {pct}% of estimated cost ({cost} Lakhs), which computes to {expected:.2f} Lakhs, but printed figure is {printed:.2f} Lakhs.",
+                })
+
+        # Check similar_works alternatives
+        sw_atom = next((a for a in catoms if a.field == "similar_works"), None)
+        if sw_atom and isinstance(sw_atom.value, dict):
+            alts = sw_atom.value.get("alternatives", [])
+            for i, alt in enumerate(alts):
+                if "pct" in alt and "amount_lakh" in alt:
+                    pct = float(alt["pct"])
+                    printed = float(alt["amount_lakh"])
+                    expected = cost * pct / 100.0
+                    diff = abs(printed - expected)
+                    rel_diff = diff / expected if expected > 0 else 0
+                    if diff > TOLERANCE_ABSOLUTE_LAKH and rel_diff > TOLERANCE_RELATIVE:
+                        cnt_str = f"{alt.get('count', 1)} works each of " if "count" in alt else ""
+                        findings.append({
+                            "finding_id": f"F-{len(findings) + 1}",
+                            "type": "amount_mismatch",
+                            "severity": "medium",
+                            "clause_ids": [cid],
+                            "source_texts": [sw_atom.source_text],
+                            "proof": {
+                                "method": "amount_mismatch_check",
+                                "detail": f"similar_works alternative {i + 1}: stated {cnt_str}{pct}% of estimated cost {cost} Lakhs = {expected:.2f} Lakhs, but printed amount is {printed:.2f} Lakhs (diff: {diff:.4f} Lakhs)",
+                            },
+                            "explanation": f"Clause {cid} states similar works alternative ({cnt_str}{pct}% of {cost} Lakhs), which computes to {expected:.2f} Lakhs, but printed figure is {printed:.2f} Lakhs.",
+                        })
+
+    return findings
+
 def run_checks(atoms: list[Atom], vendors: list[dict[str, Any]] | None) -> dict[str, Any]:
     """Contradiction check always; the per-vendor checks only when `vendors` is a list (None = no vendor data)."""
     vendors_evaluated = len(vendors) if vendors is not None else 0
@@ -79,6 +193,10 @@ def run_checks(atoms: list[Atom], vendors: list[dict[str, Any]] | None) -> dict[
             "qualifying_vendors": [],
             "vendors_evaluated": vendors_evaluated,
         }
+
+    findings.extend(check_amount_mismatches(atoms))
+    for idx, f in enumerate(findings, start=1):
+        f["finding_id"] = f"F-{idx}"
 
     if vendors is None:
         return {"findings": findings, "qualifying_vendors": [], "vendors_evaluated": 0}

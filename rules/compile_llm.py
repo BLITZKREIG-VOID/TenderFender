@@ -103,8 +103,9 @@ Vocabulary:
   - Tender-level: {list(TENDER_FIELDS)}
 - Operators: [">=", "<=", "==", "in"]
 - Value types:
-  - turnover_cr, years_experience, bid_days, emd_pct: number (integer or float)
+  - numeric: turnover_cr, turnover_lakh, turnover_pct, years_experience, bid_days, emd_pct, emd_amount_lakh, estimated_cost_lakh, turnover_period_years, max_loss_years, solvency_lakh, solvency_pct: number (integer or float)
   - registration_class: string in {list(REG_CLASSES)} (for op "==") or list of strings in {list(REG_CLASSES)} (for op "in")
+  - similar_works: object with optional "years" (number) and required "alternatives" list of objects, each having optional "count" (int), "pct" (number), "amount_lakh" (number)
 - Atom structure:
   {{"id": "<clause_id>.1", "clause_id": "<clause_id>", "field": "...", "op": "...", "value": ..., "source_text": "..."}}
 
@@ -112,7 +113,8 @@ Rules:
 1. Output ONLY a valid JSON array of atom objects. No markdown formatting, no explanations.
 2. Atom ids must be sequentially numbered: <clause_id>.1, <clause_id>.2, ...
 3. The "source_text" property must match the clause text EXACTLY.
-4. If the clause does not specify any conditions on the supported fields, output an empty array [].
+4. Extract ALL applicable conditions: if a clause specifies both a percentage and an amount in Lakhs, or turnover period, emit separate atoms for each condition.
+5. If the clause does not specify any conditions on the supported fields, output an empty array [].
 """
 
 MAX_RETRIES = 2
@@ -141,11 +143,18 @@ def compile_clause(
                                "Return ONLY a valid JSON array.",
                 }
             continue
+        raw = raw_reply.strip()
+        if raw.startswith("```"):
+            lines = raw.splitlines()
+            if lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].startswith("```"):
+                lines = lines[:-1]
+            raw = "\n".join(lines).strip()
         try:
-            parsed = json.loads(raw_reply)
+            parsed = json.loads(raw)
             if not isinstance(parsed, list):
                 raise ValueError(f"Expected a JSON array of atoms, got {type(parsed).__name__}")
-
             atoms: list[Atom] = []
             for i, item in enumerate(parsed):
                 if not isinstance(item, dict):

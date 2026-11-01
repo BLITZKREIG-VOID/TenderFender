@@ -182,6 +182,18 @@ export default function TenderDetail() {
         </div>
       </div>
 
+      {/* Prominent Attribution Banner for Real Tenders */}
+      {analysis.source === "real" && analysis.attribution && (
+        <div
+          data-testid="real-tender-attribution"
+          className="bg-amber-50 border-4 border-amber-500 rounded-xl p-4 text-amber-950 font-bold text-sm shadow-sm flex items-start gap-3"
+        >
+          <span className="text-amber-800 shrink-0 font-black uppercase tracking-wider text-xs bg-amber-200 px-2 py-0.5 rounded border border-amber-600">
+            Notice
+          </span>
+          <span className="leading-relaxed">{analysis.attribution}</span>
+        </div>
+      )}
       {/* Top: Risk Card */}
       <RiskCard fused={analysis.fused} />
 

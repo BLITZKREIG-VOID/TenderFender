@@ -52,3 +52,25 @@ def test_tampered_cache_fails_and_no_output(tmp_path, monkeypatch):
 
     assert ret != 0
     assert not (out_dir / "T-001.json").exists()
+
+
+def test_refuse_to_write_empty_cache_on_empty_compile(tmp_path, monkeypatch):
+    monkeypatch.setenv("RULES_USE_CACHE", "0")
+
+    tmp_data = tmp_path / "data"
+    tmp_tenders = tmp_data / "tenders"
+    tmp_tenders.mkdir(parents=True)
+    shutil.copy(REPO_ROOT / "data" / "vendors.csv", tmp_data / "vendors.csv")
+    # Create dummy tender
+    dummy = {"tender_id": "T-001", "title": "Test", "clauses": [{"clause_id": "CL1", "text": "Unrelated"}]}
+    (tmp_tenders / "T-001.json").write_text(json.dumps(dummy), encoding="utf-8")
+
+    # Mock compile_tender to return []
+    monkeypatch.setattr("rules.run.compile_tender", lambda tender: [])
+
+    out_dir = tmp_path / "output"
+    cache_file = tmp_tenders / "ir_T-001.json"
+    ret = main(["--tender", "T-001", "--data-dir", str(tmp_data), "--out-dir", str(out_dir), "--write-cache"])
+
+    assert ret != 0
+    assert not cache_file.exists()

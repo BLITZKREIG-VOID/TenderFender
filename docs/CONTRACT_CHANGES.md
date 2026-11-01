@@ -71,3 +71,10 @@ Everyone proposes changes here; only the Lead (P3) edits `SOURCE_OF_TRUTH.md`, `
 - Contract(s) affected: real_tender.json, rules_output.json
 - Change: Imported 14 ISRO tenders into data/real/tenders/RT-nnn.json, committed data/real/tools/, added attribution and neutral framing in API/UI.
 - Why: Full Phase 4 implementation.
+
+### CC-08: Widened IR schema (`ir_atom.json`) and `amount_mismatch` finding type (`rules_output.json`)
+- Date / proposer: 2026-11-01, Phase 4 Worker
+- Status: applied (`contracts/schemas/ir_atom.json`, `contracts/schemas/rules_output.json`)
+- Change: `ir_atom.json` field enum widened to include `turnover_lakh`, `turnover_pct`, `turnover_period_years`, `max_loss_years`, `solvency_lakh`, `solvency_pct`, `estimated_cost_lakh`, `emd_amount_lakh`, and `similar_works`. `value` accepts structured object for `similar_works` (alternatives with count, pct, amount_lakh and years). `rules_output.json` finding type enum widened to include `amount_mismatch`.
+- Why: Real ISRO public tenders require expressibility for turnover in Lakhs/percent, solvency in Lakhs/percent, loss years, turnover period, EMD amounts, and similar works alternatives. Mismatch between stated percentage and printed ₹ amount constitutes a medium-severity risk indicator.
+- Impacted owners: P1 rules engine and checks; downstream consumers ignore new fields for synthetic demo tenders (byte-identical).

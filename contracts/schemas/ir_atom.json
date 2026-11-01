@@ -8,13 +8,51 @@
   "properties": {
     "id": {"type": "string", "pattern": "^CL\\d+\\.\\d+$"},
     "clause_id": {"type": "string", "pattern": "^CL\\d+$"},
-    "field": {"enum": ["turnover_cr", "years_experience", "registration_class", "bid_days", "emd_pct"]},
+    "field": {
+      "enum": [
+        "turnover_cr",
+        "turnover_lakh",
+        "turnover_pct",
+        "turnover_period_years",
+        "max_loss_years",
+        "solvency_lakh",
+        "solvency_pct",
+        "estimated_cost_lakh",
+        "emd_amount_lakh",
+        "years_experience",
+        "registration_class",
+        "bid_days",
+        "emd_pct",
+        "similar_works"
+      ]
+    },
     "op": {"enum": [">=", "<=", "==", "in"]},
     "value": {
       "oneOf": [
         {"type": "number"},
         {"type": "string"},
-        {"type": "array", "items": {"type": "string"}, "minItems": 1}
+        {"type": "array", "items": {"type": "string"}, "minItems": 1},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["alternatives"],
+          "properties": {
+            "years": {"type": "number"},
+            "alternatives": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "count": {"type": "integer", "minimum": 1},
+                  "pct": {"type": "number"},
+                  "amount_lakh": {"type": "number"}
+                }
+              },
+              "minItems": 1
+            }
+          }
+        }
       ]
     },
     "source_text": {"type": "string", "minLength": 1}
