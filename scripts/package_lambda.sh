@@ -13,11 +13,15 @@ rm -rf "$OUT" build/lambda.zip build/lambda.sha
 mkdir -p "$OUT"
 
 uv pip install --quiet --target "$OUT" --python-platform x86_64-manylinux2014 \
-  --python-version "$LAMBDA_PYTHON" --only-binary :all: -r api/requirements-lambda.txt
+  --python-version "$LAMBDA_PYTHON" --only-binary :all: -r api/requirements-lambda.txt z3-solver
 
-# Application code and the data the API reads (api/loaders.py resolves everything relative to the package root).
+# Application code, needed pure-Python modules, and the data the API reads (api/loaders.py resolves everything relative to package root).
 cp -r api "$OUT/api"
-
+cp -r decision "$OUT/decision"
+cp -r rules "$OUT/rules"
+mkdir -p "$OUT/scripts"
+cp scripts/import_tender.py "$OUT/scripts/import_tender.py"
+touch "$OUT/scripts/__init__.py"
 # Built UI (required for single Lambda hosting of API and React frontend)
 if [ -d "ui/dist" ] && [ -f "ui/dist/index.html" ]; then
   mkdir -p "$OUT/ui_dist"
