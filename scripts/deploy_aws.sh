@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Deploy TenderFender to AWS (Lambda Function URL serving API + built UI). Idempotent: re-run to update.
 #
-# Env: AWS_REGION (default ap-south-1), STACK_NAME (default tenderfender), BUDGET_EMAIL (optional $1/month alert),
+# Env: AWS_REGION (default ap-south-1), STACK_NAME (default tenderfender), BUDGET_EMAIL (optional email alerts),
+#      AUTH_DOMAIN_PREFIX (default ${STACK_NAME}-${ACCOUNT}), GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
 #      KEEP_WARM (default true), SKIP_GATES=1 (skip artifact/acceptance/demo-guard checks), LAMBDA_PYTHON (default 3.14).
 set -euo pipefail
 
@@ -12,9 +13,14 @@ export AWS_DEFAULT_REGION="$AWS_REGION"
 export AWS_PAGER=""
 STACK_NAME="${STACK_NAME:-tenderfender}"
 BUDGET_EMAIL="${BUDGET_EMAIL:-}"
+GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID:-}"
+GOOGLE_CLIENT_SECRET="${GOOGLE_CLIENT_SECRET:-}"
+AUTH_DOMAIN_PREFIX="${AUTH_DOMAIN_PREFIX:-}"
+SITE_URL="${SITE_URL:-}"
+DEV_CALLBACK_URL="${DEV_CALLBACK_URL:-}"
+LLM_FEATURES_ENABLED="${LLM_FEATURES_ENABLED:-true}"
 KEEP_WARM="${KEEP_WARM:-true}"
 SKIP_GATES="${SKIP_GATES:-0}"
-
 log() { printf '\n==> %s\n' "$*"; }
 
 # ── 1. Preflight ──────────────────────────────────────────────────────────────
@@ -86,23 +92,64 @@ fi
 
 # ── 6. CloudFormation ─────────────────────────────────────────────────────────
 log "CloudFormation stack $STACK_NAME"
+AUTH_DOMAIN_PREFIX="${AUTH_DOMAIN_PREFIX:-${STACK_NAME}-${ACCOUNT}}"
+if [ -z "$SITE_URL" ]; then
+  SITE_URL="$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+    --query "Stacks[0].Outputs[?OutputKey=='SiteUrl'].OutputValue" --output text 2>/dev/null || echo "")"
+  if [ "$SITE_URL" = "None" ]; then SITE_URL=""; fi
+fi
+
+PARAM_FILE="$(mktemp /tmp/tf-params-XXXXXX.json)"
+chmod 0600 "$PARAM_FILE"
+trap 'rm -f "$PARAM_FILE"' EXIT INT TERM
+
+write_params() {
+  local current_site_url="$1"
+  cat > "$PARAM_FILE" <<EOF
+[
+  "CodeBucket=$DEPLOY_BUCKET",
+  "CodeKey=$CODE_KEY",
+  "BudgetEmail=$BUDGET_EMAIL",
+  "KeepWarm=$KEEP_WARM",
+  "AuthDomainPrefix=$AUTH_DOMAIN_PREFIX",
+  "SiteUrl=$current_site_url",
+  "DevCallbackUrl=$DEV_CALLBACK_URL",
+  "GoogleClientId=$GOOGLE_CLIENT_ID",
+  "GoogleClientSecret=$GOOGLE_CLIENT_SECRET",
+  "LlmFeaturesEnabled=$LLM_FEATURES_ENABLED"
+]
+EOF
+}
+
+write_params "$SITE_URL"
 aws cloudformation deploy \
   --stack-name "$STACK_NAME" \
   --template-file infra/template.yaml \
   --s3-bucket "$DEPLOY_BUCKET" --s3-prefix cfn \
   --capabilities CAPABILITY_IAM \
   --no-fail-on-empty-changeset \
-  --parameter-overrides "CodeBucket=$DEPLOY_BUCKET" "CodeKey=$CODE_KEY" "BudgetEmail=$BUDGET_EMAIL" "KeepWarm=$KEEP_WARM"
-
+  --parameter-overrides "file://$PARAM_FILE"
 out() {
   aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
     --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" --output text
 }
 URL="$(out SiteUrl)"
 
+# If SiteUrl was not known prior to the first deploy, register it with Cognito now.
+if [ -z "$SITE_URL" ] && [ -n "$URL" ]; then
+  log "Registering Function URL ($URL) in Cognito callback/logout URLs"
+  write_params "$URL"
+  aws cloudformation deploy \
+    --stack-name "$STACK_NAME" \
+    --template-file infra/template.yaml \
+    --s3-bucket "$DEPLOY_BUCKET" --s3-prefix cfn \
+    --capabilities CAPABILITY_IAM \
+    --no-fail-on-empty-changeset \
+    --parameter-overrides "file://$PARAM_FILE"
+fi
 # ── 7. Smoke test ─────────────────────────────────────────────────────────────
 log "Smoke test"
-for path in "" /api/health /api/tenders /api/tenders/T-002/analysis /tender/T-002; do
+for path in "" /api/health /api/auth/config /api/tenders /api/tenders/T-002/analysis /tender/T-002; do
   target="$URL$path"
   echo "Testing GET $target"
   start_time="$(date +%s%N)"
