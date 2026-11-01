@@ -47,6 +47,10 @@ def main(argv: list[str] | None = None) -> int:
              "ALLOW_UNCONFIRMED=1, in which case the unconfirmed cached IR is used and the output stays 'unconfirmed'",
     )
     parser.add_argument(
+        "--skip-unconfirmed", action="store_true",
+        help="RT- tenders only: skip tenders with 0 confirmations / no confirmed IR instead of aborting",
+    )
+    parser.add_argument(
         "--batch", action="store_true",
         help="Compile clauses in a single batched LLM request per tender (default for RT- tenders)",
     )
@@ -131,14 +135,30 @@ def main(argv: list[str] | None = None) -> int:
             if confirmed_file.exists():
                 cache_file = confirmed_file
                 formalization_status = "confirmed"
+            elif args.skip_unconfirmed:
+                sys.stderr.write(f"Warning: {tender_id} has no {confirmed_file.name}; skipping tender (--skip-unconfirmed)\n")
+                continue
             elif os.environ.get("ALLOW_UNCONFIRMED") == "1":
                 sys.stderr.write(f"Warning: {tender_id} has no {confirmed_file.name}; using UNCONFIRMED IR {cache_file.name}\n")
             else:
-                sys.stderr.write(
-                    f"Error: {tender_id} has no confirmed IR ({confirmed_file}). Review and confirm its atoms, then "
-                    "export (see docs/REVIEW_ATOMS.md), or set ALLOW_UNCONFIRMED=1 to proceed with unconfirmed atoms.\n")
-                success = False
-                continue
+                cached_atoms: list[Atom] = []
+                if cache_file.exists():
+                    try:
+                        cached_atoms = load_atoms(cache_file)
+                    except Exception:
+                        pass
+                if not cached_atoms:
+                    sys.stderr.write(
+                        f"Warning: {tender_id} has no {confirmed_file.name} (0 atoms in {cache_file.name}); "
+                        "using unconfirmed placeholder IR\n"
+                    )
+                else:
+                    sys.stderr.write(
+                        f"Error: {tender_id} has no confirmed IR ({confirmed_file}). Review and confirm its atoms, then "
+                        "export (see docs/REVIEW_ATOMS.md), or set ALLOW_UNCONFIRMED=1 to proceed with unconfirmed atoms.\n"
+                    )
+                    success = False
+                    continue
 
         if rules_use_cache == "1":
             if not cache_file.exists():

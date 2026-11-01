@@ -194,3 +194,33 @@ def test_batch_mode_flag_and_default_for_rt(tmp_path, monkeypatch):
     assert ret == 0
     assert batched_called == ["T-001"]
     assert per_clause_called == []
+
+def test_skip_unconfirmed_and_placeholder_handling(tmp_path, capsys):
+    tmp_data = tmp_path / "data"
+    tmp_tenders = tmp_data / "tenders"
+    tmp_tenders.mkdir(parents=True)
+
+    dummy_rt = {
+        "tender_id": "RT-001",
+        "title": "Real",
+        "source_portal": "ISRO",
+        "source_url": "https://www.isro.gov.in/tender",
+        "source_ref": "REF-RT-001",
+        "retrieved": "2026-11-01",
+        "clauses": [{"clause_id": "CL1", "source_clause_no": "1", "text": "Clause 1 text"}],
+    }
+    (tmp_tenders / "RT-001.json").write_text(json.dumps(dummy_rt), encoding="utf-8")
+    out_dir = tmp_path / "output"
+
+    # 1. With --skip-unconfirmed, unconfirmed tender is skipped cleanly
+    ret = main(["--data-dir", str(tmp_data), "--out-dir", str(out_dir), "--require-confirmed", "--skip-unconfirmed"])
+    assert ret == 0
+    captured = capsys.readouterr()
+    assert "skipping tender (--skip-unconfirmed)" in captured.err
+
+    # 2. With 0 atoms in cache_file, warning is emitted and it does not abort
+    (tmp_tenders / "ir_RT-001.json").write_text("[]", encoding="utf-8")
+    ret = main(["--data-dir", str(tmp_data), "--out-dir", str(out_dir), "--require-confirmed"])
+    assert ret == 0
+    captured = capsys.readouterr()
+    assert "0 atoms in ir_RT-001.json" in captured.err

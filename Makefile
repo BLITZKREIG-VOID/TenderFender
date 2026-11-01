@@ -26,7 +26,7 @@ CACHE_DIR  := artifacts/decisions
 
 .PHONY: setup synth verify-synth rules graph fuse decide pipeline pipeline-mock pipeline-real \
         validate-contracts validate-artifacts acceptance acceptance-mock demo-guard evaluate api ui demo test \
-        build-ui package-lambda deploy destroy check-passages decision-review pipeline-real
+        build-ui package-lambda deploy destroy check-passages decision-review pipeline-real pipeline-real-template
 
 setup:
 	@test -x $(PY) || { command -v uv >/dev/null 2>&1 && uv venv --python 3.14 .venv || python3.14 -m venv .venv; }
@@ -85,6 +85,9 @@ pipeline-real:
 	$(PY) -m fusion.run --real --rules-dir "$(RULES_REAL_DIR)" --data-dir "$(REAL_DATA_DIR)" --out-dir "$(FUSION_REAL_DIR)"
 	$(PY) -m decision.run --fusion-dir "$(FUSION_REAL_DIR)" --kb-dir "$(KB_DIR)" --out-dir "$(FUSED_DIR)" \
 	  --cache-dir "$(CACHE_DIR)" --mode "$(DECISION_MODE)" --retriever "$(RETRIEVER)"
+
+pipeline-real-template:
+	$(MAKE) pipeline-real DECISION_MODE=template
 
 validate-contracts:
 	PYTHONPATH=. $(PY) scripts/validate_contracts.py
