@@ -27,7 +27,7 @@ from fastapi import Depends, Header, HTTPException
 
 JWKS_TIMEOUT_SECONDS = 5
 JWKS_MIN_REFRESH_SECONDS = 60
-
+JWKS_FAILURE_BACKOFF_SECONDS = 30
 
 class AuthError(Exception):
     """A token that must be rejected with 401. ``message`` is safe to show the caller."""
@@ -63,21 +63,29 @@ class JwksCache:
         self._clock = clock
         self._keys: dict[str, Any] = {}
         self._fetched_at: float | None = None
+        self._failed_at: float | None = None
         self._lock = threading.Lock()
 
     def _refresh(self) -> None:
-        jwks = self._fetch()
+        try:
+            jwks = self._fetch()
+        except Exception:
+            self._failed_at = self._clock()
+            raise
         keys: dict[str, Any] = {}
         for jwk in jwks.get("keys", []):
             if jwk.get("kty") == "RSA" and jwk.get("kid"):
                 keys[jwk["kid"]] = jwt.PyJWK(jwk, algorithm="RS256").key
         self._keys = keys
         self._fetched_at = self._clock()
-
+        self._failed_at = None
     def get(self, kid: str) -> Any | None:
         with self._lock:
             if kid not in self._keys:
-                stale = self._fetched_at is None or self._clock() - self._fetched_at >= JWKS_MIN_REFRESH_SECONDS
+                now = self._clock()
+                if self._failed_at is not None and now - self._failed_at < JWKS_FAILURE_BACKOFF_SECONDS:
+                    raise JwksUnavailable("JWKS fetch recently failed; backing off")
+                stale = self._fetched_at is None or now - self._fetched_at >= JWKS_MIN_REFRESH_SECONDS
                 if stale:
                     self._refresh()
             return self._keys.get(kid)

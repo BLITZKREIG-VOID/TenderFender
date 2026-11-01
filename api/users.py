@@ -26,12 +26,14 @@ from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
 
 from api.auth import auth_settings, require_user
 
-KINDS = ("regen", "compile", "chat")
-DEFAULT_DAILY_LIMITS = {"regen": 20, "compile": 10, "chat": 50}
+KINDS = ("regen", "compile", "chat", "detect")
+DEFAULT_DAILY_LIMITS = {"regen": 10, "compile": 5, "chat": 30, "detect": 20}
+DEFAULT_GLOBAL_LIMITS = {"llm_total": 150, "detect_total": 300}
+GLOBAL_PK = "GLOBAL"
 USAGE_TTL_DAYS = 3
+TOMBSTONE_TTL_SECONDS = 7200  # 2 hours
 MAX_ITEM_BYTES = 100_000
 MAX_USER_TENDERS = 20
-
 ROLES = ("procurement_officer", "auditor_vigilance", "journalist", "researcher_student",
          "vendor_contractor", "citizen", "other")
 ORG_TYPES = ("central_govt", "state_govt", "psu", "private", "ngo_media", "academic", "individual")
@@ -57,6 +59,17 @@ class DailyLimitExceeded(Exception):
     pass
 
 
+class GlobalDailyLimitExceeded(Exception):
+    pass
+
+
+class UserDeletedError(Exception):
+    pass
+
+
+class TenderLimitExceeded(Exception):
+    pass
+
 def _pk(user_id: str) -> str:
     return f"USER#{user_id}"
 
@@ -66,9 +79,52 @@ def _is_conditional_failure(exc: Exception) -> bool:
     return isinstance(response, dict) and response.get("Error", {}).get("Code") == "ConditionalCheckFailedException"
 
 
+def _is_transaction_canceled(exc: Exception) -> bool:
+    response = getattr(exc, "response", None)
+    return isinstance(response, dict) and response.get("Error", {}).get("Code") in (
+        "TransactionCanceledException",
+        "ConditionalCheckFailedException",
+    )
+
+
+def _serialize(val: Any) -> dict[str, Any]:
+    try:
+        from boto3.dynamodb.types import TypeSerializer
+        return TypeSerializer().serialize(val)
+    except Exception:
+        if isinstance(val, str):
+            return {"S": val}
+        if isinstance(val, (int, float)):
+            return {"N": str(val)}
+        if isinstance(val, bool):
+            return {"BOOL": val}
+        if val is None:
+            return {"NULL": True}
+        return {"S": str(val)}
+
+
+def _serialize_map(d: dict[str, Any]) -> dict[str, Any]:
+    return {k: _serialize(v) for k, v in d.items()}
+
+
+def check_llm_enabled() -> None:
+    """Kill switch helper: raises 503 llm_disabled if LLM_FEATURES_ENABLED is false."""
+    val = os.environ.get("LLM_FEATURES_ENABLED", "true").lower()
+    if val not in ("true", "1", "yes"):
+        raise HTTPException(
+            status_code=503,
+            detail={"error": "LLM features are currently disabled", "code": "llm_disabled"},
+        )
+
 def daily_limits() -> dict[str, int]:
     return {k: int(os.environ.get(f"DAILY_LIMIT_{k.upper()}", v)) for k, v in DEFAULT_DAILY_LIMITS.items()}
 
+
+def global_daily_limits() -> dict[str, int]:
+    return {
+        "llm_total": int(os.environ.get("GLOBAL_DAILY_LIMIT_LLM", DEFAULT_GLOBAL_LIMITS["llm_total"])),
+        "detect_total": int(os.environ.get("GLOBAL_DAILY_LIMIT_DETECT", DEFAULT_GLOBAL_LIMITS["detect_total"])),
+    }
 
 def _utc_day(now: datetime) -> date:
     return now.astimezone(UTC).date()
@@ -81,8 +137,23 @@ def _next_midnight(day: date) -> datetime:
 class UsersStore:
     """Per-user items in one DynamoDB table (any object with the boto3 ``Table`` resource methods)."""
 
-    def __init__(self, table: Any):
+    def __init__(self, table: Any, client: Any = None):
         self.table = table
+        self.client = client
+        self.table_name = getattr(table, "name", "") or os.environ.get("USERS_TABLE", "users")
+
+    def write_tombstone(self, user_id: str, ttl_seconds: int = TOMBSTONE_TTL_SECONDS) -> None:
+        expires_at = int(datetime.now(UTC).timestamp() + ttl_seconds)
+        self.table.put_item(Item={
+            "pk": _pk(user_id),
+            "sk": "DELETED",
+            "expires_at": expires_at,
+            "updated_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        })
+
+    def is_deleted(self, user_id: str) -> bool:
+        item = self.table.get_item(Key={"pk": _pk(user_id), "sk": "DELETED"}).get("Item")
+        return item is not None
 
     # ── JSON payload items (PROFILE, TENDER#, REGEN#) ────────────────────────
     def get_item(self, user_id: str, sk: str) -> dict[str, Any] | None:
@@ -93,21 +164,74 @@ class UsersStore:
         body = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
         if len(body.encode("utf-8")) > MAX_ITEM_BYTES:
             raise ItemTooLarge(f"item {sk.split('#', 1)[0]} exceeds {MAX_ITEM_BYTES} bytes")
-        self.table.put_item(Item={
+        raw_item = {
             "pk": _pk(user_id),
             "sk": sk,
             "data": body,
             "updated_at": datetime.now(UTC).isoformat(timespec="seconds"),
-        })
-
+        }
+        if hasattr(self.table, "transact_write_items"):
+            try:
+                self.table.transact_write_items(TransactItems=[
+                    {
+                        "ConditionCheck": {
+                            "TableName": self.table_name,
+                            "Key": {"pk": _pk(user_id), "sk": "DELETED"},
+                            "ConditionExpression": "attribute_not_exists(pk)",
+                        }
+                    },
+                    {
+                        "Put": {
+                            "TableName": self.table_name,
+                            "Item": raw_item,
+                        }
+                    },
+                ])
+            except Exception as exc:
+                if _is_transaction_canceled(exc) or _is_conditional_failure(exc):
+                    raise UserDeletedError(f"User {user_id} has been deleted") from exc
+                raise
+        else:
+            client = getattr(getattr(self.table, "meta", None), "client", None)
+            if client is not None and hasattr(client, "transact_write_items"):
+                try:
+                    client.transact_write_items(TransactItems=[
+                        {
+                            "ConditionCheck": {
+                                "TableName": self.table_name,
+                                "Key": {"pk": {"S": _pk(user_id)}, "sk": {"S": "DELETED"}},
+                                "ConditionExpression": "attribute_not_exists(pk)",
+                            }
+                        },
+                        {
+                            "Put": {
+                                "TableName": self.table_name,
+                                "Item": _serialize_map(raw_item),
+                            }
+                        },
+                    ])
+                except Exception as exc:
+                    if _is_transaction_canceled(exc) or _is_conditional_failure(exc):
+                        raise UserDeletedError(f"User {user_id} has been deleted") from exc
+                    raise
+            else:
+                if self.is_deleted(user_id):
+                    raise UserDeletedError(f"User {user_id} has been deleted")
+                self.table.put_item(Item=raw_item)
     def delete_item(self, user_id: str, sk: str) -> bool:
         resp = self.table.delete_item(Key={"pk": _pk(user_id), "sk": sk}, ReturnValues="ALL_OLD")
         return bool(resp.get("Attributes"))
 
-    def _query(self, user_id: str, sk_prefix: str, **extra: Any):
+    def _query(self, user_id: str, sk_prefix: str = "", **extra: Any):
+        expr_vals: dict[str, Any] = {":pk": _pk(user_id)}
+        if sk_prefix:
+            key_cond = "pk = :pk AND begins_with(sk, :prefix)"
+            expr_vals[":prefix"] = sk_prefix
+        else:
+            key_cond = "pk = :pk"
         kwargs: dict[str, Any] = {
-            "KeyConditionExpression": "pk = :pk AND begins_with(sk, :prefix)",
-            "ExpressionAttributeValues": {":pk": _pk(user_id), ":prefix": sk_prefix},
+            "KeyConditionExpression": key_cond,
+            "ExpressionAttributeValues": expr_vals,
             **extra,
         }
         while True:
@@ -116,7 +240,6 @@ class UsersStore:
             if "LastEvaluatedKey" not in page:
                 return
             kwargs["ExclusiveStartKey"] = page["LastEvaluatedKey"]
-
     def query_items(self, user_id: str, sk_prefix: str) -> list[dict[str, Any]]:
         return [json.loads(item["data"]) for page in self._query(user_id, sk_prefix) for item in page.get("Items", [])]
 
@@ -124,17 +247,76 @@ class UsersStore:
         return sum(int(page.get("Count", 0)) for page in self._query(user_id, sk_prefix, Select="COUNT"))
 
     def delete_all(self, user_id: str) -> int:
-        """Delete every item of the user, whatever its kind. Returns the number deleted."""
+        """Delete every item of the user, whatever its kind, skipping DELETED tombstone. Returns the number deleted."""
         keys = [
             {"pk": item["pk"], "sk": item["sk"]}
             for page in self._query(user_id, "", ProjectionExpression="pk, sk")
             for item in page.get("Items", [])
+            if item["sk"] != "DELETED"
         ]
         if keys:
             with self.table.batch_writer() as batch:
                 for key in keys:
                     batch.delete_item(Key=key)
         return len(keys)
+
+    # ── Tender items, summaries, and counter ─────────────────────────────────
+    def get_tender_count(self, user_id: str) -> int:
+        item = self.table.get_item(Key={"pk": _pk(user_id), "sk": "TENDERCOUNT"}).get("Item")
+        return int(item.get("count", 0)) if item else 0
+
+    def increment_tender_count(self, user_id: str, limit: int = MAX_USER_TENDERS) -> int:
+        try:
+            resp = self.table.update_item(
+                Key={"pk": _pk(user_id), "sk": "TENDERCOUNT"},
+                UpdateExpression="ADD #c :one",
+                ConditionExpression="attribute_not_exists(#c) OR #c < :limit",
+                ExpressionAttributeNames={"#c": "count"},
+                ExpressionAttributeValues={":one": 1, ":limit": limit},
+                ReturnValues="UPDATED_NEW",
+            )
+            return int(resp["Attributes"]["count"])
+        except Exception as exc:
+            if _is_conditional_failure(exc):
+                raise TenderLimitExceeded(f"User {user_id} has reached maximum of {limit} tenders") from None
+            raise
+
+    def decrement_tender_count(self, user_id: str) -> int:
+        try:
+            resp = self.table.update_item(
+                Key={"pk": _pk(user_id), "sk": "TENDERCOUNT"},
+                UpdateExpression="ADD #c :minus_one",
+                ConditionExpression="attribute_not_exists(#c) OR #c > :zero",
+                ExpressionAttributeNames={"#c": "count"},
+                ExpressionAttributeValues={":minus_one": -1, ":zero": 0},
+                ReturnValues="UPDATED_NEW",
+            )
+            return int(resp["Attributes"]["count"])
+        except Exception as exc:
+            if _is_conditional_failure(exc):
+                return 0
+            raise
+
+    def put_tender(self, user_id: str, tender_id: str, data: dict[str, Any], summary: dict[str, Any]) -> None:
+        if self.is_deleted(user_id):
+            raise UserDeletedError(f"User {user_id} has been deleted")
+        self.increment_tender_count(user_id)
+        try:
+            self.put_item(user_id, f"TENDER#{tender_id}", data)
+            self.put_item(user_id, f"TENDERSUM#{tender_id}", summary)
+        except Exception:
+            self.decrement_tender_count(user_id)
+            raise
+
+    def delete_tender(self, user_id: str, tender_id: str) -> bool:
+        deleted_main = self.delete_item(user_id, f"TENDER#{tender_id}")
+        self.delete_item(user_id, f"TENDERSUM#{tender_id}")
+        if deleted_main:
+            self.decrement_tender_count(user_id)
+        return deleted_main
+
+    def list_tender_summaries(self, user_id: str) -> list[dict[str, Any]]:
+        return self.query_items(user_id, "TENDERSUM#")
 
     # ── Daily usage counters (USAGE#<yyyy-mm-dd>) ────────────────────────────
     def get_usage(self, user_id: str, day: date) -> dict[str, int]:
@@ -160,6 +342,26 @@ class UsersStore:
                 raise DailyLimitExceeded(kind) from None
             raise
         return int(resp["Attributes"][kind])
+
+    def increment_global_usage(self, counter_name: str, limit: int, day: date) -> int:
+        """Atomically add 1 to today's global counter unless it already reached limit."""
+        if limit <= 0:
+            raise GlobalDailyLimitExceeded(counter_name)
+        expires_at = int(datetime.combine(day + timedelta(days=USAGE_TTL_DAYS), time.min, tzinfo=UTC).timestamp())
+        try:
+            resp = self.table.update_item(
+                Key={"pk": GLOBAL_PK, "sk": f"USAGE#{day.isoformat()}"},
+                UpdateExpression="SET expires_at = if_not_exists(expires_at, :exp) ADD #k :one",
+                ConditionExpression="attribute_not_exists(#k) OR #k < :limit",
+                ExpressionAttributeNames={"#k": counter_name},
+                ExpressionAttributeValues={":one": 1, ":limit": limit, ":exp": expires_at},
+                ReturnValues="UPDATED_NEW",
+            )
+        except Exception as exc:
+            if _is_conditional_failure(exc):
+                raise GlobalDailyLimitExceeded(counter_name) from None
+            raise
+        return int(resp["Attributes"][counter_name])
 
 
 @functools.cache
@@ -217,11 +419,11 @@ def consume(user_id: str, kind: str, store: UsersStore | None = None, now: datet
     store = store if store is not None else users_store()
     now = now or datetime.now(UTC)
     day = _utc_day(now)
+    reset_at = _next_midnight(day)
+    retry_after = str(max(1, int((reset_at - now).total_seconds())))
+
     limit = daily_limits()[kind]
-    try:
-        return store.increment_usage(user_id, kind, limit, day)
-    except DailyLimitExceeded:
-        reset_at = _next_midnight(day)
+    if limit <= 0:
         raise HTTPException(
             status_code=429,
             detail={
@@ -230,9 +432,40 @@ def consume(user_id: str, kind: str, store: UsersStore | None = None, now: datet
                 "limit": limit,
                 "reset_at": reset_at.isoformat(),
             },
-            headers={"Retry-After": str(max(1, int((reset_at - now).total_seconds())))},
+            headers={"Retry-After": retry_after},
         ) from None
 
+    # Global daily cap check
+    global_counter = "detect_total" if kind == "detect" else "llm_total"
+    global_limit = global_daily_limits().get(global_counter, 0)
+    try:
+        store.increment_global_usage(global_counter, global_limit, day)
+    except GlobalDailyLimitExceeded:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": f"Global daily limit for {global_counter} reached ({global_limit}/day); it resets at {reset_at.isoformat()}",
+                "code": "global_daily_limit",
+                "limit": global_limit,
+                "reset_at": reset_at.isoformat(),
+            },
+            headers={"Retry-After": retry_after},
+        ) from None
+
+    # Per-user daily cap check
+    try:
+        return store.increment_usage(user_id, kind, limit, day)
+    except DailyLimitExceeded:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": f"Daily {kind} limit of {limit} reached; it resets at {reset_at.isoformat()}",
+                "code": "daily_limit",
+                "limit": limit,
+                "reset_at": reset_at.isoformat(),
+            },
+            headers={"Retry-After": retry_after},
+        ) from None
 
 # ── Endpoints ────────────────────────────────────────────────────────────────
 
@@ -283,7 +516,13 @@ def put_profile(
     body: ProfileBody, user: dict = Depends(require_user), store: UsersStore = Depends(users_store)
 ) -> dict[str, Any]:
     profile = {**body.model_dump(), "updated_at": datetime.now(UTC).isoformat(timespec="seconds")}
-    store.put_item(user["user_id"], "PROFILE", profile)
+    try:
+        store.put_item(user["user_id"], "PROFILE", profile)
+    except UserDeletedError:
+        raise HTTPException(
+            status_code=403,
+            detail={"error": "User account has been deleted", "code": "account_deleted"},
+        ) from None
     return profile
 
 
@@ -294,6 +533,17 @@ def delete_me(
     admin: CognitoAdmin = Depends(cognito_admin),
 ) -> Response:
     """Delete every stored item of the caller, then the Cognito user. Safe to retry."""
+    store.write_tombstone(user["user_id"], ttl_seconds=TOMBSTONE_TTL_SECONDS)
     store.delete_all(user["user_id"])
-    admin.delete_user(user["username"])
+    try:
+        admin.delete_user(user["username"])
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "error": "Failed to delete user in identity provider; data was removed and deletion is safe to retry",
+                "code": "partial_delete_retry_safe",
+            },
+        ) from exc
+    store.delete_all(user["user_id"])
     return Response(status_code=204)

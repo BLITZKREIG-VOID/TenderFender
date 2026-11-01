@@ -6,16 +6,16 @@ Due to an initial AWS account restriction (CloudFront distributions require acco
 
 ```
 browser ── https ──> Lambda Function URL (AuthType NONE)
-                     ├─ /api/*          → FastAPI API (Mangum handler, python3.14, x86_64, 1024 MB, 120 s)
+                     ├─ /api/*          → FastAPI API (Mangum handler, python3.14, x86_64, 1024 MB, 60 s)
                      └─ /* / /assets/*  → Built React UI static files from ui_dist (with GZip compression, immutable cache for assets, no-cache for index.html)
 ```
 
 - **Cognito User Pool:** Sign-in with email/password and optional Google OAuth 2.0. Uses the authorization code grant with PKCE (public app client, no client secret) with scopes `openid email profile`. Managed login page hosted at `<AuthDomainPrefix>.auth.<region>.amazoncognito.com`. Callback and logout URLs configured for the Function URL and local dev (`http://localhost:5173/auth/callback`).
-- **DynamoDB Users Table:** `${Stack}-users` provisioned at 5 RCU / 5 WCU (within the 25/25 always-free tier), partition key `pk` (`USER#<sub>`), sort key `sk`. TTL on `expires_at` cleans up 3-day daily usage counters. Uses default AWS-owned encryption (no KMS customer key charges).
+- **DynamoDB Users Table:** `${Stack}-users` provisioned at 10 RCU / 10 WCU (within the 25/25 always-free tier), partition key `pk` (`USER#<sub>`), sort key `sk`. TTL on `expires_at` cleans up 3-day daily usage counters. Uses default AWS-owned encryption (no KMS customer key charges).
 - **Cost Guard Budgets:** Three $100 monthly COST budgets with 15 absolute-value email alerts ($10, $20, $30, $40, $50, $55, $60, $65, $70, $75, $80, $85, $90, $95, $100) created when `BUDGET_EMAIL` is set.
 - **Keep-Warm Schedule:** An EventBridge rule (`AWS::Events::Rule`) with a `rate(5 minutes)` expression invokes the Lambda function periodically (`KeepWarm` parameter, default `true`), eliminating cold-start latency for demo use.
 - **Function URL AuthType:** `AuthType NONE`. Both `lambda:InvokeFunctionUrl` and `lambda:InvokeFunction` permissions are granted.
-- **Sizing:** 1024 MB RAM provides optimal CPU allocation under AWS Lambda's proportional CPU-to-memory scaling model. Timeout is set to 120 seconds to accommodate slow free LLM inference models during BYOK operations.
+- **Sizing:** 1024 MB RAM provides optimal CPU allocation under AWS Lambda's proportional CPU-to-memory scaling model. Timeout is set to 60 seconds (with a 50 s upstream LLM deadline) to enforce strict cost guardrails.
 ---
 
 ## Why CloudFront Was Removed & How to Add It Back Later
@@ -90,16 +90,16 @@ make build-ui                                 # npm ci + VITE_API_BASE=/api buil
 ## Free-Tier & Cost Math
 
 ### Free-Tier Allowances (Always Free / Monthly)
-- **AWS Lambda:** 1,000,000 requests and 400,000 GB-seconds per month [Pricing](https://aws.amazon.com/lambda/pricing/). Sized at 1024 MB with 120 s timeout.
+- **AWS Lambda:** 1,000,000 requests and 400,000 GB-seconds per month [Pricing](https://aws.amazon.com/lambda/pricing/). Sized at 1024 MB with 60 s timeout.
 - **Amazon Cognito (Lite / Essentials Tier):**
   - **10,000 Monthly Active Users (MAU) free indefinitely** for users signing in directly or via social identity providers (Google). The free tier does not expire after 12 months.
   - Lite tier price is $0.0055/MAU thereafter (up to 100,000 MAUs); Essentials tier is $0.015/MAU thereafter.
   - Managed login domain format: `<prefix>.auth.<region>.amazoncognito.com`.
   - Verified on AWS Pricing page: [Amazon Cognito Pricing](https://aws.amazon.com/cognito/pricing/).
 - **Amazon DynamoDB:**
-  - **25 RCU and 25 WCU provisioned capacity** are always free per account under the AWS Free Tier.
-  - The users table is sized at 5 RCU / 5 WCU provisioned, consuming only 20% of the free allowance.
-  - 25 GB of data storage is free.
+- **25 RCU and 25 WCU provisioned capacity** are always free per account under the AWS Free Tier.
+- The users table is sized at 10 RCU / 10 WCU provisioned, consuming only 40% of the free allowance.
+- 25 GB of data storage is free.
   - Default AWS-owned encryption involves no AWS KMS customer key charges ($0/month).
   - Verified on AWS Pricing page: [Amazon DynamoDB Pricing](https://aws.amazon.com/dynamodb/pricing/).
 - **AWS Budgets:**
@@ -112,6 +112,18 @@ make build-ui                                 # npm ci + VITE_API_BASE=/api buil
 ### Keep-Warm Calculation
 - **Invocations:** Every 5 minutes = 12 times/hour × 24 hours × 30 days = **8,640 invocations/month**.
 - **GB-Seconds (at 1024 MB = 1 GB):** Assuming average keep-warm execution takes 0.2 seconds: 8,640 × 1 GB × 0.2 s = **1,728 GB-seconds/month** (well within the 400,000 GB-s free tier).
+
+### Cost Guardrails & Global Caps
+- **Per-user daily caps:** regen 10, compile 5, chat 30, detect 20.
+- **Global daily caps:** `llm_total` (regen + compile + chat) 150/day, `detect_total` 300/day. Worst-case spending: 150 × 60 s × 1 GB = 9,000 GB-s/day ≈ 270,000 GB-s/month, well within the 400k GB-s/month free tier.
+
+### Kill Switch
+To disable LLM routes immediately (returning HTTP 503 `{"error": "...", "code": "llm_disabled"}`) while keeping the public demo, viewer, and rules engine online:
+```bash
+aws lambda update-function-configuration \
+  --function-name tenderfender-api \
+  --environment "Variables={MOCK=0,CONFIRMATIONS_PATH=/tmp/confirmations.json,USERS_TABLE=tenderfender-users,COGNITO_USER_POOL_ID=...,COGNITO_CLIENT_ID=...,COGNITO_DOMAIN=...,LLM_FEATURES_ENABLED=false}"
+```
 ---
 
 ## Teardown

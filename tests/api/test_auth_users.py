@@ -127,9 +127,16 @@ class FakeTable:
 
     def query(self, KeyConditionExpression, ExpressionAttributeValues, Select=None,
               ProjectionExpression=None, ExclusiveStartKey=None):
-        assert KeyConditionExpression == "pk = :pk AND begins_with(sk, :prefix)"
-        pk, prefix = ExpressionAttributeValues[":pk"], ExpressionAttributeValues[":prefix"]
-        matched = sorted((k, v) for k, v in self.items.items() if k[0] == pk and k[1].startswith(prefix))
+        pk = ExpressionAttributeValues[":pk"]
+        if KeyConditionExpression == "pk = :pk AND begins_with(sk, :prefix)":
+            prefix = ExpressionAttributeValues[":prefix"]
+            if prefix == "":
+                raise FakeClientError("ValidationException")
+            matched = sorted((k, v) for k, v in self.items.items() if k[0] == pk and k[1].startswith(prefix))
+        elif KeyConditionExpression == "pk = :pk":
+            matched = sorted((k, v) for k, v in self.items.items() if k[0] == pk)
+        else:
+            raise AssertionError(f"unexpected KeyConditionExpression: {KeyConditionExpression}")
         if ExclusiveStartKey is not None:
             start = (ExclusiveStartKey["pk"], ExclusiveStartKey["sk"])
             matched = [(k, v) for k, v in matched if k > start]
@@ -145,29 +152,68 @@ class FakeTable:
         return out
 
     def update_item(self, Key, UpdateExpression, ConditionExpression, ExpressionAttributeNames,
-                    ExpressionAttributeValues, ReturnValues):
-        assert UpdateExpression == "SET expires_at = if_not_exists(expires_at, :exp) ADD #k :one"
-        assert ConditionExpression == "attribute_not_exists(#k) OR #k < :limit"
-        assert ReturnValues == "UPDATED_NEW"
-        attr = ExpressionAttributeNames["#k"]
+                    ExpressionAttributeValues, ReturnValues="NONE"):
+        attr = ExpressionAttributeNames.get("#k") or ExpressionAttributeNames.get("#c")
         values = ExpressionAttributeValues
         item = self.items.setdefault((Key["pk"], Key["sk"]), {"pk": Key["pk"], "sk": Key["sk"]})
-        if attr in item and not item[attr] < values[":limit"]:
-            raise FakeClientError("ConditionalCheckFailedException")
-        item.setdefault("expires_at", Decimal(values[":exp"]))
-        item[attr] = Decimal(item.get(attr, 0)) + values[":one"]
-        return {"Attributes": {attr: item[attr], "expires_at": item["expires_at"]}}
+        if ":limit" in values:
+            if attr in item and not item[attr] < values[":limit"]:
+                raise FakeClientError("ConditionalCheckFailedException")
+        if ":zero" in values and ConditionExpression and "> :zero" in ConditionExpression:
+            if item.get(attr, 0) <= values[":zero"]:
+                raise FakeClientError("ConditionalCheckFailedException")
+        if ":exp" in values:
+            item.setdefault("expires_at", Decimal(values[":exp"]))
+        delta = values.get(":one", values.get(":minus_one", 1))
+        item[attr] = Decimal(item.get(attr, 0)) + Decimal(delta)
+        out = {attr: item[attr]}
+        if "expires_at" in item:
+            out["expires_at"] = item["expires_at"]
+        return {"Attributes": out}
+
+    def transact_write_items(self, TransactItems):
+        def _get_k(d):
+            pk = d["pk"]["S"] if isinstance(d.get("pk"), dict) else d["pk"]
+            sk = d["sk"]["S"] if isinstance(d.get("sk"), dict) else d["sk"]
+            return (pk, sk)
+
+        for item in TransactItems:
+            if "ConditionCheck" in item:
+                cc = item["ConditionCheck"]
+                key = _get_k(cc["Key"])
+                expr = cc.get("ConditionExpression", "")
+                if "attribute_not_exists" in expr and key in self.items:
+                    raise FakeClientError("TransactionCanceledException")
+
+        for item in TransactItems:
+            if "Put" in item:
+                put = item["Put"]
+                raw = put["Item"]
+                key = _get_k(raw)
+                extracted = {}
+                for k, v in raw.items():
+                    if isinstance(v, dict) and any(t in v for t in ("S", "N", "BOOL")):
+                        extracted[k] = v.get("S", v.get("N", v.get("BOOL")))
+                    else:
+                        extracted[k] = v
+                self.items[key] = extracted
+            elif "Delete" in item:
+                key = _get_k(item["Delete"]["Key"])
+                self.items.pop(key, None)
+        return {}
 
     def batch_writer(self):
         return FakeBatchWriter(self)
 
-
 class FakeCognitoClient:
-    def __init__(self, missing=False):
+    def __init__(self, missing=False, error=False):
         self.deleted = []
         self.missing = missing
+        self.error = error
 
     def admin_delete_user(self, UserPoolId, Username):
+        if self.error:
+            raise FakeClientError("InternalErrorException")
         if self.missing:
             raise FakeClientError("UserNotFoundException")
         self.deleted.append((UserPoolId, Username))
@@ -314,8 +360,8 @@ def test_profile_roundtrip_and_me(env):
     me = client.get("/api/me", headers=bearer(make_token())).json()
     assert me["user_id"] == "user-1" and me["email"] == "user-1@example.org"
     assert me["profile"] is None
-    assert me["usage"] == {"regen": 0, "compile": 0, "chat": 0}
-    assert me["limits"] == {"regen": 20, "compile": 10, "chat": 50}
+    assert me["usage"] == {"regen": 0, "compile": 0, "chat": 0, "detect": 0}
+    assert me["limits"] == {"regen": 10, "compile": 5, "chat": 30, "detect": 20}
 
     resp = client.put("/api/me/profile", json=VALID_PROFILE, headers=bearer(make_token()))
     assert resp.status_code == 200
@@ -387,8 +433,9 @@ def test_delete_me_removes_every_item_and_the_cognito_user(env):
     resp = env["client"].delete("/api/me", headers=bearer(make_token()))
     assert resp.status_code == 204
     assert resp.content == b""
-    assert [k for k in table.items if k[0] == "USER#user-1"] == []
-    assert list(table.items) == [("USER#user-2", "PROFILE")]
+    assert [k for k in table.items if k[0] == "USER#user-1"] == [("USER#user-1", "DELETED")]
+    assert int(table.items[("USER#user-1", "DELETED")]["expires_at"]) > int(time.time())
+    assert ("USER#user-2", "PROFILE") in table.items
     assert env["cognito"].deleted == [(POOL_ID, "google_user-1")]
 
 
@@ -478,3 +525,146 @@ def test_daily_limit_429_response_and_me_usage(env, monkeypatch):
 
     me = env["client"].get("/api/me", headers=bearer(make_token())).json()
     assert me["usage"]["regen"] == 1 and me["limits"]["regen"] == 1
+
+
+def test_p1_2_delete_all_uses_pk_only_and_fake_table_rejects_empty_prefix(env):
+    table = env["table"]
+    store = users.UsersStore(table)
+    store.put_item("u", "PROFILE", VALID_PROFILE)
+    with pytest.raises(FakeClientError) as err:
+        table.query("pk = :pk AND begins_with(sk, :prefix)", {":pk": "USER#u", ":prefix": ""})
+    assert err.value.response["Error"]["Code"] == "ValidationException"
+    deleted = store.delete_all("u")
+    assert deleted == 1
+    assert [k for k in table.items if k[0] == "USER#u"] == []
+
+
+def test_p2_3_tombstone_written_first_and_blocks_subsequent_writes(env):
+    table = env["table"]
+    store = users.UsersStore(table)
+    store.put_item("user-1", "PROFILE", VALID_PROFILE)
+
+    resp = env["client"].delete("/api/me", headers=bearer(make_token()))
+    assert resp.status_code == 204
+    assert ("USER#user-1", "DELETED") in table.items
+
+    resp = env["client"].put("/api/me/profile", json=VALID_PROFILE, headers=bearer(make_token()))
+    assert resp.status_code == 403
+    assert resp.json()["detail"]["code"] == "account_deleted"
+
+    with pytest.raises(users.UserDeletedError):
+        store.put_item("user-1", "PROFILE", VALID_PROFILE)
+
+
+def test_p3_7_delete_me_cognito_failure_returns_502(env):
+    app.dependency_overrides[users.cognito_admin] = lambda: users.CognitoAdmin(
+        FakeCognitoClient(error=True), POOL_ID
+    )
+    store = users.UsersStore(env["table"])
+    store.put_item("user-1", "PROFILE", VALID_PROFILE)
+
+    resp = env["client"].delete("/api/me", headers=bearer(make_token()))
+    assert resp.status_code == 502
+    detail = resp.json()["detail"]
+    assert detail["code"] == "partial_delete_retry_safe"
+    assert ("USER#user-1", "DELETED") in env["table"].items
+    assert ("USER#user-1", "PROFILE") not in env["table"].items
+
+
+def test_p3_6_jwks_cache_failure_backoff():
+    clock_time = 100.0
+
+    def mock_clock():
+        return clock_time
+
+    calls = 0
+
+    def failing_fetch():
+        nonlocal calls
+        calls += 1
+        raise ConnectionError("network down")
+
+    cache = auth.JwksCache(failing_fetch, clock=mock_clock)
+
+    with pytest.raises(ConnectionError):
+        cache.get("some-kid")
+    assert calls == 1
+
+    clock_time += 10.0
+    with pytest.raises(auth.JwksUnavailable, match="backing off"):
+        cache.get("some-kid")
+    assert calls == 1
+
+    clock_time += 21.0
+    with pytest.raises(ConnectionError):
+        cache.get("some-kid")
+    assert calls == 2
+
+
+def test_cost_guardrails_global_daily_limit_429(env, monkeypatch):
+    monkeypatch.setenv("GLOBAL_DAILY_LIMIT_LLM", "2")
+    store = users.UsersStore(env["table"])
+    now = datetime(2026, 11, 1, 12, 0, tzinfo=UTC)
+
+    assert users.consume("user-a", "regen", store, now=now) == 1
+    assert users.consume("user-b", "compile", store, now=now) == 1
+
+    with pytest.raises(HTTPException) as err:
+        users.consume("user-c", "chat", store, now=now)
+    assert err.value.status_code == 429
+    assert err.value.detail["code"] == "global_daily_limit"
+    assert err.value.detail["limit"] == 2
+
+
+def test_cost_guardrails_detect_kind_consumed(env, monkeypatch):
+    monkeypatch.setenv("DAILY_LIMIT_DETECT", "2")
+    store = users.UsersStore(env["table"])
+    now = datetime(2026, 11, 1, 12, 0, tzinfo=UTC)
+
+    assert users.consume("u", "detect", store, now=now) == 1
+    assert users.consume("u", "detect", store, now=now) == 2
+    with pytest.raises(HTTPException) as err:
+        users.consume("u", "detect", store, now=now)
+    assert err.value.status_code == 429
+    assert err.value.detail["code"] == "daily_limit"
+    assert err.value.detail["limit"] == 2
+
+
+def test_kill_switch_helper(monkeypatch):
+    users.check_llm_enabled()
+
+    monkeypatch.setenv("LLM_FEATURES_ENABLED", "false")
+    with pytest.raises(HTTPException) as err:
+        users.check_llm_enabled()
+    assert err.value.status_code == 503
+    assert err.value.detail["code"] == "llm_disabled"
+
+    monkeypatch.setenv("LLM_FEATURES_ENABLED", "true")
+    users.check_llm_enabled()
+
+
+def test_p2_2_tender_summaries_and_count_storage(env):
+    store = users.UsersStore(env["table"])
+    assert store.get_tender_count("u") == 0
+
+    for i in range(20):
+        t_id = f"T-{i:03d}"
+        store.put_tender(
+            "u",
+            t_id,
+            {"tender_id": t_id, "clauses": ["c1"], "atoms": ["a1"], "big": "x" * 1000},
+            {"tender_id": t_id, "title": f"Tender {i}", "clause_count": 1},
+        )
+    assert store.get_tender_count("u") == 20
+
+    with pytest.raises(users.TenderLimitExceeded):
+        store.put_tender("u", "T-021", {"tender_id": "T-021"}, {"tender_id": "T-021", "title": "Tender 21"})
+
+    summaries = store.list_tender_summaries("u")
+    assert len(summaries) == 20
+    assert all("big" not in s for s in summaries)
+    assert all("title" in s for s in summaries)
+
+    assert store.delete_tender("u", "T-000") is True
+    assert store.get_tender_count("u") == 19
+    assert len(store.list_tender_summaries("u")) == 19

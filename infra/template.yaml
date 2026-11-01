@@ -46,12 +46,22 @@ Parameters:
     Default: "true"
     AllowedValues: ["true", "false"]
     Description: If true, creates an EventBridge rule that invokes the Lambda every 5 minutes to prevent cold starts.
+  DevCallbackUrl:
+    Type: String
+    Default: ""
+    Description: Optional dev callback URL (e.g. http://localhost:5173/auth/callback) for local UI testing. Leave empty in production.
+  LlmFeaturesEnabled:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: Kill switch for BYOK LLM routes. Set to false to return 503 llm_disabled while keeping public demo online.
 
 Conditions:
   HasBudgetEmail: !Not [!Equals [!Ref BudgetEmail, ""]]
   IsKeepWarm: !Equals [!Ref KeepWarm, "true"]
   HasSiteUrl: !Not [!Equals [!Ref SiteUrl, ""]]
   HasGoogle: !Not [!Equals [!Ref GoogleClientId, ""]]
+  HasDevCallbackUrl: !Not [!Equals [!Ref DevCallbackUrl, ""]]
 
 Rules:
   GoogleSecretWithClientId:
@@ -122,7 +132,7 @@ Resources:
       Architectures: [x86_64]
       Handler: api.lambda_handler.handler
       MemorySize: 1024
-      Timeout: 120
+      Timeout: 60
       Role: !GetAtt ApiRole.Arn
       Code:
         S3Bucket: !Ref CodeBucket
@@ -135,9 +145,13 @@ Resources:
           COGNITO_USER_POOL_ID: !Ref UserPool
           COGNITO_CLIENT_ID: !Ref UserPoolClient
           COGNITO_DOMAIN: !Sub "${AuthDomainPrefix}.auth.${AWS::Region}.amazoncognito.com"
-          DAILY_LIMIT_REGEN: "20"
-          DAILY_LIMIT_COMPILE: "10"
-          DAILY_LIMIT_CHAT: "50"
+          LLM_FEATURES_ENABLED: !Ref LlmFeaturesEnabled
+          DAILY_LIMIT_REGEN: "10"
+          DAILY_LIMIT_COMPILE: "5"
+          DAILY_LIMIT_CHAT: "30"
+          DAILY_LIMIT_DETECT: "20"
+          GLOBAL_DAILY_LIMIT_LLM: "150"
+          GLOBAL_DAILY_LIMIT_DETECT: "300"
 
   ApiFunctionUrl:
     Type: AWS::Lambda::Url
@@ -197,11 +211,11 @@ Resources:
         EmailSendingAccount: COGNITO_DEFAULT
       Policies:
         PasswordPolicy:
-          MinimumLength: 8
-          RequireLowercase: false
-          RequireNumbers: false
+          MinimumLength: 10
+          RequireLowercase: true
+          RequireNumbers: true
           RequireSymbols: false
-          RequireUppercase: false
+          RequireUppercase: true
           TemporaryPasswordValidityDays: 7
       AccountRecoverySetting:
         RecoveryMechanisms:
@@ -241,7 +255,6 @@ Resources:
       GenerateSecret: false
       ExplicitAuthFlows:
         - ALLOW_USER_SRP_AUTH
-        - ALLOW_USER_PASSWORD_AUTH
         - ALLOW_REFRESH_TOKEN_AUTH
       AllowedOAuthFlows:
         - code
@@ -259,17 +272,28 @@ Resources:
       PreventUserExistenceErrors: ENABLED
       CallbackURLs:
         !If
-          - HasSiteUrl
-          - - !Sub "${SiteUrl}auth/callback"
-            - "http://localhost:5173/auth/callback"
-          - - "http://localhost:5173/auth/callback"
+          - HasDevCallbackUrl
+          - !If
+              - HasSiteUrl
+              - - !Sub "${SiteUrl}auth/callback"
+                - !Ref DevCallbackUrl
+              - - !Ref DevCallbackUrl
+          - !If
+              - HasSiteUrl
+              - - !Sub "${SiteUrl}auth/callback"
+              - - "https://localhost/auth/callback"
       LogoutURLs:
         !If
-          - HasSiteUrl
-          - - !Ref SiteUrl
-            - "http://localhost:5173/"
-          - - "http://localhost:5173/"
-
+          - HasDevCallbackUrl
+          - !If
+              - HasSiteUrl
+              - - !Ref SiteUrl
+                - "http://localhost:5173/"
+              - - "http://localhost:5173/"
+          - !If
+              - HasSiteUrl
+              - - !Ref SiteUrl
+              - - "https://localhost/"
   # ── DynamoDB Users Table ──────────────────────────────────────────────────
   UsersTable:
     Type: AWS::DynamoDB::Table
@@ -277,8 +301,8 @@ Resources:
       TableName: !Sub "${AWS::StackName}-users"
       BillingMode: PROVISIONED
       ProvisionedThroughput:
-        ReadCapacityUnits: 5
-        WriteCapacityUnits: 5
+        ReadCapacityUnits: 10
+        WriteCapacityUnits: 10
       AttributeDefinitions:
         - AttributeName: pk
           AttributeType: S
