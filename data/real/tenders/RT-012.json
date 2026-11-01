@@ -1,0 +1,72 @@
+{
+  "tender_id": "RT-012",
+  "title": "Electrical works for construction of test control centre at SMP & ETF area, SDSC SHAR ( Electrical work)",
+  "source_portal": "ISRO website (isro.gov.in)",
+  "source_url": "https://www.isro.gov.in/media_isro/pdf/Tenders/2026/NIT_2687204_09102026.pdf",
+  "source_ref": "E - Notice Inviting Tender Number SHAR / CMD / E / D 2687204 / 2026-27",
+  "retrieved": "2026-11-01",
+  "clauses": [
+    {
+      "clause_id": "CL1",
+      "source_clause_no": "3",
+      "text": "3 | Estimated cost put to tender | ₹ 235.23 / Lakhs",
+      "needs_review": true
+    },
+    {
+      "clause_id": "CL2",
+      "source_clause_no": "4",
+      "text": "4 | Period of completion | 12 / 12 Month (s)",
+      "needs_review": true
+    },
+    {
+      "clause_id": "CL3",
+      "source_clause_no": "5.1",
+      "text": "5.1 | Period during which the request for tender document can be made. | 12-10-2026 10:00 26-10-2026 14:00 / From 10:00 Hrs 12-10-2026 To 14:00 Hrs 26-10-2026",
+      "needs_review": true
+    },
+    {
+      "clause_id": "CL4",
+      "source_clause_no": "5.2",
+      "text": "5.2 | Period during which the tender document can be downloaded. | 12-10-2026 10:30 26-10-2026 14:30 / From 10:30 Hrs 12-10-2026 To 14:30 Hrs 26-10-2026",
+      "needs_review": true
+    },
+    {
+      "clause_id": "CL5",
+      "source_clause_no": "7",
+      "text": "7 | Last date and time for uploading of tenders. | 03-11-2026 14.30 / 14:30 Hrs on 03-11-2026",
+      "needs_review": true
+    },
+    {
+      "clause_id": "CL6",
+      "source_clause_no": "9",
+      "text": "9 | Earnest money deposit (EMD) | ₹ 4,70,460.00",
+      "needs_review": true
+    },
+    {
+      "clause_id": "CL7",
+      "source_clause_no": "a",
+      "text": "a. Should have satisfactorily completed the works as mentioned below during the last Seven years ending previous day of last date of submision of bids. Documentary proof: i. Certified copy of work orders and completion certificates issued by the authority concerned to establish work experience. ii. Completion certificates for works issued by Private parties shall be supported by TDS (Tax Deducted at Source) certificates. i.Three similar works each costing not less than 40% of the estimated cost i.e.: Amount: ₹ 94.09 Lakhs (or) ii.Two similar works each costing not less than 60% of the estimated cost i.e.: Amount: ₹ 141.14 Lakhs (or) iii. One similar work costing not less than 80% of the estimated cost. i.e.: Amount: ₹ 188.18 Lakhs i. Note: Similar Works means Electrical Works : Internal electrification (or) Electrical works for Construction of building\" ii. The value of executed works shall be brought to current costing level by enhancing the actual value of work at simple rate of 7% per annum, calculated from the date of completion to last date of submission of bids iii. Work executed as sub-contract or joint venture will not merit for eligibility / evaluation."
+    },
+    {
+      "clause_id": "CL8",
+      "source_clause_no": "b",
+      "text": "b. Electrical License: The tenderer should have a valid electrical license of appropriate class issued by Central/ State Electricity Authority.Certified copy of valid electrical contractor’s license shall be submitted."
+    },
+    {
+      "clause_id": "CL9",
+      "source_clause_no": "c",
+      "text": "c. Should have had average annual financial turnover not less than 30% of the estimated cost of the work during the last three years ending 31st March of preceeding year. Amount: ₹ 70.57 Lakhs"
+    },
+    {
+      "clause_id": "CL10",
+      "source_clause_no": "d",
+      "text": "d. Should not have incurred any loss in more than two years during the last five years ending 31st March 2026. Documentary proof: Certified copy from charted Accountant for the Annual financial turnover and balance sheet showing Profit & Loss"
+    },
+    {
+      "clause_id": "CL11",
+      "source_clause_no": "e",
+      "text": "e. Should have a solvency of 40% of the estimated cost of the work. (i.e.₹ 94.09 Lakhs) Documentary proof: Solvency certificate furnished by the tenderers shall be latest, but in any case shall not be older than six months from the last date of submission of bids, issued by any scheduled bank. f. The bidding capacity of the contractor should be more than the estimated cost of the work put to tender. The bidding capacity shall be worked out and declared by the tenderer and enclosed with the request for tender document based on the formula: (AxNx2)-B, where, A- Maximum value of work executed in one year during last 5 years at current price level taking into account the work completed as well as work in progress. B- Value of existing commitments and ongoing work to be completed during the next ‘N’ years at current price level. N- Number of years prescribed for completion of the subject contract for which bids are invited Documentary proof: i. Statement showing the value of existing commitment and ongoing works as well as the stipulated period of completion remaining for each of the works listed to be furnished. ii. Current costing level for value of work may be worked out as mentioned in the note (ii) above.",
+      "needs_review": true
+    }
+  ]
+}

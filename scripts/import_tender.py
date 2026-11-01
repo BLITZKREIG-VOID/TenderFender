@@ -1,4 +1,5 @@
-#!/usr/bin/env python3
+#!/usr/init/env python3
+# -*- coding: utf-8 -*-
 """Convert a raw real-tender text file into data/real/tenders/RT-xxx.json (contracts/schemas/real_tender.json).
 
 Raw format: see data/real/raw/README.md (five `key: value` header lines, a `---` line, then the eligibility
@@ -23,12 +24,10 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 HEADER_KEYS = ("title", "source_portal", "source_url", "source_ref", "retrieved")
 TENDER_ID_RE = re.compile(r"^RT-\d{3}$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-# The document's own clause number at the start of a line: `4`, `4.2`, `4.2(b)`, `(b)`, `b)`, optionally
-# followed by `.` or `)`, then whitespace. Group 1 is the number as printed (without the trailing `.`/`)`
-# punctuation that belongs to the `4.` / `4)` styles).
 CLAUSE_START_RE = re.compile(r"^\s*(\d+(?:\.\d+)*(?:\([a-z0-9]+\))*|\([a-z]\)|[a-z]\))[.)]?\s")
 TABLE_LIKE_RE = re.compile(r"\t|\||\S {3,}\S.* {3,}\S")
 MAX_CLAUSE_CHARS = 1200
+ROMAN_NUMERALS = frozenset(("i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x", "xi", "xii", "xiii", "xiv", "xv"))
 
 
 class ImportError_(Exception):
@@ -72,9 +71,33 @@ def split_clauses(body: list[str]) -> list[dict]:
     """Split body lines on the document's own numbering. Text is verbatim except whitespace normalisation."""
     groups: list[dict] = []  # {"no": str, "lines": [raw lines]}
     for line in body:
-        m = CLAUSE_START_RE.match(line)
-        if m:
-            groups.append({"no": m.group(1), "lines": [line]})
+        matched_no = None
+        s = line.strip()
+
+        # Check details table rows
+        if " | " in s:
+            m_table = re.match(r"^([a-z0-9]+(?:\.\d+)*|\([ivxlc0-9]+\)|[a-z])\b", s, re.I)
+            if m_table:
+                matched_no = m_table.group(1)
+
+        # Check standalone criteria letters/sections like "a", "b", "I", "II"
+        if matched_no is None:
+            m_crit = re.match(r"^([a-jA-J]|[I|V|X]+)[.\)]?\s*$", s)
+            if m_crit:
+                val = m_crit.group(1)
+                if val.lower() not in ROMAN_NUMERALS:
+                    matched_no = val
+
+        # Check standard clause numbering
+        if matched_no is None:
+            m = CLAUSE_START_RE.match(line)
+            if m:
+                val = m.group(1)
+                if val.lower() not in ROMAN_NUMERALS:
+                    matched_no = val
+
+        if matched_no is not None:
+            groups.append({"no": matched_no, "lines": [line]})
         elif line.strip():
             if not groups:
                 groups.append({"no": "", "lines": []})  # text before any number

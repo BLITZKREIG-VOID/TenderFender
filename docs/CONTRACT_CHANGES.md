@@ -64,3 +64,10 @@ Everyone proposes changes here; only the Lead (P3) edits `SOURCE_OF_TRUTH.md`, `
 - Why: real tenders have no bid data before award, so the network check cannot run; it must be stated explicitly instead of looking like a clean graph result.
 - Impacted owners: API/UI read the new fields (`source`, `network_check`); `decision/` accepts `RT-NNN` ids.
 
+
+### CC-07: Phase 4 ISRO real tenders integration
+- Date / proposer: 2026-11-01, Phase 4 Worker
+- Status: applied
+- Contract(s) affected: real_tender.json, rules_output.json
+- Change: Imported 14 ISRO tenders into data/real/tenders/RT-nnn.json, committed data/real/tools/, added attribution and neutral framing in API/UI.
+- Why: Full Phase 4 implementation.

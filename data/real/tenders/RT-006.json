@@ -1,0 +1,71 @@
+{
+  "tender_id": "RT-006",
+  "title": "Vertical extension of Instrumentation building at CRL, LPSC Valiamala - Civil & PH Works",
+  "source_portal": "ISRO website (isro.gov.in)",
+  "source_url": "https://www.isro.gov.in/media_isro/pdf/Tenders/2025/NIT_1120C_12062025.pdf",
+  "source_ref": "e-Tender Notice No : LPSC-V/CMD/CS/01/1120/C/TE-010/2025-26 dated 06.06.2025",
+  "retrieved": "2026-11-01",
+  "clauses": [
+    {
+      "clause_id": "CL1",
+      "source_clause_no": "2",
+      "text": "2. | Estimated cost put to tender | 42.60 Lakhs",
+      "needs_review": true
+    },
+    {
+      "clause_id": "CL2",
+      "source_clause_no": "3",
+      "text": "3. | Period of completion reckoned from the 15th day of date of issue of work order. | 07 Months",
+      "needs_review": true
+    },
+    {
+      "clause_id": "CL3",
+      "source_clause_no": "4",
+      "text": "4 | Period during which the tender document can be requested | From: 17:30 Hrs on 12.06.2025 To: 23:30 Hrs on 28.06.2025",
+      "needs_review": true
+    },
+    {
+      "clause_id": "CL4",
+      "source_clause_no": "4.1",
+      "text": "4.1 | Period during which the tender document can be downloaded. | From: 17:31 Hrs on 12.06.2025 To: 23:59 Hrs on 28.06.2025",
+      "needs_review": true
+    },
+    {
+      "clause_id": "CL5",
+      "source_clause_no": "6",
+      "text": "6. | Last date and time for receipt of tenders. | Upto: 11:00 Hrs on 04.07.2025",
+      "needs_review": true
+    },
+    {
+      "clause_id": "CL6",
+      "source_clause_no": "8",
+      "text": "8. | Earnest money deposit (EMD) | 85,200/- (Rupees Eighty five thousand two hundred)",
+      "needs_review": true
+    },
+    {
+      "clause_id": "CL7",
+      "source_clause_no": "a",
+      "text": "a. Work Experience: Should have satisfactorily completed the works as mentioned below during the last Seven years ending previous day of last date of submission of bids. i. Three similar works each costing not less than 17.04 Lakhs. (or) ii. Two similar works each costing not less than 25.56 Lakhs (or) iii. similar work costing not less than 34.08 Lakhs. Documentary proof: i. Work orders and completion certificates issued by the authority concerned to establish work experience. ii. Completion certificates for works issued by Private parties shall be supported by TDS (Tax Deducted at Source) certificates. i. Similar work shall mean “Construction of RCC framed structure with RCC roof building having finishing works comprising Civil & PH works (As a single agreement contract)” ii. The value of executed works shall be brought to current costing level by enhancing the actual value of work at simple rate of 7% per annum, calculated from the date of completion to last date of submission of bids. iii. Work executed as sub-contract or joint-venture will not merit for eligibility/ evaluation."
+    },
+    {
+      "clause_id": "CL8",
+      "source_clause_no": "b",
+      "text": "b. Should have had average annual financial turnover not less than 12.78 Lakhs of the work during the last three years ending 31st March of preceding year (i.e. 31/03/2024). Documentary proof: Accountant certificate for the Annual financial turnover and balance sheet showing Profit & Loss."
+    },
+    {
+      "clause_id": "CL9",
+      "source_clause_no": "c",
+      "text": "c. Should not have incurred any loss in more than two years during the last five years ending 31/03/2024."
+    },
+    {
+      "clause_id": "CL10",
+      "source_clause_no": "d",
+      "text": "d. Should have a solvency of not less than 17.04 Lakhs Documentary proof: Latest Solvency Certificate issued by any Scheduled Bank not older than Six months from the date of submission of bids."
+    },
+    {
+      "clause_id": "CL11",
+      "source_clause_no": "e",
+      "text": "e. The bidding capacity of the contractor should be more than the estimated cost of the work put to tender. The bidding capacity shall be worked out and declared by the tenderer and enclosed with the request for tender document based on the formula: (AxNx2)-B where, A- Maximum value of work executed in one year (maximum turnover in one year) during last 5 years at current price level taking into account the work completed as well as work in progress. Documentary proof: i) A statement of ongoing works indicating financial commitment for each of these works during the stipulated period of completion mentioned for the subject tender as per Format- 1 enclosed herewith. This is required in support of parameter ‘B’. ii) Current costing level for value of work may be worked out as mentioned in the note (ii) above. B- Value of existing commitments and ongoing work to be completed during the next ‘N’ (i.e. 07/12) years at current price level. N- Number of years prescribed for completion of the subject contract for which bids are invited."
+    }
+  ]
+}

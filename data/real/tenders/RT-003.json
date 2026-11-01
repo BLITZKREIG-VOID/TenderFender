@@ -1,0 +1,65 @@
+{
+  "tender_id": "RT-003",
+  "title": "Construction of 500 Cum capacity circular elevated water tank at Vattiyoorkavu (Civil & PH works)",
+  "source_portal": "ISRO website (isro.gov.in)",
+  "source_url": "https://www.isro.gov.in/media_isro/pdf/Tenders/2026/NIT_C01_14_11092026.pdf",
+  "source_ref": "E-Tender Notice No. VSSC/CMG/C01/14/2026-27 Dt. 10.09.2026",
+  "retrieved": "2026-11-01",
+  "clauses": [
+    {
+      "clause_id": "CL1",
+      "source_clause_no": "2",
+      "text": "2. | Estimated cost put to tender | 410.05 Lakhs",
+      "needs_review": true
+    },
+    {
+      "clause_id": "CL2",
+      "source_clause_no": "3",
+      "text": "3. | Period of completion in months reckoned from the 15th day of date of issue of work order | (14) Fourteen Months",
+      "needs_review": true
+    },
+    {
+      "clause_id": "CL3",
+      "source_clause_no": "4",
+      "text": "4. | Period during which the tender document can be downloaded | From 12.09.2026, 10.00 Hrs to 26.09.2026, 23.00 Hrs",
+      "needs_review": true
+    },
+    {
+      "clause_id": "CL4",
+      "source_clause_no": "6",
+      "text": "6. | Last date and time for receipt of tenders | Up to 30.09.2026, 23.00 Hrs",
+      "needs_review": true
+    },
+    {
+      "clause_id": "CL5",
+      "source_clause_no": "8",
+      "text": "8. | Earnest money deposit (EMD) | 8,20,100/-",
+      "needs_review": true
+    },
+    {
+      "clause_id": "CL6",
+      "source_clause_no": "a",
+      "text": "a. Should have satisfactorily completed the works as mentioned below during the last 7 years ending previous day of last date of submission of bids. i. Three similar works each costing not less than 40% of the estimated cost. i.e. 164.02 Lakhs (or) ii. Two similar works each costing not less than 60% of the estimated cost i.e. 246.03 Lakhs (or) iii. One similar work costing not less than 80% of the estimated cost i.e. 328.04 Lakhs. Documentary proof: i) Work orders and completion certificates issued by the authority concerned to establish work experience. ii) Completion certificates for works issued by Private parties shall be supported by TDS (Tax Deducted at Source) certificates. i. Similar work shall mean construction of elevated RCC overhead tank (OR) RCC framed multi-storied structure / building of minimum height 6mtr. ii. The value of executed works shall be brought to current costing level by enhancing the actual value of work at simple rate of 7% per annum, calculated from the date of completion to last date of submission of bids. iii. Work executed as sub-contract or joint-venture will not merit for eligibility / evaluation."
+    },
+    {
+      "clause_id": "CL7",
+      "source_clause_no": "b",
+      "text": "b. Should have had average annual financial turnover not less than 30% of the estimated cost of the work during the last three years ending 31st March of preceding year (31.03.2025), i.e. 123.02 Lakhs. Documentary proof: Chartered Accountant certificate for the Annual financial turnover and balance sheet showing Profit & Loss."
+    },
+    {
+      "clause_id": "CL8",
+      "source_clause_no": "c",
+      "text": "c. Should not have incurred any loss in more than two years during the last five years ending 31st March 2025."
+    },
+    {
+      "clause_id": "CL9",
+      "source_clause_no": "d",
+      "text": "d. Should have a solvency of 40% of the estimated cost of the work, i.e. 164.02 Lakhs. Documentary proof: Certified copy of latest Solvency Certificate from any Scheduled Bank (Solvency Certificate should not be older than six months from the last date of submission of bids)."
+    },
+    {
+      "clause_id": "CL10",
+      "source_clause_no": "e",
+      "text": "e. The bidding capacity of the contractor should be more than the estimated cost of the work put to tender. The bidding capacity shall be worked out and declared by the tenderer and enclosed with the request for tender document based on the formula (AxNx2)-B. A- Maximum value of work executed in one year (maximum turnover in one year) during last 5 years at current price level taking into account the work completed as well as work in progress. B- Documentary proof: i. A statement of ongoing works indicating financial commitment for each of these works during the stipulated period of completion mentioned for the subject tender as per Format-1 enclosed herewith. This is required in support of parameter ‘B’. ii. Current costing level for value of work may be worked out as mentioned in the note (ii) above. Value of existing commitments and ongoing work to be completed during the next ‘N’ years (i.e. Period of completion, in months /12) at current price level. N- Number of years prescribed for completion of the subject contract, for which bids are invited."
+    }
+  ]
+}
