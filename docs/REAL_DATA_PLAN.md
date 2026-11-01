@@ -219,3 +219,28 @@ reference work is within the sources' terms (section 2).
 5. **Provenance:** Intake scripts and conversion tools are committed under `data/real/tools/`, with source documentation in `data/real/tools/SOURCE_README.md`. Raw `.txt` files remain gitignored under `data/real/raw/`.
 
 ## 6. Phase 4: compiled vs not-checked table
+
+| Tender ID | Centre / Location | Total Clauses | Expressible Clauses | Not Checked Clauses (Reason) | Needs Review Clauses | Amount Mismatch Findings |
+|---|---|---|---|---|---|---|
+| RT-001 | VSSC, Thiruvananthapuram | 10 | 6 (CL1, CL5, CL6, CL7, CL8, CL9) | 4 (CL2: completion period, CL3: download window, CL4: receipt date, CL10: bidding capacity formula) | 5 | 0 (all printed figures match computed percentages within 0.004L) |
+| RT-002 | VSSC, Thiruvananthapuram | 10 | 6 (CL1, CL5, CL6, CL7, CL8, CL9) | 4 (CL2: completion period, CL3: download window, CL4: receipt date, CL10: bidding capacity formula) | 5 | 0 (all printed figures match computed percentages within 0.004L) |
+| RT-003 | VSSC, Thiruvananthapuram | 10 | 6 (CL1, CL5, CL6, CL7, CL8, CL9) | 4 (CL2: completion period, CL3: download window, CL4: receipt date, CL10: bidding capacity formula) | 5 | 0 (all printed figures match computed percentages within 0.005L) |
+| RT-004 | LPSC, Valiamala | 11 | 6 (CL1, CL6, CL7, CL8, CL9, CL10) | 5 (CL2: completion period, CL3: request period, CL4: download period, CL5: receipt date, CL11: bidding capacity formula) | 7 | 0 (printed figures match computed percentages within 0.005L) |
+| RT-005 | LPSC, Valiamala | 11 | 6 (CL1, CL6, CL7, CL8, CL9, CL10) | 5 (CL2: completion period, CL3: request period, CL4: download period, CL5: receipt date, CL11: bidding capacity formula) | 6 | 0 (printed figures match computed percentages within 0.005L) |
+| RT-006 | LPSC, Valiamala | 11 | 6 (CL1, CL6, CL7, CL8, CL9, CL10) | 5 (CL2: completion period, CL3: request period, CL4: download period, CL5: receipt date, CL11: bidding capacity formula) | 6 | 0 (printed figures match computed percentages within 0.000L) |
+| RT-007 | SDSC SHAR, Sriharikota | 12 | 6 (CL1, CL6, CL7, CL9, CL10, CL11) | 6 (CL2: completion period, CL3: request period, CL4: download period, CL5: receipt date, CL8: definition text, CL12: bidding capacity formula) | 10 | 0 (printed figures match computed percentages within 0.000L) |
+| RT-008 | SDSC SHAR, Sriharikota | 12 | 6 (CL1, CL6, CL7, CL9, CL10, CL11) | 6 (CL2: completion period, CL3: request period, CL4: download period, CL5: receipt date, CL8: definition text, CL12: bidding capacity formula) | 10 | 0 (printed figures match computed percentages within 0.000L) |
+| RT-009 | SDSC SHAR, Sriharikota | 12 | 6 (CL1, CL6, CL7, CL9, CL10, CL11) | 6 (CL2: completion period, CL3: request period, CL4: download period, CL5: receipt date, CL8: definition text, CL12: bidding capacity formula) | 10 | 0 (printed figures match computed percentages within 0.000L) |
+| RT-010 | SDSC SHAR, Kulasekarapattinam / Thoothukudi | 12 | 6 (CL1, CL6, CL7, CL9, CL10, CL11) | 6 (CL2: completion period, CL3: request period, CL4: download period, CL5: receipt date, CL8: definition text, CL12: bidding capacity formula) | 10 | 0 (printed figures match computed percentages within 0.000L) |
+| RT-011 | SDSC SHAR, Sriharikota | 12 | 6 (CL1, CL6, CL7, CL9, CL10, CL11) | 6 (CL2: completion period, CL3: request period, CL4: download period, CL5: receipt date, CL8: definition text, CL12: bidding capacity formula) | 10 | 0 (printed figures match computed percentages within 0.000L) |
+| RT-012 | SDSC SHAR, Sriharikota | 11 | 6 (CL1, CL6, CL7, CL9, CL10, CL11) | 5 (CL2: completion period, CL3: request period, CL4: download period, CL5: receipt date, CL8: electrical license requirement) | 7 | 0 (printed figures match computed percentages within 0.001L) |
+| RT-013 | SDSC SHAR, Kulasekarapattinam / Thoothukudi | 5 | 5 (CL1, CL2, CL3, CL4, CL5) | 0 (all clauses expressible) | 4 | 0 (amounts match percentage thresholds within 0.000L) |
+| RT-014 | SDSC SHAR, Sriharikota | 4 | 4 (CL1, CL2, CL3, CL4) | 0 (all clauses expressible) | 2 | 0 (amounts match percentage thresholds within 0.000L) |
+
+### Amount Mismatch Analysis
+
+The deterministic `amount_mismatch` check inspects every clause that states both a percentage of estimated cost and a printed rupee amount in Lakhs (or EMD). The configured tolerance is:
+- Relative tolerance: 0.5% (`0.005`)
+- Absolute rounding tolerance: ₹0.01 Lakh (`1,000` INR)
+
+Across all 14 tenders, every printed figure in the official ISRO notices matches the computed percentage of estimated cost within normal rounding (maximum discrepancy observed was ₹0.005 Lakh = ₹500 on multi-crore works, well below the ₹0.01 Lakh threshold). Consequently, no tender has an erroneous printed figure, yielding 0 `amount_mismatch` findings.
