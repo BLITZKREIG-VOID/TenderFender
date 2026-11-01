@@ -1,15 +1,19 @@
 import { useState } from "react";
-import type { RulesData, Clause, Finding } from "../api/client";
+import type { RulesData, Clause, Finding, AtomStatusEntry } from "../api/client";
 import { CheckCircle2, Circle, AlertTriangle, ShieldCheck, Scale, Check } from "lucide-react";
+import { XCircle } from "lucide-react";
 
 interface Props {
   rules: RulesData;
   clauses?: Clause[];
-  onConfirm: (atomId: string) => void;
+  atomStatus?: Record<string, AtomStatusEntry>;
+  onConfirm: (atomId: string) => Promise<void>;
+  onReject: (atomId: string, note: string) => Promise<void>;
 }
 
-export default function ClausePanel({ rules, onConfirm }: Props) {
+export default function ClausePanel({ rules, atomStatus, onConfirm, onReject }: Props) {
   const [confirming, setConfirming] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   // Collect clause IDs that appear in findings (bad clauses)
   const flaggedClauseIds = new Set<string>();
@@ -19,13 +23,24 @@ export default function ClausePanel({ rules, onConfirm }: Props) {
     }
   }
 
-  const handleConfirm = async (atomId: string) => {
+  const run = async (atomId: string, action: () => Promise<void>) => {
     setConfirming(atomId);
+    setActionError(null);
     try {
-      await onConfirm(atomId);
+      await action();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Could not save the decision");
     } finally {
       setConfirming(null);
     }
+  };
+
+  const handleConfirm = (atomId: string) => run(atomId, () => onConfirm(atomId));
+
+  const handleReject = (atomId: string) => {
+    const note = window.prompt(`Why is the formalization of ${atomId} wrong? (short note)`, "");
+    if (note === null) return; // cancelled
+    return run(atomId, () => onReject(atomId, note.trim()));
   };
 
   const isConfirmed = rules.formalization_status === "confirmed";
@@ -104,6 +119,11 @@ export default function ClausePanel({ rules, onConfirm }: Props) {
 
         {/* Formalized Atoms List */}
         <div>
+          {actionError && (
+            <p role="alert" className="mb-3 p-2 rounded border-2 border-red-700 bg-red-50 text-sm font-bold text-red-900">
+              {actionError}
+            </p>
+          )}
           <h3 className="text-xs font-black text-black uppercase tracking-wider mb-3">
             Formalized Tender Criteria (Atoms)
           </h3>
@@ -111,6 +131,7 @@ export default function ClausePanel({ rules, onConfirm }: Props) {
             {rules.atoms.map((atom) => {
               const isFlagged = flaggedClauseIds.has(atom.clause_id);
               const isThisConfirming = confirming === atom.id;
+              const state: AtomStatusEntry = atomStatus?.[atom.id] ?? { status: "undecided", note: "", at: null };
 
               return (
                 <div
@@ -145,42 +166,46 @@ export default function ClausePanel({ rules, onConfirm }: Props) {
                           ? `[${atom.value.join(", ")}]`
                           : String(atom.value)}
                       </div>
+                      {state.status === "rejected" && state.note && (
+                        <p className="mt-2 text-xs font-bold text-red-900">Rejected: {state.note}</p>
+                      )}
                     </div>
 
-                    {/* Action Button: Confirm Formalization */}
-                    <button
-                      onClick={() => handleConfirm(atom.id)}
-                      disabled={isThisConfirming || isConfirmed}
-                      aria-label={
-                        isConfirmed
-                          ? "Formalization confirmed by auditor"
-                          : `Confirm formalization translation for atom ${atom.id}`
-                      }
-                      title={
-                        isConfirmed
-                          ? "Formalization Confirmed"
-                          : "Click to Confirm Formalization"
-                      }
-                      className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg font-black text-xs uppercase tracking-wider border-2 shadow-2xs transition-all focus:outline-hidden focus:ring-4 focus:ring-blue-600 cursor-pointer ${
-                        isConfirmed
-                          ? "bg-green-700 text-white border-green-950 cursor-default"
-                          : "bg-black hover:bg-gray-800 text-white border-black"
-                      } disabled:opacity-80`}
-                    >
-                      {isConfirmed ? (
-                        <>
-                          <Check size={16} strokeWidth={3} />
-                          <span className="hidden sm:inline">Verified</span>
-                        </>
-                      ) : isThisConfirming ? (
-                        <span>Saving...</span>
-                      ) : (
-                        <>
-                          <CheckCircle2 size={16} />
-                          <span className="hidden sm:inline">Confirm</span>
-                        </>
-                      )}
-                    </button>
+                    {/* Persisted review decision: Confirm / Reject */}
+                    <div className="shrink-0 flex flex-col items-end gap-1.5">
+                      <span
+                        data-testid={`atom-state-${atom.id}`}
+                        className={`text-xs font-black px-2 py-0.5 rounded border-2 uppercase tracking-wider ${
+                          state.status === "confirmed"
+                            ? "bg-green-700 text-white border-green-950"
+                            : state.status === "rejected"
+                              ? "bg-red-700 text-white border-red-950"
+                              : "bg-white text-gray-800 border-gray-500"
+                        }`}
+                      >
+                        {state.status}
+                      </span>
+                      <div className="flex gap-1.5">
+                        <button
+                          onClick={() => handleConfirm(atom.id)}
+                          disabled={isThisConfirming || state.status === "confirmed"}
+                          aria-label={`Confirm formalization translation for atom ${atom.id}`}
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-lg font-black text-xs uppercase tracking-wider border-2 shadow-2xs bg-black hover:bg-gray-800 text-white border-black focus:outline-hidden focus:ring-4 focus:ring-blue-600 cursor-pointer disabled:opacity-60 disabled:cursor-default"
+                        >
+                          {state.status === "confirmed" ? <Check size={16} strokeWidth={3} /> : <CheckCircle2 size={16} />}
+                          <span className="hidden sm:inline">{isThisConfirming ? "Saving..." : "Confirm"}</span>
+                        </button>
+                        <button
+                          onClick={() => handleReject(atom.id)}
+                          disabled={isThisConfirming || state.status === "rejected"}
+                          aria-label={`Reject formalization translation for atom ${atom.id}`}
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-lg font-black text-xs uppercase tracking-wider border-2 shadow-2xs bg-white hover:bg-red-50 text-red-900 border-red-800 focus:outline-hidden focus:ring-4 focus:ring-blue-600 cursor-pointer disabled:opacity-60 disabled:cursor-default"
+                        >
+                          <XCircle size={16} />
+                          <span className="hidden sm:inline">Reject</span>
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               );

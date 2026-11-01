@@ -73,6 +73,7 @@ Resources:
       Environment:
         Variables:
           MOCK: "0"
+          CONFIRMATIONS_PATH: /tmp/confirmations.json
 
   ApiFunctionUrl:
     Type: AWS::Lambda::Url

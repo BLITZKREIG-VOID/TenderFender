@@ -89,9 +89,16 @@ export interface Passage {
   missing?: boolean;
 }
 
+export interface AtomStatusEntry {
+  status: "confirmed" | "rejected" | "undecided";
+  note: string;
+  at: string | null;
+}
+
 export interface AnalysisResponse {
   fused: FusedData;
   rules: RulesData;
+  atom_status: Record<string, AtomStatusEntry>;
   clauses: Clause[];
   passages: Passage[];
 }
@@ -168,6 +175,12 @@ export const api = {
   confirmAtom: (tenderId: string, atomId: string) =>
     client.post<ConfirmResponse>(
       `/tenders/${tenderId}/atoms/${atomId}/confirm`
+    ),
+
+  rejectAtom: (tenderId: string, atomId: string, note: string) =>
+    client.post<ConfirmResponse>(
+      `/tenders/${tenderId}/atoms/${atomId}/reject`,
+      { note }
     ),
 };
 
