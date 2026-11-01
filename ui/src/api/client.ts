@@ -40,6 +40,14 @@ export interface RulesData {
   findings: Finding[];
   qualifying_vendors: string[];
   vendors_evaluated: number;
+  not_checked?: NotChecked[];
+  vendor_check?: { status: "run" | "skipped"; reason: string };
+}
+
+export interface NotChecked {
+  clause_id: string;
+  text: string;
+  reason: string;
 }
 
 export interface Citation {
