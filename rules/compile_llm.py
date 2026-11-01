@@ -1,14 +1,21 @@
 from __future__ import annotations
 
+import http.client
 import json
 import os
+import urllib.error
 import urllib.request
 from typing import Any, Callable
 
 from rules.ir import Atom, REG_CLASSES, VENDOR_FIELDS, TENDER_FIELDS
 
-API_URL = "https://api.anthropic.com/v1/messages"
-API_VERSION = "2023-06-01"
+# The OpenRouter request pattern below is copied from decision/write.py on purpose: SoT section 4
+# forbids one module importing another module's code, so rules/ keeps its own minimal copy.
+API_URL = "https://openrouter.ai/api/v1/chat/completions"
+DEFAULT_MODEL = "nvidia/nemotron-3-ultra-550b-a55b:free"
+SEED = 42
+MAX_TOKENS = 4096
+TIMEOUT_SECONDS = 120
 
 
 class CompileError(Exception):
@@ -17,32 +24,76 @@ class CompileError(Exception):
     pass
 
 
-def _call_api(system: str, messages: list[dict[str, Any]]) -> str:
-    key = os.environ.get("ANTHROPIC_API_KEY")
-    if not key:
-        raise CompileError("Missing ANTHROPIC_API_KEY environment variable")
+class InvalidModelOutput(Exception):
+    """The model replied, but with truncated or empty content; counts as an invalid attempt."""
 
-    model = os.environ.get("RULES_MODEL", "claude-sonnet-4-5")
-    payload = {
-        "model": model,
-        "max_tokens": 1024,
-        "temperature": 0,
-        "system": system,
-        "messages": messages,
-    }
-    data = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(
-        API_URL,
-        data=data,
-        headers={
-            "x-api-key": key,
-            "anthropic-version": API_VERSION,
-            "content-type": "application/json",
+
+def resolve_model() -> str:
+    return os.environ.get("RULES_MODEL") or DEFAULT_MODEL
+
+
+def _http_error_message(code: int, body: str) -> str:
+    snippet = body[:500]
+    if code == 429:
+        return f"OpenRouter HTTP 429: rate-limited (free models have tight limits); wait and rerun. {snippet}"
+    if code == 404 and "data policy" in body.lower():
+        return (f"OpenRouter HTTP 404 (data policy): enable the free-model data policy in the OpenRouter "
+                f"privacy settings. {snippet}")
+    return f"OpenRouter HTTP {code}: {snippet}"
+
+
+def _post(request: dict[str, Any]) -> dict[str, Any]:
+    req = urllib.request.Request(request["url"], data=json.dumps(request["body"]).encode("utf-8"),
+                                 headers=request["headers"], method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=TIMEOUT_SECONDS) as resp:  # noqa: S310 (fixed https URL)
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        raise CompileError(_http_error_message(exc.code, exc.read().decode("utf-8", "replace"))) from exc
+    except urllib.error.URLError as exc:
+        raise CompileError(f"OpenRouter unreachable: {exc.reason}") from exc
+    except (OSError, http.client.HTTPException, json.JSONDecodeError) as exc:
+        raise CompileError(f"OpenRouter request failed: {type(exc).__name__}: {exc}") from exc
+
+
+def _call_api(system: str, messages: list[dict[str, Any]]) -> str:
+    key = os.environ.get("OPENROUTER_API_KEY")
+    if not key:
+        raise CompileError("OPENROUTER_API_KEY is not set")
+
+    response = _post({
+        "url": API_URL,
+        "headers": {
+            "Authorization": f"Bearer {key}",
+            "Content-Type": "application/json",
+            "X-Title": "TenderFender",
         },
-    )
-    with urllib.request.urlopen(req, timeout=60) as response:
-        resp_data = json.loads(response.read().decode("utf-8"))
-        return resp_data["content"][0]["text"]
+        "body": {
+            "model": resolve_model(),
+            "messages": [{"role": "system", "content": system}, *messages],
+            "temperature": 0,
+            "seed": SEED,
+            "max_tokens": MAX_TOKENS,
+        },
+    })
+    if isinstance(response, dict) and response.get("error"):
+        raise CompileError(f"OpenRouter returned an error: {str(response['error'])[:500]}")
+    try:
+        choice = response["choices"][0]
+        text = choice["message"]["content"]
+        finish = choice.get("finish_reason")
+    except (KeyError, IndexError, TypeError, AttributeError) as exc:
+        raise CompileError(f"unexpected OpenRouter response shape: {str(response)[:300]}") from exc
+    if text is None:
+        text = ""
+    if not isinstance(text, str):
+        raise CompileError(f"unexpected OpenRouter response shape: {str(response)[:300]}")
+    if finish == "length":
+        raise InvalidModelOutput(
+            f"model output was truncated (finish_reason=length, max_tokens={MAX_TOKENS})")
+    if not text.strip():
+        raise InvalidModelOutput("model returned empty content")
+    return text
 
 
 SYSTEM_PROMPT = f"""You are a formalization engine converting tender clauses into IR atoms.
@@ -79,7 +130,17 @@ def compile_clause(
 
     last_error: Exception | None = None
     for attempt in range(MAX_RETRIES + 1):
-        raw_reply = call(SYSTEM_PROMPT, messages)
+        try:
+            raw_reply = call(SYSTEM_PROMPT, messages)
+        except InvalidModelOutput as e:
+            last_error = e
+            if attempt < MAX_RETRIES:
+                messages[-1] = {
+                    "role": "user",
+                    "content": f"{messages[-1]['content']}\n\nPrevious reply rejected: {e}. "
+                               "Return ONLY a valid JSON array.",
+                }
+            continue
         try:
             parsed = json.loads(raw_reply)
             if not isinstance(parsed, list):
