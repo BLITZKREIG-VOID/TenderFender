@@ -14,3 +14,8 @@ artifacts/*
 *.key
 build/
 ui/dist/
+
+# Local source texts for passage checking (licence may forbid redistribution)
+kb/sources/*
+!kb/sources/README.md
+!kb/sources/index.json
