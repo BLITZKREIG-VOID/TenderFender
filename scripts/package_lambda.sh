@@ -35,6 +35,12 @@ for d in artifacts/rules artifacts/graph artifacts/fused kb/passages data/tender
     echo "package-lambda: WARNING: $d is missing, package will not contain it (run 'make pipeline' first)" >&2
   fi
 done
+# Seed for atom confirmations: the package dir is read-only, so the API copies this to $CONFIRMATIONS_PATH (/tmp) on first use.
+# Live clicks on Lambda are ephemeral; the committed data/real/confirmations.json is the source of truth.
+if [ -f data/real/confirmations.json ]; then
+  mkdir -p "$OUT/data/real"
+  cp data/real/confirmations.json "$OUT/data/real/confirmations.json"
+fi
 find "$OUT" -name __pycache__ -type d -prune -exec rm -rf {} +
 rm -rf "${OUT:?}/bin"
 rm -f "$OUT/api/requirements-api.txt"

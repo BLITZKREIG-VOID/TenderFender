@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Any
 
 from api.loaders import (
@@ -24,6 +24,7 @@ from api.loaders import (
     load_rules,
     load_tender_clauses,
 )
+from api import confirmations
 from api.passages import load_passage
 
 
@@ -51,23 +52,22 @@ app.add_middleware(
 )
 
 
-# ── In-memory state (confirmation ticks) ─────────────────────────────────────
-
-# tender_id -> updated rules dict (so POST confirm mutations survive GET)
-_rules_overrides: dict[str, dict[str, Any]] = {}
-
-
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 def _error(status: int, message: str, code: str = "not_found") -> HTTPException:
     return HTTPException(status_code=status, detail={"error": message, "code": code})
 
 
-def _get_rules(tender_id: str) -> dict[str, Any] | None:
-    """Return rules with any in-memory overrides applied."""
-    if tender_id in _rules_overrides:
-        return _rules_overrides[tender_id]
-    return load_rules(tender_id)
+def _get_rules(tender_id: str) -> tuple[dict[str, Any] | None, dict[str, dict[str, Any]]]:
+    """Return rules with the persisted formalization_status applied, plus per-atom status."""
+    rules = load_rules(tender_id)
+    if rules is None:
+        return None, {}
+    try:
+        statuses = confirmations.atom_status(tender_id, [a["id"] for a in rules.get("atoms", [])])
+    except confirmations.ConfirmationsError as exc:
+        raise _error(exc.status, exc.message, exc.code)
+    return {**rules, "formalization_status": confirmations.formalization_status(statuses)}, statuses
 
 
 # ── Models ───────────────────────────────────────────────────────────────────
@@ -88,6 +88,15 @@ class ConfirmResponse(BaseModel):
     tender_id: str
     atom_id: str
     formalization_status: str
+
+
+class RejectBody(BaseModel):
+    note: str = Field(default="", max_length=500)
+
+
+class RejectResponse(ConfirmResponse):
+    status: str
+    note: str
 
 
 # ── Endpoints ────────────────────────────────────────────────────────────────
@@ -125,7 +134,7 @@ def tender_analysis(tender_id: str):
     if fused is None:
         raise _error(404, f"Tender {tender_id} not found")
 
-    rules = _get_rules(tender_id)
+    rules, atom_status = _get_rules(tender_id)
 
     # Clause texts: real clause list from data/tenders/<id>.json, else rules atoms
     clauses = load_tender_clauses(tender_id)
@@ -151,6 +160,7 @@ def tender_analysis(tender_id: str):
     return {
         "fused": fused,
         "rules": rules,
+        "atom_status": atom_status,
         "clauses": clauses,
         "passages": passages,
     }
@@ -195,36 +205,46 @@ def tender_graph(tender_id: str):
     }
 
 
+def _decide(tender_id: str, atom_id: str, status: str, note: str = "") -> dict[str, Any]:
+    """Validate tender/atom, persist the decision, return the stored entry plus the tender status."""
+    rules = load_rules(tender_id)
+    if rules is None:
+        raise _error(404, f"Tender {tender_id} not found")
+    atom_ids = [a["id"] for a in rules.get("atoms", [])]
+    if atom_id not in atom_ids:
+        raise _error(404, f"Atom {atom_id} not found in tender {tender_id}")
+    try:
+        entry = confirmations.set_status(tender_id, atom_id, status, note)
+        statuses = confirmations.atom_status(tender_id, atom_ids)
+    except confirmations.ConfirmationsError as exc:
+        raise _error(exc.status, exc.message, exc.code)
+    return {"entry": entry, "formalization_status": confirmations.formalization_status(statuses)}
+
+
 @app.post("/api/tenders/{tender_id}/atoms/{atom_id}/confirm", response_model=ConfirmResponse)
 def confirm_atom(tender_id: str, atom_id: str):
     """
-    Mark an atom's tender as having confirmed formalization.
-    In-memory update — restarting the server resets this.
+    Persist an auditor's confirmation of one atom's formalization.
+    `formalization_status` in the response is the tender-level status (confirmed only when every atom is).
     """
-    rules = _get_rules(tender_id)
-    if rules is None:
-        raise _error(404, f"Tender {tender_id} not found")
-
-    # Verify the atom exists
-    atom_found = False
-    for atom in rules.get("atoms", []):
-        if atom["id"] == atom_id:
-            atom_found = True
-            break
-
-    if not atom_found:
-        raise _error(404, f"Atom {atom_id} not found in tender {tender_id}")
-
-    # Update formalization_status
-    import copy
-    updated = copy.deepcopy(rules)
-    updated["formalization_status"] = "confirmed"
-    _rules_overrides[tender_id] = updated
-
+    result = _decide(tender_id, atom_id, "confirmed")
     return ConfirmResponse(
         tender_id=tender_id,
         atom_id=atom_id,
-        formalization_status="confirmed",
+        formalization_status=result["formalization_status"],
+    )
+
+
+@app.post("/api/tenders/{tender_id}/atoms/{atom_id}/reject", response_model=RejectResponse)
+def reject_atom(tender_id: str, atom_id: str, body: RejectBody | None = None):
+    """Persist an auditor's rejection of one atom's formalization, with an optional note."""
+    result = _decide(tender_id, atom_id, "rejected", body.note if body else "")
+    return RejectResponse(
+        tender_id=tender_id,
+        atom_id=atom_id,
+        formalization_status=result["formalization_status"],
+        status="rejected",
+        note=result["entry"]["note"],
     )
 
 
