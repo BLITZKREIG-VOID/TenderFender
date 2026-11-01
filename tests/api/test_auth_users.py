@@ -17,7 +17,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
-os.environ["MOCK"] = "1"
+os.environ.setdefault("MOCK", "1")
 
 from api import auth, users  # noqa: E402
 from api.main import app  # noqa: E402

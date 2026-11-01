@@ -13,10 +13,11 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from api import llm_routes, providers
+from api import auth, llm_routes, providers, users
 from api.auth import require_user
 from api.main import app
-from api.users import ItemTooLarge, MAX_USER_TENDERS, users_store
+from api.users import ItemTooLarge, MAX_USER_TENDERS, UsersStore, users_store
+from tests.api.test_auth_users import FakeTable, make_verifier
 from tests.api.byok_fakes import (
     FakeHTTP,
     anthropic_reply,
@@ -32,39 +33,19 @@ ALL_PROVIDERS = ("openrouter", "anthropic", "google", "groq", "xai", "openai", "
 TEST_USER = {"user_id": "test-user-001", "email": "auditor@example.gov.in"}
 
 
-class InMemoryUsersStore:
-    def __init__(self) -> None:
-        self.items: dict[tuple[str, str], dict[str, Any]] = {}
+@pytest.fixture
+def table():
+    return FakeTable()
 
-    def put_item(self, user_id: str, sk: str, item: dict[str, Any]) -> None:
-        raw = json.dumps(item).encode("utf-8")
-        if len(raw) > 100 * 1024:
-            raise ItemTooLarge("item exceeds 100 KB limit")
-        self.items[(user_id, sk)] = dict(item)
 
-    def get_item(self, user_id: str, sk: str) -> dict[str, Any] | None:
-        it = self.items.get((user_id, sk))
-        return dict(it) if it is not None else None
+@pytest.fixture
+def store(table):
+    return UsersStore(table)
 
-    def delete_item(self, user_id: str, sk: str) -> bool:
-        return self.items.pop((user_id, sk), None) is not None
-
-    def query_items(self, user_id: str, prefix: str) -> list[dict[str, Any]]:
-        return [dict(v) for (u, sk), v in self.items.items() if u == user_id and sk.startswith(prefix)]
-
-    def count_items(self, user_id: str, prefix: str) -> int:
-        return sum(1 for (u, sk) in self.items if u == user_id and sk.startswith(prefix))
 
 @pytest.fixture(autouse=True)
 def disable_mock_mode(monkeypatch):
     monkeypatch.setenv("MOCK", "0")
-
-
-
-@pytest.fixture
-def store():
-    return InMemoryUsersStore()
-
 
 @pytest.fixture
 def http(monkeypatch):
@@ -86,30 +67,33 @@ def consumed():
 
 
 @pytest.fixture
-def client(store, consumed, monkeypatch):
+def client(table, store, consumed, monkeypatch):
+    verifier = make_verifier()
     app.dependency_overrides[require_user] = lambda: TEST_USER
     app.dependency_overrides[users_store] = lambda: store
+    app.dependency_overrides[auth.get_verifier] = lambda: verifier
 
-    def fake_consume(user_id: str, kind: str, st: Any):
+    real_consume = users.consume
+
+    def tracking_consume(user_id: str, kind: str, st: Any = None, now: Any = None):
         consumed.append((user_id, kind))
+        return real_consume(user_id, kind, st or store, now=now)
 
-    monkeypatch.setattr(llm_routes, "consume", fake_consume)
+    monkeypatch.setattr(llm_routes, "consume", tracking_consume)
     with TestClient(app) as tc:
         yield tc
     app.dependency_overrides.clear()
 
-
 # ── Detect endpoint ──────────────────────────────────────────────────────────
 
 
-def test_detect_requires_auth(store):
+def test_detect_requires_auth(table, store):
     app.dependency_overrides[users_store] = lambda: store
-    # Without require_user override:
+    app.dependency_overrides[auth.get_verifier] = lambda: make_verifier()
     with TestClient(app) as tc:
         res = tc.post("/api/llm/detect", headers={"X-LLM-Key": fake_key("openrouter")})
         assert res.status_code == 401
     app.dependency_overrides.clear()
-
 
 def test_detect_missing_key_header(client):
     res = client.post("/api/llm/detect")
@@ -251,7 +235,8 @@ def test_compile_no_clauses(client):
 def test_compile_limit_reached(client, store):
     key = fake_key("openrouter")
     for i in range(MAX_USER_TENDERS):
-        store.put_item("test-user-001", f"TENDER#U-{i:08x}", {"title": f"Tender {i}"})
+        t_id = f"U-{i:08x}"
+        store.put_tender("test-user-001", t_id, {"title": f"Tender {i}"}, {"tender_id": t_id, "title": f"Tender {i}"})
     res = client.post("/api/compile", json={
         "title": "Tender 21",
         "text": SAMPLE_ELIGIBILITY_TEXT,
@@ -259,7 +244,6 @@ def test_compile_limit_reached(client, store):
     }, headers={"X-LLM-Key": key})
     assert res.status_code == 409
     assert res.json()["detail"]["code"] == "tender_limit"
-
 
 def test_compile_success(client, http, store, consumed, caplog):
     caplog.set_level(logging.DEBUG)
@@ -321,9 +305,10 @@ def test_my_tenders_crud(client, store):
     # Insert two tenders
     t1 = {"tender_id": "U-11111111", "title": "Tender One", "created_at": "2026-11-01T10:00:00Z", "findings": [{"finding_id": "F-1"}]}
     t2 = {"tender_id": "U-22222222", "title": "Tender Two", "created_at": "2026-11-02T10:00:00Z", "findings": []}
-    store.put_item("test-user-001", "TENDER#U-11111111", t1)
-    store.put_item("test-user-001", "TENDER#U-22222222", t2)
-
+    s1 = {"tender_id": "U-11111111", "uid": "U-11111111", "title": "Tender One", "created_at": "2026-11-01T10:00:00Z", "findings_count": 1, "clause_count": 2}
+    s2 = {"tender_id": "U-22222222", "uid": "U-22222222", "title": "Tender Two", "created_at": "2026-11-02T10:00:00Z", "findings_count": 0, "clause_count": 1}
+    store.put_tender("test-user-001", "U-11111111", t1, s1)
+    store.put_tender("test-user-001", "U-22222222", t2, s2)
     # List is sorted by created_at desc
     res = client.get("/api/me/tenders")
     assert res.status_code == 200
@@ -447,3 +432,107 @@ def test_chat_fails_after_retries_with_forbidden_wording(client, http, caplog):
     assert res.json()["detail"]["code"] == "llm_output_invalid"
     assert key not in res.text
     assert key not in caplog.text
+
+
+def test_p1_1_detect_consumes_quota_and_enforces_limits(client, http, monkeypatch):
+    key = fake_key("groq")
+    http.add("GET", models_url("groq"), resp(200, {"data": [{"id": "llama-3"}]}))
+    # Successful detect consumes "detect"
+    res = client.post("/api/llm/detect", headers={"X-LLM-Key": key})
+    assert res.status_code == 200
+
+    # User daily limit reached
+    monkeypatch.setenv("DAILY_LIMIT_DETECT", "1")
+    res = client.post("/api/llm/detect", headers={"X-LLM-Key": key})
+    assert res.status_code == 429
+    assert res.json()["detail"]["code"] == "daily_limit"
+
+    # Global daily limit reached
+    monkeypatch.setenv("DAILY_LIMIT_DETECT", "10")
+    monkeypatch.setenv("GLOBAL_DAILY_LIMIT_DETECT", "1")
+    res = client.post("/api/llm/detect", headers={"X-LLM-Key": key})
+    assert res.status_code == 429
+    assert res.json()["detail"]["code"] == "global_daily_limit"
+
+
+def test_routes_kill_switch_when_disabled(client, monkeypatch):
+    monkeypatch.setenv("LLM_FEATURES_ENABLED", "false")
+    key = fake_key("openrouter")
+
+    # All 4 LLM routes return 503 llm_disabled
+    res = client.post("/api/llm/detect", headers={"X-LLM-Key": key})
+    assert res.status_code == 503
+    assert res.json()["detail"]["code"] == "llm_disabled"
+
+    res = client.post("/api/tenders/T-001/regenerate", json={"model": "m-1"}, headers={"X-LLM-Key": key})
+    assert res.status_code == 503
+    assert res.json()["detail"]["code"] == "llm_disabled"
+
+    res = client.post("/api/compile", json={"title": "T", "text": "1. Test", "model": "m-1"}, headers={"X-LLM-Key": key})
+    assert res.status_code == 503
+    assert res.json()["detail"]["code"] == "llm_disabled"
+
+    res = client.post("/api/tenders/T-001/chat", json={"model": "m-1", "messages": [{"role": "user", "content": "hi"}]}, headers={"X-LLM-Key": key})
+    assert res.status_code == 503
+    assert res.json()["detail"]["code"] == "llm_disabled"
+
+    # Public demo endpoints stay completely operational
+    res = client.get("/api/tenders")
+    assert res.status_code == 200
+
+
+def test_p3_4_detect_ambiguous_sk_key_requires_provider_hint(client, http):
+    key = fake_key("sk")
+    # Without X-LLM-Provider: rejected with 400 and candidates
+    res = client.post("/api/llm/detect", headers={"X-LLM-Key": key})
+    assert res.status_code == 400
+    detail = res.json()["detail"]
+    assert detail["code"] == "provider_hint_required"
+    assert detail["candidates"] == ["openai", "deepseek"]
+
+    # With X-LLM-Provider: accepted and routed
+    http.add("GET", models_url("deepseek"), resp(200, {"data": [{"id": "deepseek-chat"}]}))
+    res = client.post("/api/llm/detect", headers={"X-LLM-Key": key, "X-LLM-Provider": "deepseek"})
+    assert res.status_code == 200
+    assert res.json()["provider"] == "deepseek"
+
+
+def test_deadline_seconds_is_50_seconds():
+    assert providers.DEADLINE_SECONDS == 50
+    assert providers.TIMEOUT_SECONDS <= 45
+
+
+def test_p2_2_my_tenders_returns_summaries(client, store):
+    t1 = {"tender_id": "U-11111111", "title": "Tender One", "created_at": "2026-11-01T10:00:00Z", "clauses": ["c1", "c2"]}
+    s1 = {"tender_id": "U-11111111", "uid": "U-11111111", "title": "Tender One", "created_at": "2026-11-01T10:00:00Z", "clause_count": 2, "findings_count": 0}
+    store.put_tender("test-user-001", "U-11111111", t1, s1)
+
+    res = client.get("/api/me/tenders")
+    assert res.status_code == 200
+    items = res.json()
+    assert len(items) == 1
+    item = items[0]
+    assert item["uid"] == "U-11111111"
+    assert item["tender_id"] == "U-11111111"
+    assert item["clause_count"] == 2
+    assert item["findings_count"] == 0
+    assert "clauses" not in item  # full data not leaked in summary listing
+
+
+def test_p3_5_compile_atomic_tender_cap(client, store):
+    # Pre-fill store to max 20 tenders
+    for i in range(MAX_USER_TENDERS):
+        tid = f"U-{i:08x}"
+        store.put_tender("test-user-001", tid, {"tender_id": tid}, {"tender_id": tid, "title": f"T{i}"})
+    assert store.get_tender_count("test-user-001") == 20
+
+    # Next compile fails with 409 tender_limit
+    key = fake_key("groq")
+    res = client.post("/api/compile", json={
+        "title": "Tender 21",
+        "text": SAMPLE_ELIGIBILITY_TEXT,
+        "model": "llama-3",
+    }, headers={"X-LLM-Key": key, "X-LLM-Provider": "groq"})
+    assert res.status_code == 409
+    assert res.json()["detail"]["code"] == "tender_limit"
+    assert store.get_tender_count("test-user-001") == 20

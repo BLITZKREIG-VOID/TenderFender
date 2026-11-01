@@ -25,8 +25,8 @@ from typing import Any, Callable
 
 log = logging.getLogger(__name__)
 
-TIMEOUT_SECONDS = 60       # one HTTP call
-DEADLINE_SECONDS = 100     # all calls for one API request; the Lambda timeout is 120 s
+TIMEOUT_SECONDS = 45       # one HTTP call
+DEADLINE_SECONDS = 50      # all calls for one API request; the Lambda timeout is 60 s
 MAX_RETRIES = 2            # transport retries, only on 5xx / network errors / timeouts
 RETRY_BACKOFF_SECONDS = (1.0, 2.0)
 MAX_RESPONSE_BYTES = 16 * 1024 * 1024
@@ -97,7 +97,8 @@ class ProviderError(Exception):
     """A provider call failed. `status`/`code` map to the API error; every text field is already scrubbed."""
 
     def __init__(self, status: int, code: str, message: str, *, provider: str | None = None,
-                 provider_message: str | None = None, retry_after: str | None = None):
+                 provider_message: str | None = None, retry_after: str | None = None,
+                 candidates: list[str] | None = None):
         super().__init__(message)
         self.status = status
         self.code = code
@@ -105,6 +106,7 @@ class ProviderError(Exception):
         self.provider = provider
         self.provider_message = provider_message
         self.retry_after = retry_after
+        self.candidates = candidates
 
     def detail(self) -> dict[str, Any]:
         out: dict[str, Any] = {"error": self.message, "code": self.code}
@@ -114,8 +116,9 @@ class ProviderError(Exception):
             out["provider_message"] = self.provider_message
         if self.retry_after:
             out["retry_after"] = self.retry_after
+        if self.candidates:
+            out["candidates"] = self.candidates
         return out
-
 
 @dataclass(frozen=True)
 class Completion:
@@ -179,7 +182,12 @@ def candidates(key: str, hint: str | None = None) -> list[str]:
         if key.startswith(prefix):
             return [pid]
     if key.startswith(_SK):
-        return ["openai", "deepseek"]
+        raise ProviderError(
+            400,
+            "provider_hint_required",
+            "This key format is ambiguous between multiple providers; pass an X-LLM-Provider header.",
+            candidates=["openai", "deepseek"],
+        )
     return ["mistral"]
 
 

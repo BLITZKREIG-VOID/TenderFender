@@ -40,19 +40,27 @@ def deadline():
 
 @pytest.mark.parametrize("name,expected", [
     ("openrouter", ["openrouter"]), ("anthropic", ["anthropic"]), ("google", ["google"]), ("groq", ["groq"]),
-    ("xai", ["xai"]), ("openai", ["openai"]), ("sk", ["openai", "deepseek"]), ("mistral", ["mistral"]),
+    ("xai", ["xai"]), ("openai", ["openai"]), ("mistral", ["mistral"]),
 ])
 def test_candidates_by_prefix(name, expected):
     assert providers.candidates(fake_key(name)) == expected
 
 
+def test_candidates_ambiguous_sk_key_requires_hint():
+    with pytest.raises(providers.ProviderError) as exc:
+        providers.candidates(fake_key("sk"))
+    assert exc.value.status == 400
+    assert exc.value.code == "provider_hint_required"
+    assert exc.value.candidates == ["openai", "deepseek"]
+
+
 def test_hint_overrides_prefix_and_must_be_known():
     assert providers.candidates(fake_key("sk"), "deepseek") == ["deepseek"]
-    assert providers.resolve(fake_key("sk")) == "openai"
+    assert providers.candidates(fake_key("sk"), "openai") == ["openai"]
+    assert providers.resolve(fake_key("sk"), "openai") == "openai"
     with pytest.raises(ProviderError) as exc:
         providers.candidates(fake_key("sk"), "https://evil.example")
     assert exc.value.status == 400 and exc.value.code == "unknown_provider"
-
 
 def test_source_has_no_literal_key_prefixes():
     src = open(providers.__file__, encoding="utf-8").read()
@@ -172,21 +180,19 @@ def test_detect_openai_compatible_providers(http, name, rows, expected):
     assert http.calls[0]["headers"]["Authorization"].startswith("Bearer ")
 
 
-def test_detect_ambiguous_key_tries_in_order(http):
-    http.add("GET", models_url("openai"), resp(401, {"error": {"message": "Incorrect API key provided"}}))
+def test_detect_ambiguous_key_requires_hint():
+    with pytest.raises(providers.ProviderError) as exc:
+        providers.detect(fake_key("sk"))
+    assert exc.value.status == 400
+    assert exc.value.code == "provider_hint_required"
+    assert exc.value.candidates == ["openai", "deepseek"]
+
+
+def test_detect_ambiguous_key_with_hint(http):
     http.add("GET", models_url("deepseek"), resp(200, {"data": [{"id": "deepseek-chat", "object": "model"}]}))
-    out = providers.detect(fake_key("sk"))
+    out = providers.detect(fake_key("sk"), "deepseek")
     assert out["provider"] == "deepseek" and out["valid"] is True
-    assert [c["url"] for c in http.calls] == [models_url("openai"), models_url("deepseek")]
-
-
-def test_detect_rejected_key_is_valid_false(http):
-    http.add("GET", models_url("openai"), resp(401, {}))
-    http.add("GET", models_url("deepseek"), resp(401, {}))
-    out = providers.detect(fake_key("sk"))
-    assert out == {"provider": None, "valid": False, "models": [], "key_info": None, "limitations": [],
-                   "recommended_model": None}
-
+    assert [c["url"] for c in http.calls] == [models_url("deepseek")]
 
 def test_detect_google_invalid_key_400(http):
     http.add("GET", models_url("google"), resp(400, {"error": {

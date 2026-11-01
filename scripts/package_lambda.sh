@@ -31,7 +31,7 @@ else
   exit 1
 fi
 
-for d in artifacts/rules artifacts/graph artifacts/fused kb/passages data/tenders; do
+for d in artifacts/rules artifacts/graph artifacts/fused kb/passages data/tenders artifacts/fusion artifacts/fusion_real artifacts/decisions; do
   if [ -d "$d" ]; then
     mkdir -p "$OUT/$(dirname "$d")"
     cp -r "$d" "$OUT/$d"

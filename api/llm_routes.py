@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import datetime
 import json
+import os
 import re
 import unicodedata
 import uuid
@@ -26,7 +27,15 @@ from api import providers
 from api.auth import require_user
 from api.loaders import load_fused, load_graph, load_json, load_rules, load_tender_clauses
 from api.passages import kb_dir, load_passage
-from api.users import MAX_USER_TENDERS, ItemTooLarge, consume, users_store
+from api.users import (
+    MAX_USER_TENDERS,
+    ItemTooLarge,
+    TenderLimitExceeded,
+    UserDeletedError,
+    check_llm_enabled,
+    consume,
+    users_store,
+)
 from decision import write
 from decision.retrieve import KeywordRetriever, PassageError, build_queries, load_passages, retrieve
 from decision.run import DECISION_BY_RISK, compute_input_hash
@@ -102,9 +111,11 @@ class ChatBody(BaseModel):
 # ── Detect ───────────────────────────────────────────────────────────────────
 
 @router.post("/api/llm/detect")
-def detect_key(request: Request, user: dict = Depends(require_user)):
+def detect_key(request: Request, user: dict = Depends(require_user), store=Depends(users_store)):
     """Identify the provider of the key, validate it, list its models and the provider-reported limits."""
+    check_llm_enabled()
     key, hint = _llm_key(request)
+    consume(user["user_id"], "detect", store)
     try:
         return providers.detect(key, hint)
     except providers.ProviderError as exc:
@@ -166,6 +177,7 @@ def _write_transport(pid: str, key: str, deadline: providers.Deadline) -> write.
 def regenerate(tender_id: str, body: RegenerateBody, request: Request, user: dict = Depends(require_user),
                store=Depends(users_store)):
     """Re-write a public tender's reasoning with the user's model; risk_level and decision stay fixed."""
+    check_llm_enabled()
     key, hint = _llm_key(request)
     pid = _provider_for(key, hint, body.model)
     fusion = _fusion_intermediate(tender_id)
@@ -218,6 +230,7 @@ def _compile_call(pid: str, key: str, model: str, deadline: providers.Deadline):
 def compile_tender(body: CompileBody, request: Request, user: dict = Depends(require_user),
                    store=Depends(users_store)):
     """Split pasted eligibility text into clauses, compile them with the user's model, run the deterministic checks."""
+    check_llm_enabled()
     # Lazy: the splitter needs jsonschema and the checks need z3; keep both off the public endpoints' cold start.
     from rules.checks import run_checks
     from rules.compile_llm import CompileError, compile_tender_batched
@@ -228,11 +241,10 @@ def compile_tender(body: CompileBody, request: Request, user: dict = Depends(req
     clauses = split_clauses(body.text.splitlines())
     if not clauses:
         raise _error(400, "No clauses were found in the text.", "no_clauses")
-    if store.count_items(user["user_id"], "TENDER#") >= MAX_USER_TENDERS:
+    if store.get_tender_count(user["user_id"]) >= MAX_USER_TENDERS:
         raise _error(409, f"You already have {MAX_USER_TENDERS} compiled tenders; delete one first.", "tender_limit",
                      limit=MAX_USER_TENDERS)
     tender_id = f"U-{uuid.uuid4().hex[:8]}"
-
     consume(user["user_id"], "compile", store)
     call = _compile_call(pid, key, body.model, providers.Deadline())
     atoms = []
@@ -264,10 +276,25 @@ def compile_tender(body: CompileBody, request: Request, user: dict = Depends(req
         "provider": pid,
         "created_at": _now(),
     }
+    summary = {
+        "tender_id": tender_id,
+        "uid": tender_id,
+        "title": body.title,
+        "created_at": result["created_at"],
+        "clause_count": len(clauses),
+        "findings_count": len(checked["findings"]),
+        "model": body.model,
+        "provider": pid,
+    }
     try:
-        store.put_item(user["user_id"], f"TENDER#{tender_id}", result)
+        store.put_tender(user["user_id"], tender_id, result, summary)
+    except TenderLimitExceeded:
+        raise _error(409, f"You already have {MAX_USER_TENDERS} compiled tenders; delete one first.", "tender_limit",
+                     limit=MAX_USER_TENDERS) from None
     except ItemTooLarge:
         raise _error(413, "The compiled tender is too large to save (limit 100 KB).", "too_large") from None
+    except UserDeletedError:
+        raise _error(403, "User account has been deleted.", "account_deleted") from None
     return result
 
 
@@ -281,12 +308,9 @@ def _user_tender_key(uid: str) -> str:
 
 @router.get("/api/me/tenders")
 def my_tenders(user: dict = Depends(require_user), store=Depends(users_store)):
-    items = store.query_items(user["user_id"], "TENDER#")
-    summaries = [{"tender_id": t["tender_id"], "title": t.get("title", ""), "created_at": t.get("created_at"),
-                  "findings_count": len(t.get("findings", [])), "model": t.get("model"),
-                  "provider": t.get("provider")} for t in items]
-    return sorted(summaries, key=lambda s: s["created_at"] or "", reverse=True)
-
+    consume(user["user_id"], "detect", store)
+    summaries = store.list_tender_summaries(user["user_id"])
+    return sorted(summaries, key=lambda s: s.get("created_at") or "", reverse=True)
 
 @router.get("/api/me/tenders/{uid}")
 def my_tender(uid: str, user: dict = Depends(require_user), store=Depends(users_store)):
@@ -298,7 +322,9 @@ def my_tender(uid: str, user: dict = Depends(require_user), store=Depends(users_
 
 @router.delete("/api/me/tenders/{uid}", status_code=204)
 def delete_my_tender(uid: str, user: dict = Depends(require_user), store=Depends(users_store)):
-    if not store.delete_item(user["user_id"], _user_tender_key(uid)):
+    if not USER_TENDER_RE.fullmatch(uid):
+        raise _error(404, f"Tender {uid} not found", "not_found")
+    if not store.delete_tender(user["user_id"], uid):
         raise _error(404, f"Tender {uid} not found", "not_found")
     return Response(status_code=204)
 
@@ -383,6 +409,7 @@ def validate_answer(text: str, allowed: set[str]) -> tuple[list[dict[str, str]],
 def chat(tender_id: str, body: ChatBody, request: Request, user: dict = Depends(require_user),
          store=Depends(users_store)):
     """Answer about one tender, grounded only on its findings, clauses and cited passages."""
+    check_llm_enabled()
     key, hint = _llm_key(request)
     pid = _provider_for(key, hint, body.model)
     roles = [m.role for m in body.messages]
