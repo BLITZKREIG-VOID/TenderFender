@@ -12,6 +12,7 @@ fastapi==0.162.0
 uvicorn==0.54.0
 httpx==0.28.1
 requests==2.34.2
+PyJWT[crypto]==2.15.1
 
 # Not pinned: not installed/verified by P3. `make setup` installs torch first from
 # https://download.pytorch.org/whl/cpu (SoT 5: CPU only; the default PyPI linux wheel is the CUDA build), so the line below is already satisfied. z3-solver was installed by `make setup` here but its version is not pinned (P1 owns the Z3 choice).
