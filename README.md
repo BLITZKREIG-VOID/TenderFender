@@ -143,6 +143,7 @@ make ui
 ## 10. RAG & LLM Decision Layer
 
 - **Model:** OpenRouter API (`nvidia/nemotron-3-ultra-550b-a55b:free`), configured via `scripts/set_openrouter_key.sh`.
+- **Clause-to-IR compiler:** `rules/compile_llm.py` also uses OpenRouter (`OPENROUTER_API_KEY`; model from `RULES_MODEL`, default the same free Nemotron model). It runs only when the cache is bypassed (`RULES_USE_CACHE=0 python -m rules.run --tender T-001 --out-dir <scratch>`); the default run reads the committed `data/tenders/ir_*.json`. A missing key fails with exit 1.
 - **Caching & Validation:** Decisions are cached in `artifacts/decisions/` (committed for T-001 and T-002) and re-validated on load. The citation validator ensures 100% of referenced guidelines resolve to real `KB-*.md` files without placeholder text.
 
 ---
