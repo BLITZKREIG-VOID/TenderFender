@@ -249,6 +249,7 @@ export interface UsageCounters {
   regen: number;
   compile: number;
   chat: number;
+  detect?: number;
 }
 
 export interface Me {
@@ -305,6 +306,7 @@ export interface RegenerateResponse {
 
 export interface CompileResponse {
   tender_id: string;
+  uid?: string;
   title?: string;
   created_at?: string;
   clauses: Clause[];
@@ -315,10 +317,12 @@ export interface CompileResponse {
 }
 
 export interface MyTenderSummary {
-  tender_id: string;
+  uid: string;
   title: string;
   created_at?: string;
-  findings_count?: number;
+  findings_count: number;
+  clause_count: number;
+  tender_id?: string;
   model?: string;
   provider?: string;
 }
@@ -350,8 +354,10 @@ export interface ApiErrorInfo {
   code?: string;
   message: string;
   limit?: number;
+  kind?: string;
   reset_at?: string;
   provider_message?: string;
+  candidates?: string[];
 }
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
@@ -376,25 +382,52 @@ export function apiError(err: unknown, fallback = "Request failed"): ApiErrorInf
   } else if (isRecord(detail)) {
     info.message = str(detail, "error") ?? info.message;
     info.code = str(detail, "code");
+    info.kind = str(detail, "kind");
     info.reset_at = str(detail, "reset_at");
     info.provider_message = str(detail, "provider_message");
     if (typeof detail.limit === "number") info.limit = detail.limit;
+    if (Array.isArray(detail.candidates)) {
+      info.candidates = detail.candidates.filter((c): c is string => typeof c === "string");
+    }
   } else if (typeof detail === "string" && detail) {
     info.message = detail;
+  }
+  if (!info.kind && info.message) {
+    const match = /Daily\s+(\w+)\s+limit/i.exec(info.message);
+    if (match) info.kind = match[1];
+  }
+  if (info.limit === undefined && info.message) {
+    const match = /limit\s+of\s+(\d+)\s+reached/i.exec(info.message);
+    if (match) info.limit = parseInt(match[1], 10);
+  }
+  if (!info.reset_at && info.message) {
+    const match = /resets\s+at\s+(\S+)/i.exec(info.message);
+    if (match) info.reset_at = match[1];
   }
   return info;
 }
 
-// One readable line for an error, including the daily-limit reset time.
 export function describeError(e: ApiErrorInfo): string {
-  if (e.code === "daily_limit") {
-    const when = e.reset_at ? new Date(e.reset_at).toLocaleString() : "the next UTC day";
-    return `Daily limit reached${e.limit != null ? ` (${e.limit} per day)` : ""}. It resets at ${when}.`;
+  if (e.code === "global_daily_limit" || (e.status === 429 && e.code === "global_daily_limit")) {
+    return "The investigation bureau has hit its daily case quota. Please try again tomorrow.";
+  }
+  if (e.code === "llm_disabled" || e.status === 503) {
+    return "AI features are paused by the site owner. The demo is still available.";
+  }
+  if (e.code === "daily_limit" || (e.status === 429 && e.code === "daily_limit")) {
+    const timeStr = e.reset_at
+      ? (isNaN(new Date(e.reset_at).getTime()) ? e.reset_at : new Date(e.reset_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }))
+      : "tomorrow";
+    const nStr = e.limit != null ? `${e.limit} ` : "";
+    const kStr = e.kind ? `${e.kind} ` : "";
+    return `You've used today's ${nStr}${kStr}requests. Resets at ${timeStr}.`;
+  }
+  if (e.code === "partial_delete_retry_safe" || (e.status === 502 && e.code === "partial_delete_retry_safe")) {
+    return "Account data was partially deleted. You can safely retry to complete the deletion.";
   }
   if (e.code === "unauthenticated") return "Your session has expired. Please sign in again.";
   return e.provider_message ? `${e.message} Provider said: ${e.provider_message}` : e.message;
 }
-
 // ── API calls ──────────────────────────────────────────────────────────────
 
 export const api = {

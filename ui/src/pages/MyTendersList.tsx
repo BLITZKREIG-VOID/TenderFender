@@ -38,7 +38,7 @@ export default function MyTendersList() {
     setDeletingId(uid);
     try {
       await api.deleteMyTender(uid);
-      setTenders((prev) => prev.filter((t) => t.tender_id !== uid));
+      setTenders((prev) => prev.filter((t) => (t.uid || t.tender_id) !== uid));
     } catch (err) {
       alert(describeError(apiError(err, "Failed to delete tender")));
     } finally {
@@ -108,50 +108,54 @@ export default function MyTendersList() {
           </div>
         ) : (
           <div className="divide-y-2 border-2 border-gray-900 rounded-lg overflow-hidden" data-testid="my-tenders-list">
-            {tenders.map((t) => (
-              <div key={t.tender_id} className="p-4 bg-white flex flex-wrap items-center justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-mono text-xs font-black px-2 py-0.5 bg-black text-white rounded">
-                      {t.tender_id}
-                    </span>
-                    <h2 className="text-base font-black text-gray-950 truncate">{t.title}</h2>
-                  </div>
-                  <div className="text-xs font-bold text-gray-600 flex flex-wrap gap-3">
-                    {t.created_at && <span>Compiled: {new Date(t.created_at).toLocaleDateString()}</span>}
-                    {t.model && <span>Model: <code className="font-mono">{t.model}</code></span>}
-                    {t.findings_count != null && (
-                      <span className={t.findings_count > 0 ? "text-amber-800 font-black" : "text-emerald-800"}>
-                        {t.findings_count} findings
+            {tenders.map((t) => {
+              const tenderId = t.uid || t.tender_id || "";
+              return (
+                <div key={tenderId} className="p-4 bg-white flex flex-wrap items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-mono text-xs font-black px-2 py-0.5 bg-black text-white rounded">
+                        {tenderId}
                       </span>
-                    )}
+                      <h2 className="text-base font-black text-gray-950 truncate">{t.title}</h2>
+                    </div>
+                    <div className="text-xs font-bold text-gray-600 flex flex-wrap gap-3">
+                      {t.created_at && <span>Compiled: {new Date(t.created_at).toLocaleDateString()}</span>}
+                      {t.clause_count != null && <span>{t.clause_count} clauses</span>}
+                      {t.findings_count != null && (
+                        <span className={t.findings_count > 0 ? "text-amber-800 font-black" : "text-emerald-800"}>
+                          {t.findings_count} findings
+                        </span>
+                      )}
+                      {t.model && <span>Model: <code className="font-mono">{t.model}</code></span>}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Link
+                      to={`/my-tenders/${encodeURIComponent(tenderId)}`}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 border-2 border-gray-900 rounded font-black text-xs uppercase"
+                    >
+                      View <ExternalLink size={12} />
+                    </Link>
+                    <button
+                      type="button"
+                      className="p-1.5 text-red-700 hover:text-red-900 hover:bg-red-50 rounded border border-transparent hover:border-red-400"
+                      title="Delete tender"
+                      disabled={deletingId === tenderId}
+                      onClick={() => void handleDelete(tenderId)}
+                      data-testid={`delete-tender-${tenderId}`}
+                    >
+                      {deletingId === tenderId ? (
+                        <Loader2 size={16} className="animate-spin text-red-700" />
+                      ) : (
+                        <Trash2 size={16} />
+                      )}
+                    </button>
                   </div>
                 </div>
-
-                <div className="flex items-center gap-2">
-                  <Link
-                    to={`/my-tenders/${encodeURIComponent(t.tender_id)}`}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 border-2 border-gray-900 rounded font-black text-xs uppercase"
-                  >
-                    View <ExternalLink size={12} />
-                  </Link>
-                  <button
-                    type="button"
-                    className="p-1.5 text-red-700 hover:text-red-900 hover:bg-red-50 rounded border border-transparent hover:border-red-400"
-                    title="Delete tender"
-                    disabled={deletingId === t.tender_id}
-                    onClick={() => void handleDelete(t.tender_id)}
-                    data-testid={`delete-tender-${t.tender_id}`}
-                  >
-                    {deletingId === t.tender_id ? (
-                      <Loader2 size={16} className="animate-spin text-red-700" />
-                    ) : (
-                      <Trash2 size={16} />
-                    )}
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

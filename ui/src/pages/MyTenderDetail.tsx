@@ -59,10 +59,10 @@ export default function MyTenderDetail() {
             <div className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-gray-300 pb-3 mb-4">
               <div>
                 <span className="font-mono text-xs font-black px-2.5 py-1 bg-black text-white rounded mb-1 inline-block">
-                  {tender.tender_id}
+                  {tender.uid || tender.tender_id}
                 </span>
                 <h1 className="text-xl font-black text-black uppercase tracking-wide">
-                  {tender.title || tender.tender_id}
+                  {tender.title || tender.uid || tender.tender_id}
                 </h1>
               </div>
               {tender.created_at && (

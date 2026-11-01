@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { User, ShieldAlert, Trash2, CheckCircle2, Loader2, Gauge } from "lucide-react";
+import { User, ShieldAlert, Trash2, CheckCircle2, Loader2, Gauge, RefreshCw } from "lucide-react";
 import { api, apiError, describeError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import ProfileForm from "../components/ProfileForm";
@@ -13,7 +13,7 @@ export default function ProfilePage() {
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-
+  const [canRetryDelete, setCanRetryDelete] = useState(false);
   if (!signedIn || !me) {
     return (
       <div className={panel} data-testid="profile-signed-out">
@@ -29,7 +29,7 @@ export default function ProfilePage() {
   }
 
   const handleDelete = async () => {
-    if (!deleteConfirm || deleting) return;
+    if ((!deleteConfirm && !canRetryDelete) || deleting) return;
     setDeleting(true);
     setDeleteError(null);
     try {
@@ -37,7 +37,11 @@ export default function ProfilePage() {
       forgetAccountLocally();
       navigate("/", { replace: true });
     } catch (err) {
-      setDeleteError(describeError(apiError(err, "Failed to delete account")));
+      const errInfo = apiError(err, "Failed to delete account");
+      setDeleteError(describeError(errInfo));
+      if (errInfo.status === 502 || errInfo.code === "partial_delete_retry_safe") {
+        setCanRetryDelete(true);
+      }
       setDeleting(false);
     }
   };
@@ -77,23 +81,30 @@ export default function ProfilePage() {
           <h2 className="text-sm font-black uppercase tracking-wider text-gray-900 flex items-center gap-1.5 mb-3">
             <Gauge size={16} /> Daily API Usage & Quotas
           </h2>
-          <div className="grid grid-cols-3 gap-3">
-            <div className="p-3 bg-white border-2 border-gray-900 rounded-lg text-center">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="p-3 bg-white border-2 border-gray-900 rounded-lg text-center" data-testid="usage-regen">
               <span className="text-xs font-bold text-gray-600 block">Re-generations</span>
               <span className="text-lg font-black text-gray-950">
                 {me.usage.regen} <span className="text-xs font-bold text-gray-500">/ {me.limits.regen}</span>
               </span>
             </div>
-            <div className="p-3 bg-white border-2 border-gray-900 rounded-lg text-center">
+            <div className="p-3 bg-white border-2 border-gray-900 rounded-lg text-center" data-testid="usage-compile">
               <span className="text-xs font-bold text-gray-600 block">Tender Compiles</span>
               <span className="text-lg font-black text-gray-950">
                 {me.usage.compile} <span className="text-xs font-bold text-gray-500">/ {me.limits.compile}</span>
               </span>
             </div>
-            <div className="p-3 bg-white border-2 border-gray-900 rounded-lg text-center">
+            <div className="p-3 bg-white border-2 border-gray-900 rounded-lg text-center" data-testid="usage-chat">
               <span className="text-xs font-bold text-gray-600 block">Chat Messages</span>
               <span className="text-lg font-black text-gray-950">
                 {me.usage.chat} <span className="text-xs font-bold text-gray-500">/ {me.limits.chat}</span>
+              </span>
+            </div>
+            <div className="p-3 bg-white border-2 border-gray-900 rounded-lg text-center" data-testid="usage-detect">
+              <span className="text-xs font-bold text-gray-600 block">Key Detections</span>
+              <span className="text-lg font-black text-gray-950">
+                {me.usage.detect ?? 0}{" "}
+                <span className="text-xs font-bold text-gray-500">/ {me.limits.detect ?? 20}</span>
               </span>
             </div>
           </div>
@@ -140,8 +151,27 @@ export default function ProfilePage() {
         </p>
 
         {deleteError && (
-          <div role="alert" className={`${errorBox} mb-4`}>
-            {deleteError}
+          <div role="alert" className={`${errorBox} mb-4 flex flex-col gap-2`}>
+            <span>{deleteError}</span>
+            {canRetryDelete && (
+              <button
+                type="button"
+                className="self-start inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-700 hover:bg-red-800 text-white font-bold text-xs uppercase tracking-wider rounded border border-red-900 transition-colors"
+                onClick={() => void handleDelete()}
+                disabled={deleting}
+                data-testid="retry-delete-account-button"
+              >
+                {deleting ? (
+                  <>
+                    <Loader2 size={13} className="animate-spin" /> Retrying…
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw size={13} /> Retry deletion
+                  </>
+                )}
+              </button>
+            )}
           </div>
         )}
 

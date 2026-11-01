@@ -22,12 +22,16 @@ export default function SettingsAi() {
   const [remember, setRemember] = useState(llm?.remember ?? false);
   const [detectResult, setDetectResult] = useState<DetectResponse | null>(llm?.detect ?? null);
   const [selectedModel, setSelectedModel] = useState<string | null>(llm?.model ?? null);
+  const [providerHint, setProviderHint] = useState<string | null>(llm?.provider ?? null);
+  const [hintRequired, setHintRequired] = useState(false);
+  const [hintCandidates, setHintCandidates] = useState<string[]>(["openai", "deepseek"]);
+  const [selectedHint, setSelectedHint] = useState<string>("openai");
   const [detecting, setDetecting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
-  const handleDetect = async () => {
+  const handleDetect = async (overrideHint?: string) => {
     const trimmed = keyInput.trim();
     if (!trimmed) {
       setError("Please paste an API key to detect.");
@@ -37,20 +41,38 @@ export default function SettingsAi() {
     setError(null);
     setSavedSuccess(false);
 
+    const hintToSend = overrideHint ?? (hintRequired ? selectedHint : providerHint ?? undefined);
+
     try {
-      const res = await api.detectKey({ key: trimmed });
+      const res = await api.detectKey({ key: trimmed, provider: hintToSend });
       setDetectResult(res.data);
+      setHintRequired(false);
+      const chosenProvider = res.data.provider || hintToSend || null;
+      setProviderHint(chosenProvider);
       if (!res.data.valid) {
         setError("The provided API key was rejected by the provider or unrecognized.");
       } else {
-        // Default selected model to recommended or first available
         const rec = res.data.recommended_model;
         const first = res.data.models[0]?.id ?? null;
         setSelectedModel(rec ?? first);
       }
     } catch (err) {
-      setError(describeError(apiError(err, "Failed to validate API key with server.")));
-      setDetectResult(null);
+      const errInfo = apiError(err, "Failed to validate API key with server.");
+      if (errInfo.code === "provider_hint_required" || (errInfo.status === 400 && errInfo.code === "provider_hint_required")) {
+        setHintRequired(true);
+        const candidates = errInfo.candidates && errInfo.candidates.length > 0
+          ? errInfo.candidates
+          : ["openai", "deepseek"];
+        setHintCandidates(candidates);
+        if (!selectedHint || !candidates.includes(selectedHint)) {
+          setSelectedHint(candidates[0]);
+        }
+        setError("This key format is ambiguous between multiple providers. Please select your provider below to continue.");
+        setDetectResult(null);
+      } else {
+        setError(describeError(errInfo));
+        setDetectResult(null);
+      }
     } finally {
       setDetecting(false);
     }
@@ -62,9 +84,10 @@ export default function SettingsAi() {
       return;
     }
     setSaving(true);
+    const resolvedProvider = detectResult.provider || providerHint;
     const settings: LlmSettings = {
       key: keyInput.trim(),
-      provider: detectResult.provider,
+      provider: resolvedProvider,
       model: selectedModel,
       remember,
       detect: detectResult,
@@ -81,10 +104,11 @@ export default function SettingsAi() {
     setKeyInput("");
     setDetectResult(null);
     setSelectedModel(null);
+    setProviderHint(null);
+    setHintRequired(false);
     setRemember(false);
     setError(null);
   };
-
   const isFree = isFreeOpenRouterKey(detectResult);
 
   return (
@@ -157,7 +181,10 @@ export default function SettingsAi() {
                 type="password"
                 className={input}
                 value={keyInput}
-                onChange={(e) => setKeyInput(e.target.value)}
+                onChange={(e) => {
+                  setKeyInput(e.target.value);
+                  if (hintRequired) setHintRequired(false);
+                }}
                 placeholder="Paste your API key (OpenRouter, Anthropic, Google, Groq, etc.)"
                 autoComplete="off"
                 spellCheck="false"
@@ -187,6 +214,65 @@ export default function SettingsAi() {
           {error && (
             <div role="alert" className={errorBox}>
               {error}
+            </div>
+          )}
+
+          {/* Ambiguous Key Provider Picker */}
+          {hintRequired && (
+            <div className="p-4 bg-amber-50 border-2 border-amber-600 rounded-lg space-y-3" data-testid="provider-picker-box">
+              <div className="flex items-center gap-2">
+                <AlertTriangle size={18} className="text-amber-800 shrink-0" />
+                <span className="text-xs font-black uppercase tracking-wider text-amber-950">
+                  Ambiguous Key Format · Provider Selection Required
+                </span>
+              </div>
+              <p className="text-xs font-bold text-amber-950">
+                Both OpenAI and DeepSeek issue keys beginning with <code>sk-</code>. Choose which provider issued this key:
+              </p>
+              <div className="flex flex-wrap gap-3">
+                {hintCandidates.map((cand) => {
+                  const label = cand.toLowerCase() === "openai" ? "OpenAI" : cand.toLowerCase() === "deepseek" ? "DeepSeek" : cand;
+                  const isSelected = selectedHint.toLowerCase() === cand.toLowerCase();
+                  return (
+                    <label
+                      key={cand}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-md border-2 cursor-pointer font-bold text-sm ${
+                        isSelected
+                          ? "bg-amber-200 border-amber-800 text-amber-950"
+                          : "bg-white border-gray-400 text-gray-800 hover:bg-gray-50"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="provider-hint"
+                        value={cand}
+                        checked={isSelected}
+                        onChange={() => setSelectedHint(cand)}
+                        className="accent-black"
+                        data-testid={`provider-option-${cand}`}
+                      />
+                      <span>{label}</span>
+                    </label>
+                  );
+                })}
+              </div>
+              <div>
+                <button
+                  type="button"
+                  className={btnPrimary}
+                  onClick={() => void handleDetect(selectedHint)}
+                  disabled={detecting}
+                  data-testid="confirm-provider-button"
+                >
+                  {detecting ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" /> Verifying with {selectedHint === "openai" ? "OpenAI" : selectedHint === "deepseek" ? "DeepSeek" : selectedHint}…
+                    </>
+                  ) : (
+                    `Re-detect as ${selectedHint === "openai" ? "OpenAI" : selectedHint === "deepseek" ? "DeepSeek" : selectedHint}`
+                  )}
+                </button>
+              </div>
             </div>
           )}
 
