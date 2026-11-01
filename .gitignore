@@ -14,6 +14,9 @@ artifacts/*
 *.key
 build/
 ui/dist/
+# Real tender raw inputs (user-provided text files); only the format README is tracked.
+data/real/raw/*
+!data/real/raw/README.md
 
 # Local source texts for passage checking (licence may forbid redistribution)
 kb/sources/*

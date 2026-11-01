@@ -77,7 +77,7 @@ def check_fused(doc: dict, name: str) -> list[str]:
 
 def check_rules(doc: dict, name: str) -> list[str]:
     errs = []
-    if name.startswith("T-") and doc.get("tender_id") != name.split(".")[0]:
+    if name.startswith(("T-", "RT-")) and doc.get("tender_id") != name.split(".")[0]:
         errs.append(f"tender_id {doc.get('tender_id')!r} does not match file name {name}")
     for a in doc.get("atoms", []):
         if not a.get("id", "").startswith(a.get("clause_id", "\0") + "."):
@@ -87,6 +87,25 @@ def check_rules(doc: dict, name: str) -> list[str]:
         errs.append("duplicate finding_id")
     if any(f.get("type") == "contradiction" for f in doc.get("findings", [])) and doc.get("qualifying_vendors"):
         errs.append("qualifying_vendors must be empty when the rule set is unsatisfiable")
+    atom_clauses = {a.get("clause_id") for a in doc.get("atoms", [])}
+    for nc in doc.get("not_checked", []):
+        if nc.get("clause_id") in atom_clauses:
+            errs.append(f"clause {nc.get('clause_id')} is in not_checked but has atoms")
+    if doc.get("vendor_check", {}).get("status") == "skipped":
+        if doc.get("qualifying_vendors") or doc.get("vendors_evaluated"):
+            errs.append("vendor_check skipped requires qualifying_vendors == [] and vendors_evaluated == 0")
+        if any(f.get("type") in ("tailored_eligibility", "no_qualifier") for f in doc.get("findings", [])):
+            errs.append("vendor_check skipped must not carry tailored_eligibility/no_qualifier findings")
+    return errs
+
+
+def check_real_tender(doc: dict, name: str) -> list[str]:
+    errs = []
+    if doc.get("tender_id") != name.split(".")[0]:
+        errs.append(f"tender_id {doc.get('tender_id')!r} does not match file name {name}")
+    ids = [c.get("clause_id") for c in doc.get("clauses", [])]
+    if len(ids) != len(set(ids)):
+        errs.append("duplicate clause_id")
     return errs
 
 
@@ -166,6 +185,7 @@ def main(argv: list[str] | None = None) -> int:
                 missing_artifacts.append(rel_str)
         for sub, schema, extra in [
             ("rules", "rules_output", check_rules),
+            ("rules_real", "rules_output", check_rules),
             ("graph", "graph_output", None),
             ("fused", "fused", check_fused),
         ]:
@@ -183,16 +203,16 @@ def main(argv: list[str] | None = None) -> int:
     else:
         ex = root / "contracts" / "examples"
         check(ex / "ir_atom.json", "ir_atom")
-        for p in sorted(ex.glob("rules_T-*.json")):
+        for p in sorted(ex.glob("rules_*T-*.json")):
             check(p, "rules_output", check_rules)
         check(ex / "graph_output.json", "graph_output")
         for p in sorted(ex.glob("fused_T-*.json")):
             check(p, "fused", check_fused)
-        for name in ("tender", "kb_passage", "labels"):
+        for name in ("tender", "real_tender", "kb_passage", "labels"):
             check(ex / f"{name}.json", name)
 
         d = root / "mocks"
-        for p in sorted((d / "rules").glob("T-*.json")):
+        for p in sorted((d / "rules").glob("*T-*.json")):
             check(p, "rules_output", check_rules)
         if (d / "graph" / "graph_output.json").is_file():
             check(d / "graph" / "graph_output.json", "graph_output")
@@ -206,6 +226,13 @@ def main(argv: list[str] | None = None) -> int:
         for p in sorted((data / "tenders").glob("T-*.json")):
             check(p, "tender")
         for p in sorted((data / "tenders").glob("ir_T-*.json")):
+            check(p, "ir_atom", array_of=True)
+
+        # Real tenders are user-provided and may be absent; validate whatever is present.
+        real = root / "data" / "real" / "tenders"
+        for p in sorted(real.glob("RT-*.json")):
+            check(p, "real_tender", check_real_tender)
+        for p in sorted(real.glob("ir_RT-*.json")):
             check(p, "ir_atom", array_of=True)
 
         kb = root / "kb" / "passages"

@@ -22,8 +22,9 @@ def _format_atom_value(val: Any) -> str:
     return str(val)
 
 
-def run_checks(atoms: list[Atom], vendors: list[dict[str, Any]]) -> dict[str, Any]:
-    vendors_evaluated = len(vendors)
+def run_checks(atoms: list[Atom], vendors: list[dict[str, Any]] | None) -> dict[str, Any]:
+    """Contradiction check always; the per-vendor checks only when `vendors` is a list (None = no vendor data)."""
+    vendors_evaluated = len(vendors) if vendors is not None else 0
     findings: list[dict[str, Any]] = []
 
     # (a) Contradiction check: track ALL atoms (vendor + tender level)
@@ -78,6 +79,9 @@ def run_checks(atoms: list[Atom], vendors: list[dict[str, Any]]) -> dict[str, An
             "qualifying_vendors": [],
             "vendors_evaluated": vendors_evaluated,
         }
+
+    if vendors is None:
+        return {"findings": findings, "qualifying_vendors": [], "vendors_evaluated": 0}
 
     # (b) / (c) SAT: evaluate vendor-level atoms
     vendor_atoms = [a for a in atoms if a.field in VENDOR_FIELDS]

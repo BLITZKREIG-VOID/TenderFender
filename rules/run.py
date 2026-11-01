@@ -34,7 +34,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="P1 Rule Checker")
     parser.add_argument("--tender", type=str, help="Single tender ID (e.g. T-001)")
     parser.add_argument("--all", action="store_true", help="Process all demo tenders")
-    parser.add_argument("--data-dir", type=str, default="data", help="Data directory")
+    parser.add_argument(
+        "--data-dir", type=str, default="data",
+        help="Data directory holding tenders/ (and vendors.csv for synthetic T- tenders); use data/real for RT- tenders",
+    )
     parser.add_argument("--out-dir", type=str, default="artifacts/rules", help="Output directory")
     parser.add_argument("--write-cache", action="store_true", help="Write compiled IR to cache")
 
@@ -57,6 +60,7 @@ def main(argv: list[str] | None = None) -> int:
 
     atom_validator = Draft202012Validator(schemas["ir_atom"], registry=registry)
     output_validator = Draft202012Validator(schemas["rules_output"], registry=registry)
+    real_tender_validator = Draft202012Validator(schemas["real_tender"], registry=registry)
 
     if args.tender:
         tender_file = data_dir / "tenders" / f"{args.tender}.json"
@@ -65,22 +69,26 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         tender_files = [tender_file]
     else:
-        tender_files = sorted((data_dir / "tenders").glob("T-*.json"))
+        tender_files = sorted((data_dir / "tenders").glob("T-*.json")) + sorted(
+            (data_dir / "tenders").glob("RT-*.json")
+        )
         if not tender_files:
-            sys.stderr.write(f"Error: No demo tenders found in {data_dir / 'tenders'}\n")
+            sys.stderr.write(f"Error: No tenders found in {data_dir / 'tenders'}\n")
             return 1
 
-    vendors_csv = data_dir / "vendors.csv"
-    if not vendors_csv.exists():
-        sys.stderr.write(f"Error: Vendors file not found: {vendors_csv}\n")
-        return 1
-
-    try:
-        with open(vendors_csv, mode="r", encoding="utf-8") as f:
-            vendors = list(csv.DictReader(f))
-    except Exception as e:
-        sys.stderr.write(f"Error reading {vendors_csv}: {e}\n")
-        return 1
+    # Real (RT-) tenders never see vendor data; synthetic vendors are only loaded when a T- tender is processed.
+    vendors: list[dict[str, Any]] | None = None
+    if any(not p.stem.startswith("RT-") for p in tender_files):
+        vendors_csv = data_dir / "vendors.csv"
+        if not vendors_csv.exists():
+            sys.stderr.write(f"Error: Vendors file not found: {vendors_csv}\n")
+            return 1
+        try:
+            with open(vendors_csv, mode="r", encoding="utf-8") as f:
+                vendors = list(csv.DictReader(f))
+        except Exception as e:
+            sys.stderr.write(f"Error reading {vendors_csv}: {e}\n")
+            return 1
 
     success = True
     for tender_path in tender_files:
@@ -91,6 +99,16 @@ def main(argv: list[str] | None = None) -> int:
             sys.stderr.write(f"Error reading tender file {tender_path}: {e}\n")
             success = False
             continue
+
+        if tender_id.startswith("RT-"):
+            tender_errors = [
+                f"{'/'.join(str(x) for x in e.absolute_path) or '<root>'}: {e.message[:200]}"
+                for e in real_tender_validator.iter_errors(tender_data)
+            ]
+            if tender_errors:
+                sys.stderr.write(f"Schema errors in {tender_path}:\n" + "\n".join(tender_errors) + "\n")
+                success = False
+                continue
 
         tender_clauses = {c["clause_id"]: c["text"] for c in tender_data.get("clauses", [])}
 
@@ -158,9 +176,11 @@ def main(argv: list[str] | None = None) -> int:
                     success = False
                     continue
 
-        # Run checks
+        is_real = tender_id.startswith("RT-")
+
+        # Run checks (real tenders: contradiction check only, no vendor data)
         try:
-            check_result = run_checks(atoms, vendors)
+            check_result = run_checks(atoms, None if is_real else vendors)
         except Exception as e:
             sys.stderr.write(f"Error running checks for {tender_id}: {e}\n")
             success = False
@@ -174,6 +194,19 @@ def main(argv: list[str] | None = None) -> int:
             "qualifying_vendors": check_result["qualifying_vendors"],
             "vendors_evaluated": check_result["vendors_evaluated"],
         }
+
+        if is_real:
+            # Nothing is silently dropped: every clause with no atom is listed verbatim.
+            clauses_with_atoms = {a.clause_id for a in atoms}
+            output["not_checked"] = [
+                {"clause_id": c["clause_id"], "text": c["text"], "reason": "no expressible atom"}
+                for c in tender_data.get("clauses", [])
+                if c["clause_id"] not in clauses_with_atoms
+            ]
+            output["vendor_check"] = {
+                "status": "skipped",
+                "reason": "no vendor data for real tenders; synthetic vendors are never used",
+            }
 
         # Validate output schema
         out_errors = list(output_validator.iter_errors(output))

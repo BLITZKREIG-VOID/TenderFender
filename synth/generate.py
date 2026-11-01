@@ -75,6 +75,7 @@ REG_CLASSES = ["MSE", "Class-A", "Class-B", "Class-C"]
 # R-1 fixed IDs
 R1_VENDOR_IDS = [45, 46, 47]          # V-045, V-046, V-047
 R1_SHARED_DIRECTOR = 10               # P-010
+MAX_DIRECTORS_PER_VENDOR = 3          # non-R-1 vendors own 1-3 directors each
 R1_SHARED_ADDRESS = 7                 # A-007
 
 # R-2 fixed IDs
@@ -218,36 +219,31 @@ def generate_directors(
     rng: random.Random,
 ) -> list[dict[str, Any]]:
     """
-    Generate the directors table and a mapping vendor_num -> person_id.
+    Generate the director pool.
 
     R-1 constraint: P-010 must exist and be shared by V-045, V-046, V-047.
-    Non-ring directors: roughly one director per 2–3 vendors with overlap.
+    Every other vendor owns 1-3 directors that no other vendor has, so the pool
+    holds P-010 plus the worst case of 3 directors for each non-R-1 vendor.
+    ``generate_all`` drops the unassigned tail once vendors have drawn from it.
 
     Returns
     -------
-    directors : list of {person_id, name}
-    ring_director_id : person_id for P-010
+    directors : list of {person_id, name}, sorted by person_id
     """
     name_pool: set[str] = set()
 
     # Pre-create P-010 (R-1 shared director) with a fixed name
     p010_name = "Rajesh Mehta"
     name_pool.add(p010_name)
-    directors: list[dict[str, Any]] = [{"person_id": _pid(10), "name": p010_name}]
+    directors: list[dict[str, Any]] = [{"person_id": _pid(R1_SHARED_DIRECTOR), "name": p010_name}]
 
-    # Generate additional directors for non-R-1 vendors
-    # Aim for ~100 directors for 200 vendors (shared directors are realistic)
-    extra_count = max(50, num_vendors // 2)
-    used_pids = {10}
-    pid = 1
-    while len(directors) <= extra_count + 1:
-        if pid in used_pids:
-            pid += 1
-            continue
-        name = _person_name(rng, name_pool)
-        directors.append({"person_id": _pid(pid), "name": name})
-        used_pids.add(pid)
+    pool_size = MAX_DIRECTORS_PER_VENDOR * max(0, num_vendors - len(R1_VENDOR_IDS))
+    pid = 0
+    while len(directors) <= pool_size:
         pid += 1
+        if pid == R1_SHARED_DIRECTOR:
+            continue
+        directors.append({"person_id": _pid(pid), "name": _person_name(rng, name_pool)})
 
     directors.sort(key=lambda d: d["person_id"])
     return directors
@@ -279,13 +275,15 @@ def generate_vendors(
     """
     name_pool: set[str] = set()
 
-    # Director IDs available for general assignment (exclude P-010 from pool)
-    dir_ids = [d["person_id"] for d in directors if d["person_id"] != _pid(10)]
+    # Director IDs available for general assignment (exclude P-010). Each ID is
+    # handed out at most once, so only the planted R-1 vendors ever share a
+    # director.
+    dir_ids = iter(d["person_id"] for d in directors if d["person_id"] != _pid(R1_SHARED_DIRECTOR))
 
     def _pick_directors(vid_n: int, rng_: random.Random) -> list[str]:
-        """Pick 1–3 directors for a vendor, non-R-1."""
-        count = rng_.randint(1, 3)
-        return rng_.sample(dir_ids, min(count, len(dir_ids)))
+        """Take 1-3 directors, owned by this vendor alone, non-R-1."""
+        count = rng_.randint(1, MAX_DIRECTORS_PER_VENDOR)
+        return [next(dir_ids) for _ in range(count)]
 
     vendors: list[dict[str, Any]] = []
     vendor_directors: list[dict[str, Any]] = []
@@ -364,6 +362,8 @@ def generate_vendors(
     #   Non-cohort: forced to fail T-003 on exactly one criterion.
     # This keeps the total T-003 qualifier count in the target range of 20-30
     # (plus ~7 from R-1/R-2 reserved vendors that naturally qualify, for ~32 total).
+    used_addresses = {v["address_id"] for v in vendors}
+    used_contacts = {v["contact_id"] for v in vendors}
     address_counter = 10   # start address pool from A-010 to keep A-007 clean
     contact_counter = 1
     _t003_cohort_classes = ["Class-A", "Class-B", "Class-C"]
@@ -373,10 +373,18 @@ def generate_vendors(
             continue
 
         # Deterministic address / contact (DATA-001 provisional)
+        # Skip every ID already held by a reserved/planted vendor so only the
+        # planted R-1 vendors ever share an address or contact.
         address_counter += 1
+        while _aid(address_counter) in used_addresses:
+            address_counter += 1
         contact_counter += 1
+        while _ctid(contact_counter) in used_contacts:
+            contact_counter += 1
         aid = _aid(address_counter)
         ctid = _ctid(contact_counter)
+        used_addresses.add(aid)
+        used_contacts.add(ctid)
 
         if vn in T003_COHORT_VENDOR_NUMS:
             # T-003 qualifying cohort: non-MSE, turnover [15-80] cr, experience [5-20] yrs.
@@ -837,6 +845,8 @@ def generate_all(
 
     directors = generate_directors(num_vendors, rng)
     vendors, vendor_directors = generate_vendors(num_vendors, rng, directors)
+    assigned = {row["person_id"] for row in vendor_directors}
+    directors = [d for d in directors if d["person_id"] in assigned]
     tenders = generate_tenders(num_tenders, rng)
     bids, cover_metadata = generate_bids(vendors, tenders, rng)
     labels = generate_labels(tenders, bids, cover_metadata)
