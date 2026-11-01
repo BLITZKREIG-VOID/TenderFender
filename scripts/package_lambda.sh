@@ -35,6 +35,14 @@ for d in artifacts/rules artifacts/graph artifacts/fused kb/passages data/tender
     echo "package-lambda: WARNING: $d is missing, package will not contain it (run 'make pipeline' first)" >&2
   fi
 done
+
+for d in artifacts/rules_real data/real/tenders; do
+  if [ -d "$d" ]; then
+    mkdir -p "$OUT/$(dirname "$d")"
+    cp -r "$d" "$OUT/$d"
+  fi
+done
+
 # Seed for atom confirmations: the package dir is read-only, so the API copies this to $CONFIRMATIONS_PATH (/tmp) on first use.
 # Live clicks on Lambda are ephemeral; the committed data/real/confirmations.json is the source of truth.
 if [ -f data/real/confirmations.json ]; then

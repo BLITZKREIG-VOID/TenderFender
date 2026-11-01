@@ -17,7 +17,7 @@ EMBEDDING_MODEL ?= all-MiniLM-L6-v2
 export EMBEDDING_MODEL
 
 FUSION_DIR := artifacts/fusion
-# Real-tender pipeline (SoT 8.4 real-tender fusion rule, D33). Never touches the T- artifacts.
+# Real-tender pipeline (SoT 8.4 real-tender fusion rule, D34). Never touches the T- artifacts.
 REAL_DATA_DIR   ?= data/real
 RULES_REAL_DIR  ?= artifacts/rules_real
 FUSION_REAL_DIR ?= artifacts/fusion_real
