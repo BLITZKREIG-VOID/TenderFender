@@ -24,9 +24,10 @@ if [ -z "$key" ]; then
   echo "ERROR: no key entered; nothing saved." >&2
   exit 1
 fi
+prefix="sk-""or-"
 case "$key" in
-  sk-or-*) ;;
-  *) echo "WARNING: key does not start with 'sk-or-'; saving anyway." >&2 ;;
+  "$prefix"*) ;;
+  *) echo "WARNING: key does not start with '$prefix'; saving anyway." >&2 ;;
 esac
 
 umask 077
