@@ -1,0 +1,12 @@
+{
+  "tender_id": "RT-001",
+  "title": "FORMAT EXAMPLE, not a real tender",
+  "source_portal": "CPPP",
+  "source_url": "https://example.invalid/format-example",
+  "source_ref": "FORMAT-EXAMPLE",
+  "retrieved": "2026-01-01",
+  "clauses": [
+    {"clause_id": "CL1", "source_clause_no": "1", "text": "1. FORMAT EXAMPLE, not a real tender: eligibility clause text goes here."},
+    {"clause_id": "CL2", "source_clause_no": "2(a)", "text": "(a) FORMAT EXAMPLE, not a real tender: a second clause keeps the document's own number.", "needs_review": true}
+  ]
+}
