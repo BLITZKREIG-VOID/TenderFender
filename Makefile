@@ -94,7 +94,7 @@ validate-artifacts:
 
 acceptance:
 	PYTHONPATH=. $(PY) scripts/acceptance.py --rules-dir "$(RULES_DIR)" --graph "$(GRAPH_JSON)" \
-	  --fused-dir "$(FUSED_DIR)" --data-dir "$(DATA_DIR)" --kb-dir "$(KB_DIR)"
+	  --fused-dir "$(FUSED_DIR)" --data-dir data --bids data/bids.csv --kb-dir "$(KB_DIR)"
 
 acceptance-mock:
 	PYTHONPATH=. $(PY) scripts/acceptance.py --rules-dir mocks/rules --graph mocks/graph/graph_output.json \

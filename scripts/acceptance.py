@@ -52,6 +52,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--fused-dir", type=Path, default=Path("artifacts/fused"), help="Fused output directory")
     ap.add_argument("--data-dir", type=Path, default=Path("data"), help="Data directory containing bids.csv")
     ap.add_argument("--kb-dir", type=Path, default=Path("kb/passages"), help="Knowledge base passages directory")
+    ap.add_argument("--bids", type=Path, default=None, help="Explicit path to bids.csv")
     args = ap.parse_args(argv)
 
     results: list[tuple[str, str, str]] = []  # (status, name, reason)
@@ -197,7 +198,12 @@ def main(argv: list[str] | None = None) -> int:
         else:
             record_fail("T-003 rules: zero findings", f"expected 0 findings, got {len(findings)}: {findings}")
 
-    bids_csv = args.data_dir / "bids.csv"
+    bids_csv = args.bids if args.bids is not None else (args.data_dir / "bids.csv")
+    if not bids_csv.is_file():
+        if (args.data_dir.parent / "bids.csv").is_file():
+            bids_csv = args.data_dir.parent / "bids.csv"
+        elif Path("data/bids.csv").is_file():
+            bids_csv = Path("data/bids.csv")
     if not bids_csv.is_file():
         record_missing("T-003 bids/graph: no T-003 bidder belongs to a ring with score >= 0.5", f"{bids_csv} not found")
     elif err_graph:
