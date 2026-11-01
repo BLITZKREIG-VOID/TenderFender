@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { RulesData, Clause, Finding } from "../api/client";
-import { CheckCircle2, Circle, AlertTriangle, ShieldCheck, Scale, Check } from "lucide-react";
+import { CheckCircle2, Circle, AlertTriangle, ShieldCheck, Scale, Check, EyeOff } from "lucide-react";
 
 interface Props {
   rules: RulesData;
@@ -96,7 +96,9 @@ export default function ClausePanel({ rules, onConfirm }: Props) {
             <div>
               <p className="text-sm font-black uppercase">Z3 Solver Verification: CLEAN</p>
               <p className="text-xs font-bold text-green-900">
-                No formal contradictions or artificial exclusivity criteria detected.
+                {rules.not_checked && rules.not_checked.length > 0
+                  ? "No formal contradictions found among the formalized criteria; clauses listed below were not checked."
+                  : "No formal contradictions or artificial exclusivity criteria detected."}
               </p>
             </div>
           </div>
@@ -187,6 +189,43 @@ export default function ClausePanel({ rules, onConfirm }: Props) {
             })}
           </div>
         </div>
+
+        {/* Clauses the rule format could not express: shown verbatim, never dropped */}
+        {rules.not_checked && rules.not_checked.length > 0 && (
+          <div className="mt-6">
+            <h3 className="text-xs font-black text-black uppercase tracking-wider mb-3 flex items-center gap-1.5">
+              <EyeOff size={16} />
+              Clauses Not Checked Automatically ({rules.not_checked.length})
+            </h3>
+            <div className="space-y-3">
+              {rules.not_checked.map((nc) => (
+                <div
+                  key={nc.clause_id}
+                  className="p-4 rounded-lg border-2 border-dashed border-gray-500 bg-gray-50"
+                >
+                  <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                    <span className="text-xs font-bold text-gray-800 bg-white px-2 py-0.5 rounded border border-gray-400">
+                      Clause: {nc.clause_id}
+                    </span>
+                    <span className="text-xs font-black px-2 py-0.5 rounded bg-gray-700 text-white border border-gray-950 uppercase tracking-wider">
+                      Not checked automatically
+                    </span>
+                    <span className="text-xs font-bold text-gray-700">Reason: {nc.reason}</span>
+                  </div>
+                  <p className="text-sm sm:text-base font-bold text-gray-950 leading-snug">
+                    "{nc.text}"
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {rules.vendor_check?.status === "skipped" && (
+          <p className="mt-4 text-xs font-bold text-gray-700">
+            Vendor check skipped: {rules.vendor_check.reason}
+          </p>
+        )}
       </div>
 
       {/* Qualifying Vendors Summary Footer */}

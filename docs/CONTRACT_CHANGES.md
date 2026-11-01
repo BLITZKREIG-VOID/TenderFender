@@ -49,3 +49,10 @@ Everyone proposes changes here; only the Lead (P3) edits `SOURCE_OF_TRUTH.md`, `
 - Change: `graph_output.json` may carry `gnn_vendor_scores` (`{V-xxx: 0..1}`, empty when the GNN is skipped) and `vendor_explanations` (array of `{vendor_id, risk_score, ...}` evidence records). Both optional and additive; `vendor_scores`, `rings`, `paths`, `graph`, `metrics` unchanged.
 - Why: PR #7 emitted them and `make validate-contracts` rejected the real artifact (root `additionalProperties: false`).
 - Impacted owners: none; fusion/decision and the API ignore them.
+
+### CC-05: Real-tender format, `rules_output.not_checked` / `vendor_check`
+- Date / proposer: 2026-11-01, Lead (Hardhik) with Phase 4 prep.
+- Status: applied (`contracts/schemas/real_tender.json` new, `contracts/schemas/rules_output.json`).
+- Change: new `real_tender.json` for `data/real/tenders/RT-xxx.json` (`tender_id ^RT-\d{3}$`, `title`, `source_portal`, `source_url`, `source_ref`, `retrieved`, `clauses[{clause_id, source_clause_no, text, needs_review?}]`). `rules_output.json`: `tender_id` now `^R?T-\d{3}$`; optional `not_checked: [{clause_id, text, reason}]` (clauses with zero atoms, verbatim text) and optional `vendor_check: {status: run|skipped, reason}`. Real tenders always carry both (`vendor_check.status = skipped`, `qualifying_vendors = []`, `vendors_evaluated = 0`, no `tailored_eligibility`/`no_qualifier` findings); T-001..T-003 outputs are unchanged and omit both keys. `ir_atom.json` is NOT changed. `scripts/validate_contracts.py` validates `data/real/tenders/RT-*.json`, `ir_RT-*.json`, `artifacts/rules_real/*.json` when present, and checks `not_checked`/`vendor_check` consistency.
+- Why: real tender text must be kept with its source and clause numbers, clauses the rule format cannot express must stay visible instead of being dropped, and synthetic vendors must never be evaluated against real tenders.
+- Impacted owners: P4 UI shows the `not_checked` badge; fusion/decision/graph do not consume `rules_real`.

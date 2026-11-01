@@ -5,10 +5,11 @@ JSON Schemas (draft 2020-12) in `schemas/`, one valid example per schema in `exa
 | Schema | SoT | File it validates | Producer | Consumer |
 |---|---|---|---|---|
 | `ir_atom.json` | 8.1 | atoms inside rules output; `data/tenders/ir_T-00x.json` (array of atoms) | P1 `rules/` | P1 `rules/` (Z3), UI |
-| `rules_output.json` | 8.2 | `artifacts/rules/T-xxx.json` | P1 `rules/` | `fusion/`, `api/` |
+| `rules_output.json` | 8.2 | `artifacts/rules/T-xxx.json`, `artifacts/rules_real/RT-xxx.json` (optional `not_checked`, `vendor_check`; CC-05) | P1 `rules/` | `fusion/`, `api/` |
 | `graph_output.json` | 8.3 | `artifacts/graph/graph_output.json` | P2 `graph/` | `fusion/`, `api/` |
 | `fused.json` | 8.4 | `artifacts/fused/T-xxx.json` | P3 `decision/` | `api/`, `ui/` |
 | `tender.json` | 7 | `data/tenders/T-00x.json` | P1 | `rules/`, `api/` |
+| `real_tender.json` | 7 (D31) | `data/real/tenders/RT-xxx.json` | `scripts/import_tender.py` | `rules/` |
 | `kb_passage.json` | 7 | front matter of `kb/passages/KB-xxx.md` | P1 | `decision/`, `api/` |
 | `labels.json` | 7 | `data/labels.json` (evaluation only) | P2 `synth/` | `scripts/evaluate.py` |
 

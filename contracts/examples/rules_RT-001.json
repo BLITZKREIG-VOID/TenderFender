@@ -1,0 +1,13 @@
+{
+  "tender_id": "RT-001",
+  "formalization_status": "unconfirmed",
+  "atoms": [],
+  "findings": [],
+  "qualifying_vendors": [],
+  "vendors_evaluated": 0,
+  "not_checked": [
+    {"clause_id": "CL1", "text": "1. FORMAT EXAMPLE, not a real tender: eligibility clause text goes here.", "reason": "no expressible atom"},
+    {"clause_id": "CL2", "text": "(a) FORMAT EXAMPLE, not a real tender: a second clause keeps the document's own number.", "reason": "no expressible atom"}
+  ],
+  "vendor_check": {"status": "skipped", "reason": "no vendor data for real tenders; synthetic vendors are never used"}
+}
