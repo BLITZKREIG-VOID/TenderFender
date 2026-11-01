@@ -1,12 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://tenderfender/contracts/rules_output.json",
-  "title": "artifacts/rules/T-xxx.json (SoT 8.2)",
+  "title": "artifacts/rules/T-xxx.json, artifacts/rules_real/RT-xxx.json (SoT 8.2, CC-05)",
   "type": "object",
   "additionalProperties": false,
   "required": ["tender_id", "formalization_status", "atoms", "findings", "qualifying_vendors", "vendors_evaluated"],
   "properties": {
-    "tender_id": {"type": "string", "pattern": "^T-\\d{3}$"},
+    "tender_id": {"type": "string", "pattern": "^R?T-\\d{3}$"},
     "formalization_status": {"enum": ["unconfirmed", "confirmed"]},
     "atoms": {"type": "array", "items": {"$ref": "ir_atom.json"}},
     "findings": {"type": "array", "items": {"$ref": "#/$defs/finding"}},
@@ -15,7 +15,29 @@
       "items": {"type": "string", "pattern": "^V-\\d{3}$"},
       "uniqueItems": true
     },
-    "vendors_evaluated": {"type": "integer", "minimum": 0}
+    "vendors_evaluated": {"type": "integer", "minimum": 0},
+    "not_checked": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["clause_id", "text", "reason"],
+        "properties": {
+          "clause_id": {"type": "string", "pattern": "^CL\\d+$"},
+          "text": {"type": "string", "minLength": 1},
+          "reason": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "vendor_check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "reason"],
+      "properties": {
+        "status": {"enum": ["run", "skipped"]},
+        "reason": {"type": "string", "minLength": 1}
+      }
+    }
   },
   "$defs": {
     "finding": {

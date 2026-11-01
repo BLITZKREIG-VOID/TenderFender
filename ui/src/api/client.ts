@@ -40,6 +40,14 @@ export interface RulesData {
   findings: Finding[];
   qualifying_vendors: string[];
   vendors_evaluated: number;
+  not_checked?: NotChecked[];
+  vendor_check?: { status: "run" | "skipped"; reason: string };
+}
+
+export interface NotChecked {
+  clause_id: string;
+  text: string;
+  reason: string;
 }
 
 export interface Citation {
@@ -89,9 +97,16 @@ export interface Passage {
   missing?: boolean;
 }
 
+export interface AtomStatusEntry {
+  status: "confirmed" | "rejected" | "undecided";
+  note: string;
+  at: string | null;
+}
+
 export interface AnalysisResponse {
   fused: FusedData;
   rules: RulesData;
+  atom_status: Record<string, AtomStatusEntry>;
   clauses: Clause[];
   passages: Passage[];
 }
@@ -168,6 +183,12 @@ export const api = {
   confirmAtom: (tenderId: string, atomId: string) =>
     client.post<ConfirmResponse>(
       `/tenders/${tenderId}/atoms/${atomId}/confirm`
+    ),
+
+  rejectAtom: (tenderId: string, atomId: string, note: string) =>
+    client.post<ConfirmResponse>(
+      `/tenders/${tenderId}/atoms/${atomId}/reject`,
+      { note }
     ),
 };
 
