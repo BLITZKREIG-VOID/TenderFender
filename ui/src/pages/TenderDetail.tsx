@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { api } from "../api/client";
-import type { AnalysisResponse, GraphResponse } from "../api/client";
+import type { AnalysisResponse, GraphResponse, RegenerateResponse } from "../api/client";
 import RiskCard from "../components/RiskCard";
 import ClausePanel from "../components/ClausePanel";
 import GraphPanel from "../components/GraphPanel";
 import DecisionPanel from "../components/DecisionPanel";
 import SourceTag from "../components/SourceTag";
+import RegeneratePanel from "../components/RegeneratePanel";
+import ChatPanel from "../components/ChatPanel";
 import { ErrorCard } from "../components/UIStates";
 import { Skeleton, PanelSkeleton } from "../components/Skeleton";
 import { ArrowLeft, RefreshCw, FileText, ExternalLink, Network } from "lucide-react";
@@ -18,6 +20,8 @@ export default function TenderDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [regen, setRegen] = useState<RegenerateResponse | null>(null);
+  const [showing, setShowing] = useState<"shared" | "user">("shared");
 
   const fetchData = (showLoading = true) => {
     if (!id) return;
@@ -44,6 +48,8 @@ export default function TenderDetail() {
 
   useEffect(() => {
     fetchData(true);
+    setRegen(null);
+    setShowing("shared");
   }, [id]);
 
   // Persisted decision; throws a readable message so the clause panel can show it (e.g. 503 read-only store).
@@ -230,10 +236,32 @@ export default function TenderDetail() {
         )}
       </div>
 
-      {/* Bottom: Decision panel */}
+      {/* Bottom: re-generation with the user's own model, then the decision panel */}
+      <RegeneratePanel
+        tenderId={analysis.fused.tender_id}
+        result={regen}
+        showing={showing}
+        onResult={setRegen}
+        onShow={setShowing}
+      />
       <div className="mt-6">
-        <DecisionPanel fused={analysis.fused} passages={analysis.passages} />
+        <DecisionPanel
+          fused={
+            regen && showing === "user"
+              ? {
+                  ...analysis.fused,
+                  reasoning: regen.reasoning,
+                  recommended_actions: regen.recommended_actions,
+                  citations: regen.citations,
+                  decision_source: regen.decision_source,
+                }
+              : analysis.fused
+          }
+          passages={analysis.passages}
+        />
       </div>
+
+      <ChatPanel tenderId={analysis.fused.tender_id} passages={analysis.passages} />
     </div>
   );
 }

@@ -6,11 +6,13 @@ interface Props {
   passages: Passage[];
 }
 
-// "llm" and "cache" (a stored LLM answer) are AI-written; "template" is the deterministic writer.
+// "llm" and "cache" (a stored LLM answer) are AI-written; "template" is the deterministic writer;
+// "user_llm" is a signed-in user's re-generation with their own key.
 function sourceLabel(source: string): string {
   if (source === "template") return "Template";
   if (source === "cache") return "Cached LLM";
   if (source === "llm") return "LLM";
+  if (source === "user_llm") return "Your model";
   return source;
 }
 
@@ -23,7 +25,7 @@ interface CitationDetails {
 }
 
 // Display metadata for a citation; guideline titles/links come from the passages the API read from kb/passages.
-function getCitationDetails(cite: Citation, passages: Passage[]): CitationDetails {
+export function getCitationDetails(cite: Citation, passages: Passage[]): CitationDetails {
   if (cite.kind === "guideline") {
     const passage = passages.find((p) => p.passage_id === cite.ref);
     const title = cite.source_title ?? (!passage?.missing ? passage?.source_title : undefined);
