@@ -1,0 +1,80 @@
+{
+  "tender_id": "RT-009",
+  "title": "Proposed BT for approach road (DBM, SDBC layer) connecting to service building and providing MS grill fencing from Toll Plaza (on either side) to compound wall, Visitors complex, SDSC SHAR.",
+  "source_portal": "ISRO website (isro.gov.in)",
+  "source_url": "https://www.isro.gov.in/media_isro/pdf/Tenders/2026/NIT_268718_Website_Update_12082026.pdf",
+  "source_ref": "E-Tender Notice No. CMG/C/CON/268718 Dt: 10/08/2026",
+  "retrieved": "2026-11-01",
+  "clauses": [
+    {
+      "clause_id": "CL1",
+      "source_clause_no": "b",
+      "text": "b. | Estimated cost put to tender | Rs. 131 Lakhs",
+      "needs_review": true
+    },
+    {
+      "clause_id": "CL2",
+      "source_clause_no": "c",
+      "text": "c. | Period of completion in months reckoned from the 15th day of date of issue of work order. | (06) / Six (06) Months",
+      "needs_review": true
+    },
+    {
+      "clause_id": "CL3",
+      "source_clause_no": "d",
+      "text": "d. | Period during which the tender document can be requested | 14/08/2026 10:00 20/08/2026 14:00 From: 14/08/2026, 10:00 Hrs. To: 20/08/2026 , 14:00 Hrs.",
+      "needs_review": true
+    },
+    {
+      "clause_id": "CL4",
+      "source_clause_no": "e",
+      "text": "e. | Period during which the tender document can be downloaded. | 14/08/2026 10:30 20/08/2026 14:30 From: 14/08/2026, 10:30 Hrs. To: 20/08/2026 , 14:30 Hrs.",
+      "needs_review": true
+    },
+    {
+      "clause_id": "CL5",
+      "source_clause_no": "h",
+      "text": "h. | Last date and time for receipt of tenders. | 25/08/2026 14:30 Up to 14:30 Hrs on 25/08/2026",
+      "needs_review": true
+    },
+    {
+      "clause_id": "CL6",
+      "source_clause_no": "j",
+      "text": "j. | Earnest money deposit (EMD) | Rs. 2,62,000/- The Main Bidder shall fulfill the following conditions.",
+      "needs_review": true
+    },
+    {
+      "clause_id": "CL7",
+      "source_clause_no": "a",
+      "text": "a (A) Should have satisfactorily completed the works as mentioned below during the last 7 years ending previous day of last date of submission of bids i. similar works each costing not less than 40% of the (or) ii. Two similar works each costing not less than 60% of the (or) iii. One similar work costing not less than 80% of the estimated cost i.e. Rs. 104.80 Lakhs Documentary proof: i. Certified copy of Work orders and completion certificates issued by the authority concerned to establish work experience. ii. Completion certificates for works issued by Private parties shall be supported by TDS (Tax Deducted at Source) certificates."
+    },
+    {
+      "clause_id": "CL8",
+      "source_clause_no": "b",
+      "text": "b Similar work shall mean “BT Road works or Major Civil works with BT Road work” i. The value of executed works shall be brought to current costing level by enhancing the actual value of work at simple rate of 7% per annum, calculated from the date of completion to last date of submission of bids. ii. Work executed as sub-contract or joint venture will not merit for eligibility/evaluation.",
+      "needs_review": true
+    },
+    {
+      "clause_id": "CL9",
+      "source_clause_no": "c",
+      "text": "c Should have had average annual financial turnover not less than 30% of the estimated cost (i.e. Rs. 39.30 Lakhs) of the work during the last three years ending 31st March of preceding year (i.e. 31/03/2025). Documentary proof: Charted Accountant certificate for the Annual financial turnover and Balance sheet showing Profit & Loss.",
+      "needs_review": true
+    },
+    {
+      "clause_id": "CL10",
+      "source_clause_no": "d",
+      "text": "d Should not have incurred any loss in more than two years during the last five years ending 31/03/2025",
+      "needs_review": true
+    },
+    {
+      "clause_id": "CL11",
+      "source_clause_no": "e",
+      "text": "e Should have a solvency of 40% of the Estimated cost of the work. (Not less than Rs. 52.40 Lakhs) Documentary proof: Current Solvency Certificate from any Scheduled Bank, issued not older than 6 Months from the last date of Submission of Bids.",
+      "needs_review": true
+    },
+    {
+      "clause_id": "CL12",
+      "source_clause_no": "f",
+      "text": "f The bidding capacity of the contractor should be more than the estimated cost of the work put to tender. The bidding capacity shall be worked out and declared by the tenderer and enclosed with the request for tender document based on the formula: (AxNx2)-B Maximum value of work executed in one year (maximum turnover in one year) during last 5 financial years at current price level taking into account the work completed as well as work in progress. Value of existing commitments and ongoing work to be completed during the next ‘N’ years (i.e. Period of completion in months/12) at current price level. Number of years (N=period of completion in months/12) prescribed for completion of the subject contract for which bids are invited. Documentary proof: i) A statement of ongoing works indicating financial commitment for each of these works during the stipulated period of completion mentioned for the subject tender as per format 1 enclosed herewith. This is required in support of parameter ‘B’ ii) Current costing level for value of work may be worked out as mentioned in the note (ii) above."
+    }
+  ]
+}

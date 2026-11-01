@@ -1,0 +1,31 @@
+# One line per hand fix. Format: file: reason. (Working codes c00..c17 mapped to RT numbers.)
+RT-007 (c04): heading line above the table was missed
+RT-008 (c05): heading line above the table was missed
+RT-008 (c05): letter-spacing in the PDF text layer
+RT-008 (c05): letter-spacing in the PDF text layer
+RT-009 (c06): heading line above the table was missed
+RT-010 (c08): heading line above the table was missed
+RT-004 (c09): reference was split over two lines in the PDF
+RT-011 (c10): heading line above the table was missed
+RT-005 (c11): reference was split over two lines in the PDF
+RT-012 (c12): reference words were out of order (cell mixes Hindi and English)
+RT-012 (c12): stray list markers from the Hindi lines
+RT-012 (c12): third column holds the amount here, not documentary proof
+RT-012 (c12): third column holds the amount here, not documentary proof
+RT-012 (c12): amount column label; Note block sits outside the table and was missed
+RT-012 (c12): third column holds the amount here, not documentary proof
+RT-012 (c12): fragment of the Hindi line; the English line below states the same amount
+RT-012 (c12): fragment of the Hindi line
+RT-012 (c12): fragment of the Hindi line
+RT-012 (c12): fragment of the Hindi line
+RT-012 (c12): duplicated marker from the Hindi line
+RT-013 (c14): note printed after the table was missed
+RT-006 (c16): reference was split over two lines in the PDF
+RT-014 (c17): note printed after the table was missed
+RT-012 (c12): reference tail duplicated by the first fix
+RT-013 (c14): cost row merged with the title cell and was missed (PDF: 'Rs.612 लाख / Lakhs')
+RT-014 (c17): cost row merged with the title cell and was missed (PDF: 'Rs. 121.00 लाख / Lakhs')
+RT-004 (c09): removed 3 doubled list/variable markers (one copy came from the Hindi line)
+RT-005 (c11): removed 3 doubled list/variable markers (one copy came from the Hindi line)
+RT-013 (c14): removed 1 doubled list/variable markers (one copy came from the Hindi line)
+RT-006 (c16): removed 3 doubled list/variable markers (one copy came from the Hindi line)
