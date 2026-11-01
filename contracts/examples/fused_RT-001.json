@@ -1,0 +1,17 @@
+{
+  "tender_id": "RT-001",
+  "title": "FORMAT EXAMPLE, not a real tender",
+  "source": "real",
+  "risk_level": "low",
+  "rule_finding_ids": [],
+  "graph_flag_ring_ids": [],
+  "linked_vendors": [],
+  "network_check": {"status": "not_applicable", "reason": "needs bid data (post-award)"},
+  "summary": "Risk indicators for RT-001: no rule findings; network check not applicable (needs bid data (post-award)). Risk level: low.",
+  "decision": "clear",
+  "reasoning": "Template reasoning: generated from a fixed template, not written by the AI model. No rule findings and no flagged rings are linked to this tender, so there are no risk indicators to explain and nothing to cite from the knowledge base.",
+  "citations": [],
+  "recommended_actions": ["No action required beyond standard procurement review."],
+  "decision_source": "template",
+  "disclaimer": "Risk indicators only; not a finding of wrongdoing. Recommendation requires human review."
+}

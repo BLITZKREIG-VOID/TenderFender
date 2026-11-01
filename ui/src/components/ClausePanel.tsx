@@ -11,7 +11,7 @@ interface Props {
   onReject: (atomId: string, note: string) => Promise<void>;
 }
 
-export default function ClausePanel({ rules, atomStatus, onConfirm, onReject }: Props) {
+export default function ClausePanel({ rules, clauses, atomStatus, onConfirm, onReject }: Props) {
   const [confirming, setConfirming] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -42,6 +42,9 @@ export default function ClausePanel({ rules, atomStatus, onConfirm, onReject }: 
     if (note === null) return; // cancelled
     return run(atomId, () => onReject(atomId, note.trim()));
   };
+
+  // Real tenders keep the source document's own clause numbers
+  const sourceNo = (clauseId: string) => clauses?.find((c) => c.clause_id === clauseId)?.source_clause_no;
 
   const isConfirmed = rules.formalization_status === "confirmed";
 
@@ -152,6 +155,7 @@ export default function ClausePanel({ rules, atomStatus, onConfirm, onReject }: 
                         </span>
                         <span className="text-xs font-bold text-gray-800 bg-white px-2 py-0.5 rounded border border-gray-400">
                           Clause: {atom.clause_id}
+                          {sourceNo(atom.clause_id) ? ` (source no. ${sourceNo(atom.clause_id)})` : ""}
                         </span>
                         {isFlagged && (
                           <span className="text-xs font-black px-2 py-0.5 rounded bg-red-700 text-white border border-red-950 uppercase tracking-wider">
@@ -231,6 +235,7 @@ export default function ClausePanel({ rules, atomStatus, onConfirm, onReject }: 
                   <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                     <span className="text-xs font-bold text-gray-800 bg-white px-2 py-0.5 rounded border border-gray-400">
                       Clause: {nc.clause_id}
+                      {sourceNo(nc.clause_id) ? ` (source no. ${sourceNo(nc.clause_id)})` : ""}
                     </span>
                     <span className="text-xs font-black px-2 py-0.5 rounded bg-gray-700 text-white border border-gray-950 uppercase tracking-wider">
                       Not checked automatically

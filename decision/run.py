@@ -3,7 +3,7 @@
 Modes (never silently falls back):
   template  deterministic writer, no network. Does not write the cache.
   llm       OpenRouter writer (needs OPENROUTER_API_KEY; model from DECISION_MODEL). Writes the cache.
-  cache     use artifacts/decisions/T-xxx.json only if its input_hash matches, else error.
+  cache     use artifacts/decisions/<tender_id>.json only if its input_hash matches, else error.
   auto      cache hit -> cache; else OPENROUTER_API_KEY present -> llm; else error.
 Tenders with no findings and no rings always use the template (no LLM call, nothing to explain)."""
 
@@ -123,9 +123,9 @@ def run(fusion_dir: Path, kb_dir: Path, out_dir: Path, cache_dir: Path, *, mode:
         raise DecisionError(f"unknown mode {mode!r}; choose one of {', '.join(MODES)}")
     if not fusion_dir.is_dir():
         raise DecisionError(f"missing fusion directory: {fusion_dir}")
-    files = sorted(fusion_dir.glob("T-*.json"))
+    files = sorted([*fusion_dir.glob("T-*.json"), *fusion_dir.glob("RT-*.json")])
     if not files:
-        raise DecisionError(f"no T-*.json files in {fusion_dir}")
+        raise DecisionError(f"no T-*.json or RT-*.json files in {fusion_dir}")
 
     passages = load_passages(kb_dir)
     placeholder_ids = set() if allow_placeholder else {p.passage_id for p in passages if p.placeholder}
@@ -137,8 +137,8 @@ def run(fusion_dir: Path, kb_dir: Path, out_dir: Path, cache_dir: Path, *, mode:
     for ff in files:
         fusion = json.loads(ff.read_text(encoding="utf-8"))
         tid = fusion["tender_id"]
-        if not isinstance(tid, str) or not re.fullmatch(r"T-\d{3}", tid) or ff.stem != tid:
-            raise DecisionError(f"{ff}: tender_id {tid!r} must match T-NNN and the file name")
+        if not isinstance(tid, str) or not re.fullmatch(r"R?T-\d{3}", tid) or ff.stem != tid:
+            raise DecisionError(f"{ff}: tender_id {tid!r} must match T-NNN or RT-NNN and the file name")
         if DECISION_BY_RISK.get(fusion["risk_level"]) != fusion["decision"]:
             raise DecisionError(f"{tid}: decision {fusion['decision']!r} does not match risk_level "
                                 f"{fusion['risk_level']!r} (expected {DECISION_BY_RISK.get(fusion['risk_level'])!r})")
@@ -155,9 +155,11 @@ def run(fusion_dir: Path, kb_dir: Path, out_dir: Path, cache_dir: Path, *, mode:
         final.update({"reasoning": fields["reasoning"], "citations": citations,
                       "recommended_actions": fields["recommended_actions"],
                       "decision_source": source, "disclaimer": DISCLAIMER})
-        ordered = ["tender_id", "title", "risk_level", "rule_finding_ids", "graph_flag_ring_ids", "linked_vendors",
-                   "summary", "decision", "reasoning", "citations", "recommended_actions", "decision_source", "disclaimer"]
-        final = {k: final[k] for k in ordered}
+        # `source` / `network_check` are optional (CC-06): only real-tender fusion emits them, so demo output is unchanged.
+        ordered = ["tender_id", "title", "source", "risk_level", "rule_finding_ids", "graph_flag_ring_ids",
+                   "linked_vendors", "network_check", "summary", "decision", "reasoning", "citations",
+                   "recommended_actions", "decision_source", "disclaimer"]
+        final = {k: final[k] for k in ordered if k in final}
         out = out_dir / f"{tid}.json"
         out.write_text(json.dumps(final, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         written.append(out)

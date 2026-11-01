@@ -494,3 +494,73 @@ def test_auto_without_key_error_names_key_and_template_mode(env):
     with pytest.raises(drun.DecisionError) as ei:
         go(env, "auto")
     assert "OPENROUTER_API_KEY" in str(ei.value) and "DECISION_MODE=template" in str(ei.value)
+
+
+# ---------------------------------------------------------------- real-tender ids (RT-NNN), CC-06
+
+def make_real_fusion(tid="RT-001", with_finding=True):
+    f = make_fusion(tid, with_ring=False, risk="medium" if with_finding else "low",
+                    decision="review" if with_finding else "clear")
+    f["title"] = "FORMAT EXAMPLE, not a real tender"
+    f["source"] = "real"
+    f["network_check"] = {"status": "not_applicable", "reason": "needs bid data (post-award)"}
+    f["linked_vendors"] = []
+    f["_inputs"]["findings"][0]["type"] = "contradiction"
+    f["_inputs"]["findings"][0]["severity"] = "high"
+    if not with_finding:
+        f["rule_finding_ids"] = []
+        f["_inputs"]["findings"] = []
+    return f
+
+
+def put_fusion(env, name, doc):
+    (env["fusion_dir"] / f"{name}.json").write_text(json.dumps(doc))
+
+
+def test_rt_id_accepted_and_optional_fields_kept(env):
+    put_fusion(env, "RT-001", make_real_fusion())
+    go(env, "template")
+    rec = read(env, "RT-001")
+    assert rec["tender_id"] == "RT-001" and rec["source"] == "real"
+    assert rec["network_check"] == {"status": "not_applicable", "reason": "needs bid data (post-award)"}
+    assert (rec["risk_level"], rec["decision"], rec["decision_source"]) == ("medium", "review", "template")
+    assert rec["reasoning"].startswith(write.TEMPLATE_NOTE)
+    assert {"ref": "F-1", "kind": "finding"} in rec["citations"]
+    # synthetic records stay free of the optional fields (demo output unchanged)
+    assert "source" not in read(env, "T-002") and "network_check" not in read(env, "T-002")
+
+
+def test_rt_auto_without_cache_or_key_fails_loudly(env):
+    put_fusion(env, "RT-001", make_real_fusion())
+    with pytest.raises(drun.DecisionError, match="RT-001.*DECISION_MODE=template"):
+        go(env, "auto")
+
+
+def test_rt_without_findings_uses_template_even_in_auto(env):
+    (env["fusion_dir"] / "T-002.json").unlink()  # T-002 has findings and would (correctly) need a key
+    put_fusion(env, "RT-002", make_real_fusion("RT-002", with_finding=False))
+    go(env, "auto")
+    rec = read(env, "RT-002")
+    assert (rec["decision_source"], rec["decision"], rec["citations"]) == ("template", "clear", [])
+
+
+@pytest.mark.parametrize("name,tid", [
+    ("RT-001", "T-001"),      # file stem differs from tender_id
+    ("RT-001", "RT-1"),       # wrong digit count
+    ("RT-001", "RRT-001"),    # prefix is not widened beyond one R
+    ("RT-001", "XT-001"),
+    ("RT-001", "RT-001 "),
+    ("RT-001", "rt-001"),
+])
+def test_rt_guard_rejects_bad_tender_ids(env, name, tid):
+    doc = make_real_fusion()
+    doc["tender_id"] = tid
+    put_fusion(env, name, doc)
+    with pytest.raises(drun.DecisionError, match="must match T-NNN or RT-NNN and the file name"):
+        go(env, "template")
+
+
+def test_rt_stem_must_equal_tender_id(env):
+    put_fusion(env, "RT-009", make_real_fusion("RT-001"))
+    with pytest.raises(drun.DecisionError, match="file name"):
+        go(env, "template")

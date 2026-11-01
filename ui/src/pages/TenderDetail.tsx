@@ -6,9 +6,10 @@ import RiskCard from "../components/RiskCard";
 import ClausePanel from "../components/ClausePanel";
 import GraphPanel from "../components/GraphPanel";
 import DecisionPanel from "../components/DecisionPanel";
+import SourceTag from "../components/SourceTag";
 import { ErrorCard } from "../components/UIStates";
 import { Skeleton, PanelSkeleton } from "../components/Skeleton";
-import { ArrowLeft, RefreshCw, FileText } from "lucide-react";
+import { ArrowLeft, RefreshCw, FileText, ExternalLink, Network } from "lucide-react";
 
 export default function TenderDetail() {
   const { id } = useParams<{ id: string }>();
@@ -158,6 +159,25 @@ export default function TenderDetail() {
             <h1 className="text-2xl sm:text-3xl font-black text-black tracking-tight mt-0.5 leading-snug">
               {analysis.fused.title}
             </h1>
+            <div className="mt-2 flex flex-wrap items-center gap-3 text-sm font-bold text-gray-900">
+              <SourceTag source={analysis.source} />
+              {analysis.source === "real" && analysis.source_url && (
+                <a
+                  href={analysis.source_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-blue-800 underline decoration-2 hover:text-blue-950"
+                >
+                  <ExternalLink size={14} /> Source: {analysis.source_url}
+                </a>
+              )}
+              {analysis.source === "real" && analysis.source_portal && (
+                <span>Portal: {analysis.source_portal}</span>
+              )}
+              {analysis.source === "real" && analysis.retrieved && (
+                <span>Retrieved: {analysis.retrieved}</span>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -177,7 +197,25 @@ export default function TenderDetail() {
         />
 
         {/* Right: Graph panel */}
-        <GraphPanel data={graphData} />
+        {analysis.fused.network_check?.status === "not_applicable" ? (
+          <div
+            data-testid="network-check-na"
+            className="bg-white rounded-xl shadow-md border-4 border-gray-900 p-6 text-black flex flex-col gap-3"
+          >
+            <h2 className="text-xl font-black flex items-center gap-2 uppercase tracking-wide border-b-2 border-gray-300 pb-3">
+              <Network size={24} /> Network Check
+            </h2>
+            <p className="text-base font-bold text-gray-900">
+              Network check: needs bid data (post-award)
+            </p>
+            <p className="text-sm font-bold text-gray-700">
+              No vendor or bidder graph is evaluated for a real tender before award, so there is no ring or
+              linked-vendor result to show.
+            </p>
+          </div>
+        ) : (
+          <GraphPanel data={graphData} />
+        )}
       </div>
 
       {/* Bottom: Decision panel */}

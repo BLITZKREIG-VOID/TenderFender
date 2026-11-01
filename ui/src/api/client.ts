@@ -12,6 +12,14 @@ export interface TenderSummary {
   title: string;
   risk_level: "low" | "medium" | "high";
   decision: "clear" | "review" | "escalate";
+  source: TenderSource;
+}
+
+export type TenderSource = "real" | "synthetic_demo";
+
+export interface NetworkCheck {
+  status: "not_applicable";
+  reason: string;
 }
 
 export interface Atom {
@@ -73,6 +81,8 @@ export interface FusedData {
   rule_finding_ids: string[];
   graph_flag_ring_ids: string[];
   linked_vendors: LinkedVendor[];
+  source?: TenderSource;
+  network_check?: NetworkCheck;
   summary: string;
   reasoning: string;
   citations: Citation[];
@@ -84,6 +94,8 @@ export interface FusedData {
 export interface Clause {
   clause_id: string;
   text: string;
+  source_clause_no?: string;
+  needs_review?: boolean;
 }
 
 export interface Passage {
@@ -104,6 +116,11 @@ export interface AtomStatusEntry {
 }
 
 export interface AnalysisResponse {
+  source: TenderSource;
+  source_portal?: string | null;
+  source_url?: string | null;
+  source_ref?: string | null;
+  retrieved?: string | null;
   fused: FusedData;
   rules: RulesData;
   atom_status: Record<string, AtomStatusEntry>;
@@ -159,6 +176,7 @@ export interface GraphResponse {
   rings: Ring[];
   vendor_scores: Record<string, number>;
   metrics: GraphMetrics;
+  network_check?: NetworkCheck;
 }
 
 export interface ConfirmResponse {

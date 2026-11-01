@@ -161,3 +161,95 @@ def test_missing_bids_raises(tmp_path):
     (data / "bids.csv").unlink()
     with pytest.raises(InputError, match="bids.csv"):
         run(tmp_path / "rules", tmp_path / "graph.json", data, tmp_path / "out")
+
+
+# ---------------------------------------------------------------- real-tender mode (SoT 8.4, CC-06)
+
+from fusion.fuse import fuse_real  # noqa: E402
+from fusion.run import run_real  # noqa: E402
+
+SKIPPED = {"status": "skipped", "reason": "no vendor data for real tenders; synthetic vendors are never used"}
+NETWORK_NA = {"status": "not_applicable", "reason": "needs bid data (post-award)"}
+
+
+def real_rules(findings=()):
+    r = rules("RT-001", findings)
+    r.update({"vendors_evaluated": 0, "not_checked": [], "vendor_check": dict(SKIPPED)})
+    return r
+
+
+def test_real_clean_is_low_clear_with_network_not_applicable():
+    out = fuse_real(real_rules(), "FORMAT EXAMPLE, not a real tender")
+    assert (out["risk_level"], out["decision"], out["source"]) == ("low", "clear", "real")
+    assert out["graph_flag_ring_ids"] == [] and out["linked_vendors"] == []
+    assert out["network_check"] == NETWORK_NA
+    assert out["_inputs"] == {"findings": [], "rings": []}
+    assert "no rule findings" in out["summary"] and "network check not applicable" in out["summary"]
+
+
+def test_real_high_severity_finding_is_medium_review_never_high():
+    out = fuse_real(real_rules([finding(severity="high")]), "t")
+    assert (out["risk_level"], out["decision"]) == ("medium", "review")
+    assert out["rule_finding_ids"] == ["F-1"] and "F-1: contradiction" in out["summary"]
+
+
+def test_real_low_severity_finding_stays_low():
+    assert fuse_real(real_rules([finding(severity="low")]), "t")["risk_level"] == "low"
+
+
+def test_real_requires_skipped_vendor_check():
+    bad = real_rules()
+    bad["vendor_check"] = {"status": "run", "reason": "x"}
+    with pytest.raises(ValueError, match="vendor_check"):
+        fuse_real(bad, "t")
+    del bad["vendor_check"]
+    with pytest.raises(ValueError, match="vendor_check"):
+        fuse_real(bad, "t")
+
+
+def test_synthetic_fuse_has_no_real_fields():
+    out = fuse(rules("T-001", [finding()]), graph([R1]), set(), "t")
+    assert "source" not in out and "network_check" not in out
+
+
+def _real_dirs(tmp_path, rules_doc=None, name="RT-001"):
+    rdir, ddir = tmp_path / "rules_real", tmp_path / "real"
+    (ddir / "tenders").mkdir(parents=True)
+    rdir.mkdir()
+    (ddir / "tenders" / "RT-001.json").write_text(json.dumps({"title": "FORMAT EXAMPLE, not a real tender"}))
+    (rdir / f"{name}.json").write_text(json.dumps(rules_doc or real_rules()))
+    return rdir, ddir
+
+
+def test_run_real_writes_only_rt_files_without_graph_or_bids(tmp_path):
+    rdir, ddir = _real_dirs(tmp_path)
+    (rdir / "T-001.json").write_text(json.dumps(rules("T-001")))  # a stray T- file is ignored
+    out = tmp_path / "fusion_real"
+    written = run_real(rdir, ddir, out)
+    assert [p.name for p in written] == ["RT-001.json"]
+    doc = json.loads((out / "RT-001.json").read_text())
+    assert doc["title"] == "FORMAT EXAMPLE, not a real tender" and doc["network_check"] == NETWORK_NA
+
+
+def test_run_real_errors(tmp_path):
+    with pytest.raises(InputError, match="missing rules directory"):
+        run_real(tmp_path / "nope", tmp_path, tmp_path / "o")
+    rdir, ddir = _real_dirs(tmp_path / "a", real_rules(), name="RT-002")
+    with pytest.raises(InputError, match="RT-002.json contains tender_id"):
+        run_real(rdir, ddir, tmp_path / "o")
+    bad = real_rules()
+    del bad["vendor_check"]
+    rdir, ddir = _real_dirs(tmp_path / "b", bad)
+    with pytest.raises(InputError, match="vendor_check"):
+        run_real(rdir, ddir, tmp_path / "o")
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    with pytest.raises(InputError, match="no RT-\\*.json"):
+        run_real(empty, ddir, tmp_path / "o")
+
+
+def test_cli_real_does_not_need_graph_and_non_real_does(tmp_path, capsys):
+    rdir, ddir = _real_dirs(tmp_path)
+    assert main(["--real", "--rules-dir", str(rdir), "--data-dir", str(ddir), "--out-dir", str(tmp_path / "o")]) == 0
+    with pytest.raises(SystemExit):
+        main(["--rules-dir", str(rdir), "--data-dir", str(ddir), "--out-dir", str(tmp_path / "o2")])

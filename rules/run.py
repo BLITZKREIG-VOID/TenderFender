@@ -40,6 +40,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--out-dir", type=str, default="artifacts/rules", help="Output directory")
     parser.add_argument("--write-cache", action="store_true", help="Write compiled IR to cache")
+    parser.add_argument(
+        "--require-confirmed", action="store_true",
+        help="RT- tenders only: read ir_<id>.confirmed.json (see docs/REVIEW_ATOMS.md); if absent, fail unless "
+             "ALLOW_UNCONFIRMED=1, in which case the unconfirmed cached IR is used and the output stays 'unconfirmed'",
+    )
 
     args = parser.parse_args(argv)
 
@@ -113,7 +118,22 @@ def main(argv: list[str] | None = None) -> int:
         tender_clauses = {c["clause_id"]: c["text"] for c in tender_data.get("clauses", [])}
 
         atoms: list[Atom] = []
+        formalization_status = "unconfirmed"
         cache_file = data_dir / "tenders" / f"ir_{tender_id}.json"
+
+        if args.require_confirmed and tender_id.startswith("RT-") and rules_use_cache == "1":
+            confirmed_file = data_dir / "tenders" / f"ir_{tender_id}.confirmed.json"
+            if confirmed_file.exists():
+                cache_file = confirmed_file
+                formalization_status = "confirmed"
+            elif os.environ.get("ALLOW_UNCONFIRMED") == "1":
+                sys.stderr.write(f"Warning: {tender_id} has no {confirmed_file.name}; using UNCONFIRMED IR {cache_file.name}\n")
+            else:
+                sys.stderr.write(
+                    f"Error: {tender_id} has no confirmed IR ({confirmed_file}). Review and confirm its atoms, then "
+                    "export (see docs/REVIEW_ATOMS.md), or set ALLOW_UNCONFIRMED=1 to proceed with unconfirmed atoms.\n")
+                success = False
+                continue
 
         if rules_use_cache == "1":
             if not cache_file.exists():
@@ -188,7 +208,7 @@ def main(argv: list[str] | None = None) -> int:
 
         output = {
             "tender_id": tender_id,
-            "formalization_status": "unconfirmed",
+            "formalization_status": formalization_status,
             "atoms": [a.model_dump() for a in atoms],
             "findings": check_result["findings"],
             "qualifying_vendors": check_result["qualifying_vendors"],

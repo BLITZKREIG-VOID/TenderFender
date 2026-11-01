@@ -10,7 +10,9 @@ import json
 import sys
 from pathlib import Path
 
-from fusion.fuse import fuse
+import re
+
+from fusion.fuse import fuse, fuse_real
 
 
 class InputError(Exception):
@@ -68,15 +70,46 @@ def run(rules_dir: Path, graph_path: Path, data_dir: Path, out_dir: Path) -> lis
     return written
 
 
+def run_real(rules_dir: Path, data_dir: Path, out_dir: Path) -> list[Path]:
+    """Real-tender mode: RT-*.json rules only; no graph, no bids (SoT 8.4)."""
+    if not rules_dir.is_dir():
+        raise InputError(f"missing rules directory: {rules_dir}")
+    rules_files = sorted(rules_dir.glob("RT-*.json"))
+    if not rules_files:
+        raise InputError(f"no RT-*.json files in {rules_dir}")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    written = []
+    for rf in rules_files:
+        rules = _load_json(rf)
+        tender_id = rules["tender_id"]
+        if not re.fullmatch(r"RT-\d{3}", str(tender_id)) or rf.stem != tender_id:
+            raise InputError(f"{rf} contains tender_id {tender_id}")
+        try:
+            record = fuse_real(rules, _title(tender_id, data_dir))
+        except ValueError as exc:
+            raise InputError(str(exc)) from exc
+        out = out_dir / f"{tender_id}.json"
+        out.write_text(json.dumps(record, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        written.append(out)
+        print(f"fusion {tender_id}: risk={record['risk_level']} decision={record['decision']} -> {out}")
+    return written
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="fusion.run")
     ap.add_argument("--rules-dir", type=Path, required=True)
-    ap.add_argument("--graph", type=Path, required=True)
+    ap.add_argument("--graph", type=Path, help="graph_output.json (required unless --real)")
+    ap.add_argument("--real", action="store_true", help="real-tender mode: RT-*.json rules, no graph, no bids")
     ap.add_argument("--data-dir", type=Path, required=True)
     ap.add_argument("--out-dir", type=Path, required=True)
     args = ap.parse_args(argv)
+    if not args.real and args.graph is None:
+        ap.error("--graph is required unless --real is given")
     try:
-        run(args.rules_dir, args.graph, args.data_dir, args.out_dir)
+        if args.real:
+            run_real(args.rules_dir, args.data_dir, args.out_dir)
+        else:
+            run(args.rules_dir, args.graph, args.data_dir, args.out_dir)
     except InputError as exc:
         print(f"fusion error: {exc}", file=sys.stderr)
         return 2
