@@ -45,16 +45,27 @@ export default function TenderDetail() {
     fetchData(true);
   }, [id]);
 
-  const handleConfirm = async (atomId: string) => {
-    if (!id) return;
+  // Persisted decision; throws a readable message so the clause panel can show it (e.g. 503 read-only store).
+  const decide = async (call: () => Promise<unknown>) => {
     setIsRefreshing(true);
     try {
-      await api.confirmAtom(id, atomId);
+      await call();
       fetchData(false); // reload quietly
     } catch (err: unknown) {
-      console.error("Confirmation error:", err);
       setIsRefreshing(false);
+      const e = err as { response?: { data?: { detail?: { error?: string } } }; message?: string };
+      throw new Error(e?.response?.data?.detail?.error ?? e?.message ?? "Could not save the decision");
     }
+  };
+
+  const handleConfirm = async (atomId: string) => {
+    if (!id) return;
+    await decide(() => api.confirmAtom(id, atomId));
+  };
+
+  const handleReject = async (atomId: string, note: string) => {
+    if (!id) return;
+    await decide(() => api.rejectAtom(id, atomId, note));
   };
 
   if (loading) {
@@ -161,6 +172,8 @@ export default function TenderDetail() {
           rules={analysis.rules}
           clauses={analysis.clauses}
           onConfirm={handleConfirm}
+          onReject={handleReject}
+          atomStatus={analysis.atom_status}
         />
 
         {/* Right: Graph panel */}
