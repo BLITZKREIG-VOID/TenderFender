@@ -364,6 +364,8 @@ def generate_vendors(
     #   Non-cohort: forced to fail T-003 on exactly one criterion.
     # This keeps the total T-003 qualifier count in the target range of 20-30
     # (plus ~7 from R-1/R-2 reserved vendors that naturally qualify, for ~32 total).
+    used_addresses = {v["address_id"] for v in vendors}
+    used_contacts = {v["contact_id"] for v in vendors}
     address_counter = 10   # start address pool from A-010 to keep A-007 clean
     contact_counter = 1
     _t003_cohort_classes = ["Class-A", "Class-B", "Class-C"]
@@ -373,10 +375,18 @@ def generate_vendors(
             continue
 
         # Deterministic address / contact (DATA-001 provisional)
+        # Skip every ID already held by a reserved/planted vendor so only the
+        # planted R-1 vendors ever share an address or contact.
         address_counter += 1
+        while _aid(address_counter) in used_addresses:
+            address_counter += 1
         contact_counter += 1
+        while _ctid(contact_counter) in used_contacts:
+            contact_counter += 1
         aid = _aid(address_counter)
         ctid = _ctid(contact_counter)
+        used_addresses.add(aid)
+        used_contacts.add(ctid)
 
         if vn in T003_COHORT_VENDOR_NUMS:
             # T-003 qualifying cohort: non-MSE, turnover [15-80] cr, experience [5-20] yrs.

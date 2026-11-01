@@ -1241,3 +1241,52 @@ class TestRollbackOnRenameFailure:
 
         assert not list(tmp_path.glob("*.tmp")), "Leftover .tmp files after rollback"
         assert not list(tmp_path.glob("*.bak")), "Leftover .bak files after rollback"
+
+
+# ---------------------------------------------------------------------------
+# Accidental shared address / contact links
+# ---------------------------------------------------------------------------
+
+class TestNoAccidentalSharedLinks:
+    @staticmethod
+    def _by_id(data, vid):
+        return next(v for v in data["vendors"] if v["vendor_id"] == vid)
+
+    def test_only_planted_ring_shares_address_or_contact(self, default_data):
+        r1 = {_vid(n) for n in R1_VENDOR_IDS}
+        for field in ("address_id", "contact_id"):
+            holders: dict[str, set[str]] = {}
+            for v in default_data["vendors"]:
+                holders.setdefault(v[field], set()).add(v["vendor_id"])
+            for value, vids in holders.items():
+                assert len(vids) == 1 or vids == r1, f"{field} {value} shared by {sorted(vids)}"
+
+    @pytest.mark.parametrize("field", ["address_id", "contact_id"])
+    def test_injected_collision_fails_in_memory(self, field):
+        data = generate_all(num_vendors=200, num_tenders=300, seed=42)
+        self._by_id(data, "V-044")[field] = self._by_id(data, "V-045")[field]
+        if field == "address_id":
+            self._by_id(data, "V-044")[field] = self._by_id(data, "V-100")[field]
+        with pytest.raises(VerificationError, match=f"accidental shared {field}"):
+            verify_all(data, num_vendors=200, num_tenders=300)
+
+    def test_injected_collision_fails_in_disk_cli(self, tmp_path, capsys):
+        from synth.verify import main as verify_main
+
+        run(num_vendors=200, num_tenders=300, seed=42, output_dir=tmp_path)
+        assert verify_main(["--data-dir", str(tmp_path)]) == 0
+
+        path = tmp_path / "vendors.csv"
+        with path.open(newline="", encoding="utf-8") as fh:
+            rows = list(csv.DictReader(fh))
+            fields = list(rows[0].keys())
+        by_id = {r["vendor_id"]: r for r in rows}
+        by_id["V-093"]["address_id"] = by_id["V-100"]["address_id"]
+        with path.open("w", newline="", encoding="utf-8") as fh:
+            w = csv.DictWriter(fh, fieldnames=fields)
+            w.writeheader()
+            w.writerows(rows)
+
+        capsys.readouterr()
+        assert verify_main(["--data-dir", str(tmp_path)]) == 1
+        assert "accidental shared address_id" in capsys.readouterr().err
