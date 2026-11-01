@@ -18,7 +18,6 @@ import sys
 from pathlib import Path
 from urllib.parse import urlparse
 
-from jsonschema import Draft202012Validator
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 HEADER_KEYS = ("title", "source_portal", "source_url", "source_ref", "retrieved")
@@ -131,6 +130,7 @@ def build_tender(raw_path: Path) -> dict:
     header, body = parse_raw(raw_path.read_text(encoding="utf-8"))
     tender = {"tender_id": tender_id, **{k: header[k] for k in HEADER_KEYS}, "clauses": split_clauses(body)}
     schema = json.loads((REPO_ROOT / "contracts" / "schemas" / "real_tender.json").read_text(encoding="utf-8"))
+    from jsonschema import Draft202012Validator
     errors = [f"{'/'.join(map(str, e.absolute_path)) or '<root>'}: {e.message[:200]}"
               for e in Draft202012Validator(schema).iter_errors(tender)]
     if errors:

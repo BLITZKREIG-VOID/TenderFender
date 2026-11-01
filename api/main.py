@@ -278,6 +278,7 @@ def reject_atom(tender_id: str, atom_id: str, body: RejectBody | None = None):
 
 # Routers must be included before the static-UI catch-all below, or their GET routes are shadowed.
 app.include_router(users.router)
+from api.llm_routes import router as llm_router; app.include_router(llm_router)
 
 
 # ── Static UI Serving ────────────────────────────────────────────────────────
