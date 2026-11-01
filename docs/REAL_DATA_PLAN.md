@@ -199,3 +199,10 @@ reference work is within the sources' terms (section 2).
 
 ## 5. Phase 4: compiled vs not-checked table
 
+
+## STOP 1 decision (2026-11-01)
+
+1. Sources: a mix of CPPP (eprocure.gov.in) and state portals.
+2. The user has read the portal terms. We store only short verbatim eligibility excerpts with attribution; no whole documents and no bidder personal data.
+3. The user provides 10-12 text files with the eligibility section pasted in, under `data/real/raw/`. `data/real/raw/*` is gitignored except its README.
+4. Rule-format widening (`rules/ir.py`) waits for the real files; it is not widened in the prep work.
