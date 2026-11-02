@@ -363,6 +363,27 @@ class UsersStore:
             raise
         return int(resp["Attributes"][counter_name])
 
+    # ── Site AI monthly spend tracking (SPEND#<yyyy-mm>) ─────────────────────
+    def get_site_ai_spend(self, month: str | None = None) -> int:
+        """Return the month's spend in integer micro-dollars."""
+        m = month or datetime.now(UTC).strftime("%Y-%m")
+        item = self.table.get_item(Key={"pk": GLOBAL_PK, "sk": f"SPEND#{m}"}).get("Item") or {}
+        return int(item.get("spend_micro_usd", 0))
+
+    def record_site_ai_spend(self, cost_micro_usd: int, month: str | None = None) -> int:
+        """Atomically add cost_micro_usd to the month's spend item."""
+        if cost_micro_usd <= 0:
+            return self.get_site_ai_spend(month)
+        m = month or datetime.now(UTC).strftime("%Y-%m")
+        resp = self.table.update_item(
+            Key={"pk": GLOBAL_PK, "sk": f"SPEND#{m}"},
+            UpdateExpression="ADD #s :cost",
+            ExpressionAttributeNames={"#s": "spend_micro_usd"},
+            ExpressionAttributeValues={":cost": cost_micro_usd},
+            ReturnValues="UPDATED_NEW",
+        )
+        return int(resp["Attributes"]["spend_micro_usd"])
+
 
 @functools.cache
 def _dynamodb_table() -> Any:

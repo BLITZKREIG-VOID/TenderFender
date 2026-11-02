@@ -20,8 +20,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from dataclasses import dataclass
-from typing import Any, Callable
+from dataclasses import dataclass, field
 
 log = logging.getLogger(__name__)
 
@@ -124,7 +123,7 @@ class ProviderError(Exception):
 class Completion:
     text: str
     truncated: bool
-
+    usage: dict[str, int] = field(default_factory=dict)
 
 @dataclass(frozen=True)
 class HttpResponse:
@@ -164,12 +163,12 @@ def check_key_format(key: str) -> None:
 
 def check_model(provider_id: str, model: str) -> None:
     """Model ids end up in request bodies and (Google) in the URL path: allow a strict charset only."""
+    is_google = provider_id in PROVIDERS and PROVIDERS[provider_id].api == "google"
     bad = (not MODEL_RE.fullmatch(model) or ".." in model
-           or (PROVIDERS[provider_id].api == "google" and "/" in model))
+           or (is_google and "/" in model))
     if bad:
         raise ProviderError(400, "invalid_model", "The model id contains characters that are not allowed.",
                             provider=provider_id)
-
 
 def candidates(key: str, hint: str | None = None) -> list[str]:
     """Providers to try for `key`, in order: the hint, else the unambiguous prefix, else the ambiguous set."""
@@ -217,6 +216,13 @@ def urllib_send(method: str, url: str, headers: dict[str, str], body: bytes | No
         hdrs = {k.lower(): v for k, v in exc.headers.items()} if exc.headers else {}
         return HttpResponse(exc.code, hdrs, exc.read(MAX_RESPONSE_BYTES))
 
+def get_bedrock_client() -> Any:
+    import boto3
+    region = os.environ.get("BEDROCK_REGION", "ap-south-1")
+    return boto3.client("bedrock-runtime", region_name=region)
+
+
+bedrock_client_getter: Callable[[], Any] = get_bedrock_client
 
 # Replaced in tests; never reassigned at runtime.
 send: Callable[[str, str, dict[str, str], bytes | None, float], HttpResponse] = urllib_send
@@ -477,12 +483,54 @@ def detect(key: str, hint: str | None = None, deadline: Deadline | None = None) 
 
 
 # ---------------------------------------------------------------- chat
-
 def complete(provider_id: str, key: str, model: str, system: str, messages: list[dict[str, str]], *,
              max_tokens: int, deadline: Deadline) -> Completion:
     """One chat completion. `messages` are {role: user|assistant, content}; the system prompt is separate."""
-    p = PROVIDERS[provider_id]
     check_model(provider_id, model)
+    if provider_id == "bedrock":
+        import botocore.exceptions
+        converse_system = [{"text": system}]
+        converse_messages = [{"role": m["role"], "content": [{"text": m["content"]}]} for m in messages]
+        try:
+            client = bedrock_client_getter()
+            response = client.converse(
+                modelId=model,
+                messages=converse_messages,
+                system=converse_system,
+                inferenceConfig={"maxTokens": max_tokens},
+            )
+        except (botocore.exceptions.NoCredentialsError, botocore.exceptions.PartialCredentialsError) as exc:
+            raise ProviderError(500, "credentials_missing", f"AWS credentials not found: {exc}", provider="bedrock") from exc
+        except botocore.exceptions.ClientError as exc:
+            err_code = exc.response.get("Error", {}).get("Code", "")
+            err_msg = exc.response.get("Error", {}).get("Message", str(exc))
+            if err_code in ("AccessDeniedException",):
+                raise ProviderError(403, "access_denied", f"Bedrock access denied: {err_msg}", provider="bedrock") from exc
+            if err_code in ("ValidationException",):
+                raise ProviderError(400, "invalid_request", f"Bedrock validation error: {err_msg}", provider="bedrock") from exc
+            if err_code in ("ResourceNotFoundException",):
+                raise ProviderError(404, "model_not_found", f"Bedrock resource not found: {err_msg}", provider="bedrock") from exc
+            if err_code in ("ThrottlingException",):
+                raise ProviderError(429, "rate_limited", f"Bedrock throttling: {err_msg}", provider="bedrock") from exc
+            if err_code in ("ServiceUnavailableException", "ModelTimeoutException", "InternalServerException"):
+                raise ProviderError(503, "service_unavailable", f"Bedrock unavailable: {err_msg}", provider="bedrock") from exc
+            raise ProviderError(502, "bedrock_error", f"Bedrock error ({err_code}): {err_msg}", provider="bedrock") from exc
+        except ProviderError:
+            raise
+        except Exception as exc:
+            raise ProviderError(502, "bedrock_error", f"Bedrock error: {type(exc).__name__}: {exc}", provider="bedrock") from exc
+
+        try:
+            output_msg = response.get("output", {}).get("message", {})
+            content_blocks = output_msg.get("content", [])
+            text = "".join(b["text"] for b in content_blocks if isinstance(b, dict) and "text" in b)
+            truncated = response.get("stopReason") == "max_tokens"
+            usage = response.get("usage", {})
+        except (KeyError, TypeError, AttributeError):
+            raise ProviderError(502, "bedrock_shape_error", "Unexpected Bedrock response structure", provider="bedrock") from None
+        return Completion(text, truncated, usage)
+
+    p = PROVIDERS[provider_id]
     if p.api == "anthropic":
         payload: dict[str, Any] = {"model": model, "max_tokens": max_tokens, "system": system,
                                    "messages": messages, "temperature": 0}

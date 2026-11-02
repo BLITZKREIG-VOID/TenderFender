@@ -153,7 +153,7 @@ class FakeTable:
 
     def update_item(self, Key, UpdateExpression, ConditionExpression, ExpressionAttributeNames,
                     ExpressionAttributeValues, ReturnValues="NONE"):
-        attr = ExpressionAttributeNames.get("#k") or ExpressionAttributeNames.get("#c")
+        attr = ExpressionAttributeNames.get("#k") or ExpressionAttributeNames.get("#c") or ExpressionAttributeNames.get("#s")
         values = ExpressionAttributeValues
         item = self.items.setdefault((Key["pk"], Key["sk"]), {"pk": Key["pk"], "sk": Key["sk"]})
         if ":limit" in values:
@@ -164,7 +164,7 @@ class FakeTable:
                 raise FakeClientError("ConditionalCheckFailedException")
         if ":exp" in values:
             item.setdefault("expires_at", Decimal(values[":exp"]))
-        delta = values.get(":one", values.get(":minus_one", 1))
+        delta = values.get(":cost", values.get(":one", values.get(":minus_one", 1)))
         item[attr] = Decimal(item.get(attr, 0)) + Decimal(delta)
         out = {attr: item[attr]}
         if "expires_at" in item:
