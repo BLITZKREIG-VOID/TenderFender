@@ -12,7 +12,7 @@ import { btnPrimary, btnSecondary, input, label, errorBox, link } from "../compo
 const MAX_TEXT_LEN = 20000;
 
 export default function MyTendersNew() {
-  const { refreshMe } = useAuth();
+  const { refreshMe, refreshSite } = useAuth();
   const gate = useLlmGate("compile");
 
   const [title, setTitle] = useState("");
@@ -22,11 +22,11 @@ export default function MyTendersNew() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CompileResponse | null>(null);
 
-  const chosenModel = model ?? gate.llm?.model ?? null;
+  const chosenModel = (gate.mode === "own" ? model : null) ?? gate.model;
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !text.trim() || !chosenModel || !gate.llm || busy) return;
+    if (!title.trim() || !text.trim() || !chosenModel || gate.status !== "ready" || busy) return;
 
     setBusy(true);
     setError(null);
@@ -37,7 +37,7 @@ export default function MyTendersNew() {
           text: text.trim(),
           model: chosenModel,
         },
-        { key: gate.llm.key, provider: gate.llm.provider ?? undefined }
+        gate.creds
       );
       setResult(res.data);
       void refreshMe();
@@ -45,6 +45,7 @@ export default function MyTendersNew() {
       setError(describeError(apiError(err, "Compilation failed")));
     } finally {
       setBusy(false);
+      if (gate.mode === "site") void refreshSite();
     }
   };
 
@@ -162,7 +163,7 @@ export default function MyTendersNew() {
                   />
                 </div>
 
-                {gate.llm?.detect && (
+                {gate.mode === "own" && gate.llm?.detect && (
                   <ModelSelect
                     id="compile-model"
                     models={gate.llm.detect.models}

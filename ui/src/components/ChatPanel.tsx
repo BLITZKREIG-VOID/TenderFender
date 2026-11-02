@@ -16,7 +16,7 @@ interface Turn extends ChatMessage {
 }
 
 export default function ChatPanel({ tenderId, passages }: { tenderId: string; passages: Passage[] }) {
-  const { refreshMe } = useAuth();
+  const { refreshMe, refreshSite } = useAuth();
   const gate = useLlmGate("chat");
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState("");
@@ -26,7 +26,7 @@ export default function ChatPanel({ tenderId, passages }: { tenderId: string; pa
   const send = async (e: FormEvent) => {
     e.preventDefault();
     const text = draft.trim();
-    if (!text || !gate.llm?.model || busy) return;
+    if (!text || !gate.model || busy) return;
     const next: Turn[] = [...turns, { role: "user", content: text }];
     setTurns(next);
     setDraft("");
@@ -34,10 +34,7 @@ export default function ChatPanel({ tenderId, passages }: { tenderId: string; pa
     setError(null);
     try {
       const messages: ChatMessage[] = next.slice(-MAX_MESSAGES).map(({ role, content }) => ({ role, content }));
-      const r = await api.chat(tenderId, gate.llm.model, messages, {
-        key: gate.llm.key,
-        provider: gate.llm.provider ?? undefined,
-      });
+      const r = await api.chat(tenderId, gate.model, messages, gate.creds);
       setTurns([...next, { role: "assistant", content: r.data.answer, citations: r.data.citations }]);
     } catch (err) {
       setTurns(turns);
@@ -46,6 +43,7 @@ export default function ChatPanel({ tenderId, passages }: { tenderId: string; pa
     } finally {
       setBusy(false);
       void refreshMe();
+      if (gate.mode === "site") void refreshSite();
     }
   };
 
