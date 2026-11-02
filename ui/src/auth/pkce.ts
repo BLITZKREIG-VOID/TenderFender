@@ -37,7 +37,11 @@ export function redirectUri(cfg: AuthConfig): string {
 }
 
 // Builds the /oauth2/authorize URL and records verifier+state for the callback in sessionStorage.
-export async function buildLoginUrl(cfg: AuthConfig, returnTo: string): Promise<string> {
+export async function buildLoginUrl(
+  cfg: AuthConfig,
+  returnTo: string,
+  identityProvider?: string
+): Promise<string> {
   const verifier = randomToken(64); // 86 chars, within RFC 7636's 43..128
   const state = randomToken(24);
   const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
@@ -52,7 +56,14 @@ export async function buildLoginUrl(cfg: AuthConfig, returnTo: string): Promise<
     code_challenge: base64url(digest),
     code_challenge_method: "S256",
   });
+  if (identityProvider) {
+    params.set("identity_provider", identityProvider);
+  }
   return `${cognitoBaseUrl(cfg)}/oauth2/authorize?${params.toString()}`;
+}
+
+export async function buildGoogleLoginUrl(cfg: AuthConfig, returnTo: string): Promise<string> {
+  return buildLoginUrl(cfg, returnTo, "Google");
 }
 
 export interface ExchangeResult {

@@ -1,7 +1,16 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { api, type AuthConfig, type Me } from "../api/client";
 import { getIdToken, clearTokens, saveTokens } from "./tokens";
-import { authConfigured, buildLoginUrl, logoutUrl } from "./pkce";
+import { authConfigured, buildLoginUrl, buildGoogleLoginUrl, logoutUrl } from "./pkce";
+import {
+  cognitoSignIn,
+  cognitoSignUp,
+  cognitoConfirmSignUp,
+  cognitoResendCode,
+  cognitoForgotPassword,
+  cognitoConfirmPassword,
+  cognitoSignOut,
+} from "./cognito";
 import {
   clearLlmSettings,
   clearSessionLlmSettings,
@@ -17,6 +26,13 @@ interface AuthState {
   me: Me | null;
   meError: string | null;
   login: (returnTo?: string) => Promise<void>;
+  loginWithGoogle: (returnTo?: string) => Promise<void>;
+  signInWithSrp: (email: string, pass: string) => Promise<void>;
+  signUp: (email: string, pass: string) => Promise<{ userConfirmed: boolean; userSub: string }>;
+  confirmSignUp: (email: string, code: string) => Promise<void>;
+  resendCode: (email: string) => Promise<void>;
+  forgotPassword: (email: string) => Promise<void>;
+  confirmNewPassword: (email: string, code: string, newPass: string) => Promise<void>;
   logout: () => void;
   completeSignIn: (idToken: string, accessToken: string | undefined, expiresIn: number) => Promise<Me | null>;
   refreshMe: () => Promise<Me | null>;
@@ -76,11 +92,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (signedIn && !me) void refreshMe();
   }, [signedIn, me, refreshMe]);
 
-
   const login = useCallback(
-    async (returnTo = "/") => {
+    async (returnTo = "/app") => {
       if (!authConfigured(config)) return;
       window.location.assign(await buildLoginUrl(config, returnTo));
+    },
+    [config]
+  );
+
+  const loginWithGoogle = useCallback(
+    async (returnTo = "/app") => {
+      if (!authConfigured(config)) return;
+      window.location.assign(await buildGoogleLoginUrl(config, returnTo));
     },
     [config]
   );
@@ -94,6 +117,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [refreshMe]
   );
 
+  const signInWithSrp = useCallback(
+    async (email: string, pass: string) => {
+      if (!config) throw new Error("Authentication is not configured.");
+      const res = await cognitoSignIn(config, email, pass);
+      await completeSignIn(res.idToken, res.accessToken, res.expiresInSec);
+    },
+    [config, completeSignIn]
+  );
+
+  const signUp = useCallback(
+    async (email: string, pass: string) => {
+      if (!config) throw new Error("Authentication is not configured.");
+      return cognitoSignUp(config, email, pass);
+    },
+    [config]
+  );
+
+  const confirmSignUp = useCallback(
+    async (email: string, code: string) => {
+      if (!config) throw new Error("Authentication is not configured.");
+      return cognitoConfirmSignUp(config, email, code);
+    },
+    [config]
+  );
+
+  const resendCode = useCallback(
+    async (email: string) => {
+      if (!config) throw new Error("Authentication is not configured.");
+      return cognitoResendCode(config, email);
+    },
+    [config]
+  );
+
+  const forgotPassword = useCallback(
+    async (email: string) => {
+      if (!config) throw new Error("Authentication is not configured.");
+      return cognitoForgotPassword(config, email);
+    },
+    [config]
+  );
+
+  const confirmNewPassword = useCallback(
+    async (email: string, code: string, newPass: string) => {
+      if (!config) throw new Error("Authentication is not configured.");
+      return cognitoConfirmPassword(config, email, code, newPass);
+    },
+    [config]
+  );
+
   // Session key goes with the session; a key remembered on this device stays until the user forgets it.
   const dropSession = useCallback(() => {
     clearTokens();
@@ -104,8 +176,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
+    cognitoSignOut(config);
     dropSession();
-    if (authConfigured(config)) window.location.assign(logoutUrl(config));
+    if (authConfigured(config)) {
+      window.location.assign(logoutUrl(config));
+    } else {
+      window.location.assign("/");
+    }
   }, [config, dropSession]);
 
   // After account deletion nothing of the user stays in this browser.
@@ -128,6 +205,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       me,
       meError,
       login,
+      loginWithGoogle,
+      signInWithSrp,
+      signUp,
+      confirmSignUp,
+      resendCode,
+      forgotPassword,
+      confirmNewPassword,
       logout,
       completeSignIn,
       refreshMe,
@@ -141,6 +225,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       me,
       meError,
       login,
+      loginWithGoogle,
+      signInWithSrp,
+      signUp,
+      confirmSignUp,
+      resendCode,
+      forgotPassword,
+      confirmNewPassword,
       logout,
       completeSignIn,
       refreshMe,
@@ -155,6 +246,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth(): AuthState {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used inside <AuthProvider>");
+  if (!ctx) throw new Error("useAuth must be used within an AuthProvider");
   return ctx;
 }
