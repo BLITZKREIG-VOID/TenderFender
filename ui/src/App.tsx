@@ -15,6 +15,7 @@ import DemoList from "./pages/DemoList";
 import DemoDetail from "./pages/DemoDetail";
 import HelpOpenRouterFree from "./pages/HelpOpenRouterFree";
 import NotFound from "./pages/NotFound";
+import About from "./pages/About";
 
 // Protected pages
 import AppDashboard from "./pages/AppDashboard";
@@ -120,6 +121,12 @@ function HeaderNav() {
             </>
           ) : (
             <div className="flex items-center gap-3">
+              <Link
+                to="/about"
+                className="min-h-[44px] inline-flex items-center px-3 py-2 rounded text-xs font-black uppercase tracking-wider text-gray-300 hover:text-white hover:bg-gray-800"
+              >
+                About
+              </Link>
               <Link
                 to="/login"
                 className="min-h-[44px] inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gray-900 hover:bg-gray-800 text-xs font-black uppercase tracking-wider text-gray-200 border border-gray-700"
@@ -246,6 +253,7 @@ function App() {
               {/* Demo Preview (Anyone) */}
               <Route path="/demo" element={<DemoList />} />
               <Route path="/demo/tender/:id" element={<DemoDetail />} />
+              <Route path="/about" element={<About />} />
 
               {/* Help Center (Anyone) */}
               <Route path="/help/openrouter-free" element={<HelpOpenRouterFree />} />
@@ -332,7 +340,10 @@ function App() {
 
           <footer className="bg-white border-t-2 border-gray-300 py-4 mt-auto">
             <div className="max-w-7xl mx-auto px-6 text-center text-xs font-bold text-gray-700">
-              TenderFender · Automated checks for human review; risk indicators, not findings of wrongdoing.
+              TenderFender · Automated checks for human review; risk indicators, not findings of wrongdoing. ·{" "}
+              <Link to="/about" className="underline decoration-2 hover:text-gray-950">
+                About
+              </Link>
             </div>
           </footer>
         </div>

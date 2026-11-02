@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { api, type AuthConfig, type Me } from "../api/client";
+import { api, clearApiCache, type AuthConfig, type Me } from "../api/client";
 import { getIdToken, clearTokens, saveTokens } from "./tokens";
 import { authConfigured, buildLoginUrl, buildGoogleLoginUrl, logoutUrl } from "./pkce";
 import {
@@ -169,6 +169,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Session key goes with the session; a key remembered on this device stays until the user forgets it.
   const dropSession = useCallback(() => {
     clearTokens();
+    clearApiCache();
     clearSessionLlmSettings();
     setSignedIn(false);
     setMe(null);

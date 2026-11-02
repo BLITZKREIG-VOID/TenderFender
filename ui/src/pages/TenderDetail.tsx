@@ -136,6 +136,7 @@ export default function TenderDetail() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => {
+              if (id) api.invalidateTender(id);
               setIsRefreshing(true);
               fetchData(false);
             }}
