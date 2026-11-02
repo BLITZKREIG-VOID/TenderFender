@@ -12,7 +12,7 @@
     "clause_id": "CL5",
     "field": "emd_amount_lakh",
     "op": "==",
-    "value": 5.794,
+    "value": 0.5794,
     "source_text": "Earnest money deposit (EMD) | 57,940/-"
   },
   {

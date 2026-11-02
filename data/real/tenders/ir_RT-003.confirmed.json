@@ -1,0 +1,93 @@
+[
+  {
+    "id": "CL1.1",
+    "clause_id": "CL1",
+    "field": "estimated_cost_lakh",
+    "op": "==",
+    "value": 410.05,
+    "source_text": "2. | Estimated cost put to tender | 410.05 Lakhs"
+  },
+  {
+    "id": "CL5.1",
+    "clause_id": "CL5",
+    "field": "emd_amount_lakh",
+    "op": "==",
+    "value": 8.201,
+    "source_text": "8. | Earnest money deposit (EMD) | 8,20,100/-"
+  },
+  {
+    "id": "CL6.1",
+    "clause_id": "CL6",
+    "field": "similar_works",
+    "op": "==",
+    "value": {
+      "years": 7,
+      "alternatives": [
+        {
+          "count": 3,
+          "pct": 40,
+          "amount_lakh": 164.02
+        },
+        {
+          "count": 2,
+          "pct": 60,
+          "amount_lakh": 246.03
+        },
+        {
+          "count": 1,
+          "pct": 80,
+          "amount_lakh": 328.04
+        }
+      ]
+    },
+    "source_text": "a. Should have satisfactorily completed the works as mentioned below during the last 7 years ending previous day of last date of submission of bids. i. Three similar works each costing not less than 40% of the estimated cost. i.e. 164.02 Lakhs (or) ii. Two similar works each costing not less than 60% of the estimated cost i.e. 246.03 Lakhs (or) iii. One similar work costing not less than 80% of the estimated cost i.e. 328.04 Lakhs. Documentary proof: i) Work orders and completion certificates issued by the authority concerned to establish work experience. ii) Completion certificates for works issued by Private parties shall be supported by TDS (Tax Deducted at Source) certificates. i. Similar work shall mean construction of elevated RCC overhead tank (OR) RCC framed multi-storied structure / building of minimum height 6mtr. ii. The value of executed works shall be brought to current costing level by enhancing the actual value of work at simple rate of 7% per annum, calculated from the date of completion to last date of submission of bids. iii. Work executed as sub-contract or joint-venture will not merit for eligibility / evaluation."
+  },
+  {
+    "id": "CL7.1",
+    "clause_id": "CL7",
+    "field": "turnover_pct",
+    "op": ">=",
+    "value": 30,
+    "source_text": "b. Should have had average annual financial turnover not less than 30% of the estimated cost of the work during the last three years ending 31st March of preceding year (31.03.2025), i.e. 123.02 Lakhs. Documentary proof: Chartered Accountant certificate for the Annual financial turnover and balance sheet showing Profit & Loss."
+  },
+  {
+    "id": "CL7.2",
+    "clause_id": "CL7",
+    "field": "turnover_lakh",
+    "op": ">=",
+    "value": 123.02,
+    "source_text": "b. Should have had average annual financial turnover not less than 30% of the estimated cost of the work during the last three years ending 31st March of preceding year (31.03.2025), i.e. 123.02 Lakhs. Documentary proof: Chartered Accountant certificate for the Annual financial turnover and balance sheet showing Profit & Loss."
+  },
+  {
+    "id": "CL7.3",
+    "clause_id": "CL7",
+    "field": "turnover_period_years",
+    "op": "==",
+    "value": 3,
+    "source_text": "b. Should have had average annual financial turnover not less than 30% of the estimated cost of the work during the last three years ending 31st March of preceding year (31.03.2025), i.e. 123.02 Lakhs. Documentary proof: Chartered Accountant certificate for the Annual financial turnover and balance sheet showing Profit & Loss."
+  },
+  {
+    "id": "CL8.1",
+    "clause_id": "CL8",
+    "field": "max_loss_years",
+    "op": "<=",
+    "value": 2,
+    "source_text": "c. Should not have incurred any loss in more than two years during the last five years ending 31st March 2025."
+  },
+  {
+    "id": "CL9.1",
+    "clause_id": "CL9",
+    "field": "solvency_pct",
+    "op": ">=",
+    "value": 40,
+    "source_text": "d. Should have a solvency of 40% of the estimated cost of the work, i.e. 164.02 Lakhs. Documentary proof: Certified copy of latest Solvency Certificate from any Scheduled Bank (Solvency Certificate should not be older than six months from the last date of submission of bids)."
+  },
+  {
+    "id": "CL9.2",
+    "clause_id": "CL9",
+    "field": "solvency_lakh",
+    "op": ">=",
+    "value": 164.02,
+    "source_text": "d. Should have a solvency of 40% of the estimated cost of the work, i.e. 164.02 Lakhs. Documentary proof: Certified copy of latest Solvency Certificate from any Scheduled Bank (Solvency Certificate should not be older than six months from the last date of submission of bids)."
+  }
+]

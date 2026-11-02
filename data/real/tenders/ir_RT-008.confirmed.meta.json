@@ -1,0 +1,53 @@
+{
+  "atoms": {
+    "CL1.1": {
+      "at": "2026-11-02T10:40:06+00:00",
+      "note": "Confirmed by the user at STOP 2 (2026-11-02) against the verbatim clause text; RT-002 CL5 EMD corrected 5.794 -> 0.5794 lakh before confirmation.",
+      "status": "confirmed"
+    },
+    "CL10.1": {
+      "at": "2026-11-02T10:40:06+00:00",
+      "note": "Confirmed by the user at STOP 2 (2026-11-02) against the verbatim clause text; RT-002 CL5 EMD corrected 5.794 -> 0.5794 lakh before confirmation.",
+      "status": "confirmed"
+    },
+    "CL11.1": {
+      "at": "2026-11-02T10:40:06+00:00",
+      "note": "Confirmed by the user at STOP 2 (2026-11-02) against the verbatim clause text; RT-002 CL5 EMD corrected 5.794 -> 0.5794 lakh before confirmation.",
+      "status": "confirmed"
+    },
+    "CL11.2": {
+      "at": "2026-11-02T10:40:06+00:00",
+      "note": "Confirmed by the user at STOP 2 (2026-11-02) against the verbatim clause text; RT-002 CL5 EMD corrected 5.794 -> 0.5794 lakh before confirmation.",
+      "status": "confirmed"
+    },
+    "CL6.1": {
+      "at": "2026-11-02T10:40:06+00:00",
+      "note": "Confirmed by the user at STOP 2 (2026-11-02) against the verbatim clause text; RT-002 CL5 EMD corrected 5.794 -> 0.5794 lakh before confirmation.",
+      "status": "confirmed"
+    },
+    "CL7.1": {
+      "at": "2026-11-02T10:40:06+00:00",
+      "note": "Confirmed by the user at STOP 2 (2026-11-02) against the verbatim clause text; RT-002 CL5 EMD corrected 5.794 -> 0.5794 lakh before confirmation.",
+      "status": "confirmed"
+    },
+    "CL9.1": {
+      "at": "2026-11-02T10:40:06+00:00",
+      "note": "Confirmed by the user at STOP 2 (2026-11-02) against the verbatim clause text; RT-002 CL5 EMD corrected 5.794 -> 0.5794 lakh before confirmation.",
+      "status": "confirmed"
+    },
+    "CL9.2": {
+      "at": "2026-11-02T10:40:06+00:00",
+      "note": "Confirmed by the user at STOP 2 (2026-11-02) against the verbatim clause text; RT-002 CL5 EMD corrected 5.794 -> 0.5794 lakh before confirmation.",
+      "status": "confirmed"
+    },
+    "CL9.3": {
+      "at": "2026-11-02T10:40:06+00:00",
+      "note": "Confirmed by the user at STOP 2 (2026-11-02) against the verbatim clause text; RT-002 CL5 EMD corrected 5.794 -> 0.5794 lakh before confirmation.",
+      "status": "confirmed"
+    }
+  },
+  "confirmed": true,
+  "confirmed_at": "2026-11-02T10:40:06+00:00",
+  "source_ir_sha256": "32c94316fbb6ca11b2cf235ec7772285702e3c8e7838c997813b5f8586e2fc89",
+  "tender_id": "RT-008"
+}

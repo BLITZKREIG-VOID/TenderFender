@@ -235,6 +235,8 @@ def main(argv: list[str] | None = None) -> int:
         for p in sorted(real.glob("RT-*.json")):
             check(p, "real_tender", check_real_tender)
         for p in sorted(real.glob("ir_RT-*.json")):
+            if p.name.endswith(".meta.json"):
+                continue  # export_confirmed_ir.py review metadata, not an atom array
             check(p, "ir_atom", array_of=True)
 
         kb = root / "kb" / "passages"

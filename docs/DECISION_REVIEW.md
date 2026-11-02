@@ -7,6 +7,146 @@ For each claim, read the cited evidence in the same row and answer `yes` if the 
 claim as worded, `no` if it does not (say why in `Note`). These are risk indicators for human review,
 not findings of wrongdoing.
 
+## RT-001
+
+- decision_source: `template`
+- risk_level: `low`, decision: `clear`
+- claims: 2
+
+template, fixed wording: no AI-written claims to verify. Reasoning text:
+
+> Template reasoning: generated from a fixed template, not written by the AI model. No rule findings are linked to this tender and the network check was not run (needs bid data (post-award)), so there are no risk indicators to explain and nothing to cite from the knowledge base.
+
+## RT-002
+
+- decision_source: `template`
+- risk_level: `low`, decision: `clear`
+- claims: 2
+
+template, fixed wording: no AI-written claims to verify. Reasoning text:
+
+> Template reasoning: generated from a fixed template, not written by the AI model. No rule findings are linked to this tender and the network check was not run (needs bid data (post-award)), so there are no risk indicators to explain and nothing to cite from the knowledge base.
+
+## RT-003
+
+- decision_source: `template`
+- risk_level: `low`, decision: `clear`
+- claims: 2
+
+template, fixed wording: no AI-written claims to verify. Reasoning text:
+
+> Template reasoning: generated from a fixed template, not written by the AI model. No rule findings are linked to this tender and the network check was not run (needs bid data (post-award)), so there are no risk indicators to explain and nothing to cite from the knowledge base.
+
+## RT-004
+
+- decision_source: `template`
+- risk_level: `low`, decision: `clear`
+- claims: 2
+
+template, fixed wording: no AI-written claims to verify. Reasoning text:
+
+> Template reasoning: generated from a fixed template, not written by the AI model. No rule findings are linked to this tender and the network check was not run (needs bid data (post-award)), so there are no risk indicators to explain and nothing to cite from the knowledge base.
+
+## RT-005
+
+- decision_source: `template`
+- risk_level: `low`, decision: `clear`
+- claims: 2
+
+template, fixed wording: no AI-written claims to verify. Reasoning text:
+
+> Template reasoning: generated from a fixed template, not written by the AI model. No rule findings are linked to this tender and the network check was not run (needs bid data (post-award)), so there are no risk indicators to explain and nothing to cite from the knowledge base.
+
+## RT-006
+
+- decision_source: `template`
+- risk_level: `low`, decision: `clear`
+- claims: 2
+
+template, fixed wording: no AI-written claims to verify. Reasoning text:
+
+> Template reasoning: generated from a fixed template, not written by the AI model. No rule findings are linked to this tender and the network check was not run (needs bid data (post-award)), so there are no risk indicators to explain and nothing to cite from the knowledge base.
+
+## RT-007
+
+- decision_source: `template`
+- risk_level: `low`, decision: `clear`
+- claims: 2
+
+template, fixed wording: no AI-written claims to verify. Reasoning text:
+
+> Template reasoning: generated from a fixed template, not written by the AI model. No rule findings are linked to this tender and the network check was not run (needs bid data (post-award)), so there are no risk indicators to explain and nothing to cite from the knowledge base.
+
+## RT-008
+
+- decision_source: `template`
+- risk_level: `low`, decision: `clear`
+- claims: 2
+
+template, fixed wording: no AI-written claims to verify. Reasoning text:
+
+> Template reasoning: generated from a fixed template, not written by the AI model. No rule findings are linked to this tender and the network check was not run (needs bid data (post-award)), so there are no risk indicators to explain and nothing to cite from the knowledge base.
+
+## RT-009
+
+- decision_source: `template`
+- risk_level: `low`, decision: `clear`
+- claims: 2
+
+template, fixed wording: no AI-written claims to verify. Reasoning text:
+
+> Template reasoning: generated from a fixed template, not written by the AI model. No rule findings are linked to this tender and the network check was not run (needs bid data (post-award)), so there are no risk indicators to explain and nothing to cite from the knowledge base.
+
+## RT-010
+
+- decision_source: `template`
+- risk_level: `low`, decision: `clear`
+- claims: 2
+
+template, fixed wording: no AI-written claims to verify. Reasoning text:
+
+> Template reasoning: generated from a fixed template, not written by the AI model. No rule findings are linked to this tender and the network check was not run (needs bid data (post-award)), so there are no risk indicators to explain and nothing to cite from the knowledge base.
+
+## RT-011
+
+- decision_source: `template`
+- risk_level: `low`, decision: `clear`
+- claims: 2
+
+template, fixed wording: no AI-written claims to verify. Reasoning text:
+
+> Template reasoning: generated from a fixed template, not written by the AI model. No rule findings are linked to this tender and the network check was not run (needs bid data (post-award)), so there are no risk indicators to explain and nothing to cite from the knowledge base.
+
+## RT-012
+
+- decision_source: `template`
+- risk_level: `low`, decision: `clear`
+- claims: 2
+
+template, fixed wording: no AI-written claims to verify. Reasoning text:
+
+> Template reasoning: generated from a fixed template, not written by the AI model. No rule findings are linked to this tender and the network check was not run (needs bid data (post-award)), so there are no risk indicators to explain and nothing to cite from the knowledge base.
+
+## RT-013
+
+- decision_source: `template`
+- risk_level: `low`, decision: `clear`
+- claims: 2
+
+template, fixed wording: no AI-written claims to verify. Reasoning text:
+
+> Template reasoning: generated from a fixed template, not written by the AI model. No rule findings are linked to this tender and the network check was not run (needs bid data (post-award)), so there are no risk indicators to explain and nothing to cite from the knowledge base.
+
+## RT-014
+
+- decision_source: `template`
+- risk_level: `low`, decision: `clear`
+- claims: 2
+
+template, fixed wording: no AI-written claims to verify. Reasoning text:
+
+> Template reasoning: generated from a fixed template, not written by the AI model. No rule findings are linked to this tender and the network check was not run (needs bid data (post-award)), so there are no risk indicators to explain and nothing to cite from the knowledge base.
+
 ## T-001
 
 - decision_source: `cache`

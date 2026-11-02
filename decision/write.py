@@ -73,8 +73,14 @@ def write_template(fusion: dict, retrieved: Retrieved) -> dict:
     """Deterministic reasoning + actions; every statement is derived from the inputs."""
     inputs = fusion["_inputs"]
     if not has_evidence(fusion):
+        network = fusion.get("network_check") or {}
+        if network.get("status") == "not_applicable":
+            scope = (f"No rule findings are linked to this tender and the network check was not run "
+                     f"({network.get('reason', 'not applicable')}), ")
+        else:
+            scope = "No rule findings and no flagged rings are linked to this tender, "
         return {
-            "reasoning": (f"{TEMPLATE_NOTE} No rule findings and no flagged rings are linked to this tender, "
+            "reasoning": (f"{TEMPLATE_NOTE} {scope}"
                           "so there are no risk indicators to explain and nothing to cite from the knowledge base."),
             "recommended_actions": _actions(fusion),
         }
