@@ -11,7 +11,7 @@ import os
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Any
@@ -28,6 +28,7 @@ from api.loaders import (
 )
 from api import confirmations, users
 from api.passages import load_passage
+from api.auth import _unauthenticated, optional_user
 
 
 # ── App setup ────────────────────────────────────────────────────────────────
@@ -111,7 +112,7 @@ def health():
 
 
 @app.get("/api/tenders", response_model=list[TenderSummary])
-def list_tenders():
+def list_tenders(user: dict[str, Any] | None = Depends(optional_user)):
     """Aggregate tender summaries from fused outputs."""
     ids = list_fused_ids()
     results: list[TenderSummary] = []
@@ -119,24 +120,31 @@ def list_tenders():
         fused = load_fused(tid)
         if fused is None:
             continue
+        source = tender_source(fused, tid)
+        if user is None and (source != "synthetic_demo" or not tid.startswith("T-")):
+            continue
         results.append(
             TenderSummary(
                 tender_id=fused["tender_id"],
                 title=fused.get("title", ""),
                 risk_level=fused["risk_level"],
                 decision=fused["decision"],
-                source=tender_source(fused, tid),
+                source=source,
             )
         )
     return results
 
 
 @app.get("/api/tenders/{tender_id}/analysis")
-def tender_analysis(tender_id: str):
+def tender_analysis(tender_id: str, user: dict[str, Any] | None = Depends(optional_user)):
     """Return combined rules, clauses, and fused decision for a tender."""
+    if tender_id.startswith("RT-") and user is None:
+        raise _unauthenticated("Sign-in required")
     fused = load_fused(tender_id)
     if fused is None:
         raise _error(404, f"Tender {tender_id} not found")
+    if tender_source(fused, tender_id) == "real" and user is None:
+        raise _unauthenticated("Sign-in required")
 
     rules, atom_status = _get_rules(tender_id)
 
@@ -183,14 +191,18 @@ def tender_analysis(tender_id: str):
     return response
 
 @app.get("/api/tenders/{tender_id}/graph")
-def tender_graph(tender_id: str):
+def tender_graph(tender_id: str, user: dict[str, Any] | None = Depends(optional_user)):
     """
     Return the Cytoscape graph data plus the highlighted path
     for the linked vendor in this tender.
     """
+    if tender_id.startswith("RT-") and user is None:
+        raise _unauthenticated("Sign-in required")
     fused = load_fused(tender_id)
     if fused is None:
         raise _error(404, f"Tender {tender_id} not found")
+    if tender_source(fused, tender_id) == "real" and user is None:
+        raise _unauthenticated("Sign-in required")
 
     if tender_source(fused, tender_id) == "real":
         # No bid data before award: an empty graph plus the explicit reason, never a 404 the UI must guess about.

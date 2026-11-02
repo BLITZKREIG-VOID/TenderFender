@@ -23,7 +23,7 @@ from collections.abc import Callable
 from typing import Any
 
 import jwt
-from fastapi import Depends, Header, HTTPException
+from fastapi import Depends, Header, HTTPException, Request
 
 JWKS_TIMEOUT_SECONDS = 5
 JWKS_MIN_REFRESH_SECONDS = 60
@@ -190,3 +190,36 @@ def require_user(
         # Cognito's username (the sub for email users, "google_<id>" for Google users): AdminDeleteUser needs it.
         "username": claims.get("cognito:username") or claims["sub"],
     }
+
+def optional_user(
+    request: Request,
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any] | None:
+    """FastAPI dependency: user dict if valid Bearer token, None if no token, 401 if invalid token."""
+    if not authorization or not authorization.strip():
+        return None
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token.strip():
+        raise _unauthenticated("Sign-in required")
+    if request is not None and get_verifier in request.app.dependency_overrides:
+        verifier = request.app.dependency_overrides[get_verifier]()
+    else:
+        verifier = get_verifier()
+    try:
+        claims = verifier.verify(token.strip())
+    except AuthError as exc:
+        raise _unauthenticated(exc.message) from None
+    except JwksUnavailable:
+        raise HTTPException(
+            status_code=503,
+            detail={"error": "Sign-in keys are temporarily unavailable", "code": "auth_unavailable"},
+        ) from None
+    return {
+        "user_id": claims["sub"],
+        "email": claims.get("email"),
+        "name": claims.get("name"),
+        "username": claims.get("cognito:username") or claims["sub"],
+    }
+
+
+require_user.optional = optional_user
