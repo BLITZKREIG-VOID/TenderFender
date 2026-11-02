@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { api, type AuthConfig, type LlmSite, type Me } from "../api/client";
+import { api, type AuthConfig, type Me } from "../api/client";
 import { getIdToken, clearTokens, saveTokens } from "./tokens";
 import { authConfigured, buildLoginUrl, logoutUrl } from "./pkce";
 import {
@@ -23,9 +23,6 @@ interface AuthState {
   forgetAccountLocally: () => void;
   llm: LlmSettings | null;
   setLlm: (s: LlmSettings | null) => void;
-  site: LlmSite | null; // GET /api/llm/site; null until loaded, when signed out, or when the call failed
-  siteChecked: boolean;
-  refreshSite: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -36,8 +33,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [me, setMe] = useState<Me | null>(null);
   const [meError, setMeError] = useState<string | null>(null);
   const [llm, setLlmState] = useState<LlmSettings | null>(() => loadLlmSettings());
-  const [site, setSite] = useState<LlmSite | null>(null);
-  const [siteChecked, setSiteChecked] = useState(false);
 
   useEffect(() => {
     api
@@ -53,8 +48,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSignedIn(has);
       if (!has) {
         setMe(null);
-        setSite(null);
-        setSiteChecked(false);
       }
     };
     window.addEventListener("tf-auth-changed", onChange);
@@ -83,24 +76,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (signedIn && !me) void refreshMe();
   }, [signedIn, me, refreshMe]);
 
-  // Site-AI status and this month's shared spend; refreshed after each keyless AI call.
-  const refreshSite = useCallback(async () => {
-    if (!getIdToken()) return;
-    let data: LlmSite | null;
-    try {
-      data = (await api.getLlmSite()).data;
-    } catch {
-      data = null;
-    }
-    // Signed out while the call was in flight: leave it unchecked so the next sign-in loads it again.
-    if (!getIdToken()) return;
-    setSite(data);
-    setSiteChecked(true);
-  }, []);
-
-  useEffect(() => {
-    if (signedIn && !siteChecked) void refreshSite();
-  }, [signedIn, siteChecked, refreshSite]);
 
   const login = useCallback(
     async (returnTo = "/") => {
@@ -125,8 +100,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearSessionLlmSettings();
     setSignedIn(false);
     setMe(null);
-    setSite(null);
-    setSiteChecked(false);
     setLlmState(loadLlmSettings());
   }, []);
 
@@ -161,9 +134,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       forgetAccountLocally,
       llm,
       setLlm,
-      site,
-      siteChecked,
-      refreshSite,
     }),
     [
       config,
@@ -177,9 +147,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       forgetAccountLocally,
       llm,
       setLlm,
-      site,
-      siteChecked,
-      refreshSite,
     ]
   );
 

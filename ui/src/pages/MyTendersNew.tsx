@@ -12,7 +12,7 @@ import { btnPrimary, btnSecondary, input, label, errorBox, link } from "../compo
 const MAX_TEXT_LEN = 20000;
 
 export default function MyTendersNew() {
-  const { refreshMe, refreshSite } = useAuth();
+  const { refreshMe } = useAuth();
   const gate = useLlmGate("compile");
 
   const [title, setTitle] = useState("");
@@ -22,7 +22,7 @@ export default function MyTendersNew() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CompileResponse | null>(null);
 
-  const chosenModel = (gate.mode === "own" ? model : null) ?? gate.model;
+  const chosenModel = model ?? gate.model;
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -45,7 +45,6 @@ export default function MyTendersNew() {
       setError(describeError(apiError(err, "Compilation failed")));
     } finally {
       setBusy(false);
-      if (gate.mode === "site") void refreshSite();
     }
   };
 
