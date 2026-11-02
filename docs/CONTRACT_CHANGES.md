@@ -78,3 +78,15 @@ Everyone proposes changes here; only the Lead (P3) edits `SOURCE_OF_TRUTH.md`, `
 - Change: `ir_atom.json` field enum widened to include `turnover_lakh`, `turnover_pct`, `turnover_period_years`, `max_loss_years`, `solvency_lakh`, `solvency_pct`, `estimated_cost_lakh`, `emd_amount_lakh`, and `similar_works`. `value` accepts structured object for `similar_works` (alternatives with count, pct, amount_lakh and years). `rules_output.json` finding type enum widened to include `amount_mismatch`.
 - Why: Real ISRO public tenders require expressibility for turnover in Lakhs/percent, solvency in Lakhs/percent, loss years, turnover period, EMD amounts, and similar works alternatives. Mismatch between stated percentage and printed ₹ amount constitutes a medium-severity risk indicator.
 - Impacted owners: P1 rules engine and checks; downstream consumers ignore new fields for synthetic demo tenders (byte-identical).
+
+### CC-09: Site AI on Amazon Bedrock and `GET /api/llm/site`
+- Date / proposer: 2026-11-02, Backend Worker (Lead / Boss approved).
+- Status: applied (SoT §13 D41; `api/llm_routes.py`, `api/providers.py`, `api/users.py`, `decision/write.py`, `rules/compile_llm.py`).
+- Contract(s) affected: API endpoints. New endpoint `GET /api/llm/site`; keyless requests to `/api/tenders/{id}/regenerate`, `/api/compile`, `/api/tenders/{id}/chat` now route to site AI on Bedrock.
+- Change:
+  - New `GET /api/llm/site` (signed-in) returns `{"available": bool, "provider": "bedrock", "model": str, "month_spend_usd": float, "cap_usd": float}`.
+  - When no `X-LLM-Key` header is sent and `SITE_AI_ENABLED=true` (default), requests run on Bedrock `openai.gpt-oss-120b-1:0` via the Lambda execution role.
+  - Spend guard reads month's spend from users table item `pk="GLOBAL", sk="SPEND#YYYY-MM"`; if `>= SITE_AI_MONTHLY_CAP_USD` (default $10), returns 503 `{"code": "site_ai_budget_exhausted"}`. Post-call estimated cost from Converse usage is added via atomic `ADD` in integer micro-dollars.
+  - With `X-LLM-Key`, BYOK requests continue unchanged and do not count against or get blocked by the site AI cap.
+- Why: Enable site AI using AWS credits without requiring users to bring an API key, bounded by a strict $10/month hard cap.
+- Impacted owners: UI (P4) consumes `GET /api/llm/site` and displays site AI shared budget status when no key is saved.
