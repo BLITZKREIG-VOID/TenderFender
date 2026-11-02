@@ -1,0 +1,20 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "npm ci --prefix ui",
+  "buildCommand": "npm run build --prefix ui",
+  "outputDirectory": "ui/dist",
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://cl5srhq2lbhpd775etjbpso6sy0fwrtt.lambda-url.ap-south-1.on.aws/api/:path*"
+    },
+    { "source": "/((?!api/|assets/).*)", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/assets/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+    }
+  ]
+}

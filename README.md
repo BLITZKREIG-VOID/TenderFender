@@ -5,7 +5,8 @@ TenderFender is an automated tender integrity and risk-screening platform design
 ## 1. Overview & Live Demo
 
 - **Pitch:** Public tenders can be drafted with contradictory criteria or tailored so that only one preferred supplier qualifies. TenderFender automates the detection of these risk indicators, matching them against authoritative procurement guidelines to provide cited recommendations for human reviewers.
-- **Live Demo URL:** [https://cl5srhq2lbhpd775etjbpso6sy0fwrtt.lambda-url.ap-south-1.on.aws/](https://cl5srhq2lbhpd775etjbpso6sy0fwrtt.lambda-url.ap-south-1.on.aws/)
+- **Live Demo URL:** [https://tenderfender.vercel.app/](https://tenderfender.vercel.app/) (stable; proxies `/api/*` to the AWS Lambda, see [docs/DEPLOY.md](docs/DEPLOY.md#stable-vercel-url))
+- **AWS Function URL:** [https://cl5srhq2lbhpd775etjbpso6sy0fwrtt.lambda-url.ap-south-1.on.aws/](https://cl5srhq2lbhpd775etjbpso6sy0fwrtt.lambda-url.ap-south-1.on.aws/) (changes if the stack is recreated)
 - **Disclaimer:** All risk indicators, scores, and recommendations are strictly for human review and do not constitute legal findings of wrongdoing, guilt, or corruption.
 
 ---

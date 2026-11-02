@@ -18,6 +18,7 @@ GOOGLE_CLIENT_SECRET="${GOOGLE_CLIENT_SECRET:-}"
 AUTH_DOMAIN_PREFIX="${AUTH_DOMAIN_PREFIX:-}"
 SITE_URL="${SITE_URL:-}"
 DEV_CALLBACK_URL="${DEV_CALLBACK_URL:-}"
+VERCEL_URL="${VERCEL_URL-https://tenderfender.vercel.app/}"
 LLM_FEATURES_ENABLED="${LLM_FEATURES_ENABLED:-true}"
 KEEP_WARM="${KEEP_WARM:-true}"
 SITE_AI_ENABLED="${SITE_AI_ENABLED:-false}"
@@ -119,6 +120,7 @@ write_params() {
   "AuthDomainPrefix=$AUTH_DOMAIN_PREFIX",
   "SiteUrl=$current_site_url",
   "DevCallbackUrl=$DEV_CALLBACK_URL",
+  "VercelUrl=$VERCEL_URL",
   "GoogleClientId=$GOOGLE_CLIENT_ID",
   "GoogleClientSecret=$GOOGLE_CLIENT_SECRET",
   "LlmFeaturesEnabled=$LLM_FEATURES_ENABLED",
