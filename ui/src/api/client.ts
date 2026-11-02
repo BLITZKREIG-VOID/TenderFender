@@ -343,7 +343,18 @@ export interface LlmCreds {
   provider?: string;
 }
 
-const keyHeaders = (c: LlmCreds) => {
+// Site AI (the server's own Bedrock model, shared monthly budget) answers requests that carry no X-LLM-Key.
+export interface LlmSite {
+  available: boolean;
+  provider: string;
+  model: string;
+  month_spend_usd: number;
+  cap_usd: number;
+}
+
+// null creds: no key header at all, so the server uses site AI.
+const keyHeaders = (c: LlmCreds | null) => {
+  if (!c) return {};
   const h: Record<string, string> = { "X-LLM-Key": c.key };
   if (c.provider) h["X-LLM-Provider"] = c.provider;
   return { headers: h };
@@ -411,6 +422,9 @@ export function describeError(e: ApiErrorInfo): string {
   if (e.code === "global_daily_limit" || (e.status === 429 && e.code === "global_daily_limit")) {
     return "The investigation bureau has hit its daily case quota. Please try again tomorrow.";
   }
+  if (e.code === "site_ai_budget_exhausted") {
+    return "The investigation bureau has spent this month's shared AI budget. Add your own AI key in AI settings to keep investigating; the shared budget resets next month.";
+  }
   if (e.code === "llm_disabled" || e.status === 503) {
     return "AI features are paused by the site owner. The demo is still available.";
   }
@@ -462,14 +476,16 @@ export const api = {
 
   detectKey: (c: LlmCreds) => client.post<DetectResponse>("/llm/detect", {}, keyHeaders(c)),
 
-  regenerate: (tenderId: string, model: string, c: LlmCreds) =>
+  getLlmSite: () => client.get<LlmSite>("/llm/site"),
+
+  regenerate: (tenderId: string, model: string, c: LlmCreds | null) =>
     client.post<RegenerateResponse>(
       `/tenders/${encodeURIComponent(tenderId)}/regenerate`,
       { model },
       keyHeaders(c)
     ),
 
-  compile: (body: { title: string; text: string; model: string }, c: LlmCreds) =>
+  compile: (body: { title: string; text: string; model: string }, c: LlmCreds | null) =>
     client.post<CompileResponse>("/compile", body, keyHeaders(c)),
 
   getMyTenders: () =>
@@ -482,7 +498,7 @@ export const api = {
 
   deleteMyTender: (uid: string) => client.delete<void>(`/me/tenders/${encodeURIComponent(uid)}`),
 
-  chat: (tenderId: string, model: string, messages: ChatMessage[], c: LlmCreds) =>
+  chat: (tenderId: string, model: string, messages: ChatMessage[], c: LlmCreds | null) =>
     client.post<ChatResponse>(
       `/tenders/${encodeURIComponent(tenderId)}/chat`,
       { model, messages },
