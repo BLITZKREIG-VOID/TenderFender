@@ -55,6 +55,27 @@ Parameters:
     Default: "true"
     AllowedValues: ["true", "false"]
     Description: Kill switch for BYOK LLM routes. Set to false to return 503 llm_disabled while keeping public demo online.
+  SiteAiEnabled:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: Enable site AI on Amazon Bedrock when the user does not provide their own API key.
+  SiteAiMonthlyCapUsd:
+    Type: Number
+    Default: 10
+    Description: Hard monthly spend cap in USD for site AI calls on Amazon Bedrock.
+  BedrockModelId:
+    Type: String
+    Default: "openai.gpt-oss-120b-1:0"
+    Description: Bedrock foundation model ID for site AI inference.
+  BedrockPriceInPerMtok:
+    Type: Number
+    Default: 0.18
+    Description: Estimated Bedrock input token price in USD per million tokens.
+  BedrockPriceOutPerMtok:
+    Type: Number
+    Default: 0.71
+    Description: Estimated Bedrock output token price in USD per million tokens.
 
 Conditions:
   HasBudgetEmail: !Not [!Equals [!Ref BudgetEmail, ""]]
@@ -121,6 +142,14 @@ Resources:
                 Action:
                   - cognito-idp:AdminDeleteUser
                 Resource: !GetAtt UserPool.Arn
+        - PolicyName: bedrock-invoke-gpt-oss
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                Resource: !Sub "arn:aws:bedrock:${AWS::Region}::foundation-model/openai.gpt-oss-120b-1:0"
 
   ApiFunction:
     Type: AWS::Lambda::Function
@@ -152,6 +181,11 @@ Resources:
           DAILY_LIMIT_DETECT: "20"
           GLOBAL_DAILY_LIMIT_LLM: "150"
           GLOBAL_DAILY_LIMIT_DETECT: "300"
+          SITE_AI_ENABLED: !Ref SiteAiEnabled
+          SITE_AI_MONTHLY_CAP_USD: !Ref SiteAiMonthlyCapUsd
+          BEDROCK_MODEL_ID: !Ref BedrockModelId
+          BEDROCK_PRICE_IN_PER_MTOK: !Ref BedrockPriceInPerMtok
+          BEDROCK_PRICE_OUT_PER_MTOK: !Ref BedrockPriceOutPerMtok
 
   ApiFunctionUrl:
     Type: AWS::Lambda::Url
@@ -476,6 +510,98 @@ Resources:
           Subscribers:
             - SubscriptionType: EMAIL
               Address: !Ref BudgetEmail
+
+  # ── Bedrock Site AI Cost Budget & Deny Action ──────────────────────────────
+  BedrockCostBudget:
+    Type: AWS::Budgets::Budget
+    Properties:
+      Budget:
+        BudgetName: !Sub "${AWS::StackName}-bedrock-cost-budget"
+        BudgetType: COST
+        TimeUnit: MONTHLY
+        BudgetLimit:
+          Amount: !Ref SiteAiMonthlyCapUsd
+          Unit: USD
+        CostFilters:
+          Service:
+            - Amazon Bedrock
+      NotificationsWithSubscribers:
+        !If
+          - HasBudgetEmail
+          - - Notification:
+                NotificationType: ACTUAL
+                ComparisonOperator: GREATER_THAN
+                Threshold: 50
+                ThresholdType: PERCENTAGE
+              Subscribers:
+                - SubscriptionType: EMAIL
+                  Address: !Ref BudgetEmail
+            - Notification:
+                NotificationType: ACTUAL
+                ComparisonOperator: GREATER_THAN
+                Threshold: 100
+                ThresholdType: PERCENTAGE
+              Subscribers:
+                - SubscriptionType: EMAIL
+                  Address: !Ref BudgetEmail
+          - !Ref "AWS::NoValue"
+
+  BudgetsActionExecutionRole:
+    Type: AWS::IAM::Role
+    Condition: HasBudgetEmail
+    Properties:
+      RoleName: !Sub "${AWS::StackName}-budgets-action-exec"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: budgets.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: apply-deny-policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - iam:AttachRolePolicy
+                  - iam:DetachRolePolicy
+                Resource: !GetAtt ApiRole.Arn
+
+  BedrockDenyPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasBudgetEmail
+    Properties:
+      ManagedPolicyName: !Sub "${AWS::StackName}-bedrock-deny"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Deny
+            Action:
+              - "bedrock:InvokeModel*"
+            Resource: "*"
+
+  BedrockCostBudgetAction:
+    Type: AWS::Budgets::BudgetsAction
+    Condition: HasBudgetEmail
+    Properties:
+      BudgetName: !Ref BedrockCostBudget
+      ActionType: APPLY_IAM_POLICY
+      ApprovalModel: AUTOMATIC
+      ActionThreshold:
+        Type: PERCENTAGE
+        Value: 100
+      ExecutionRoleArn: !GetAtt BudgetsActionExecutionRole.Arn
+      NotificationType: ACTUAL
+      Definition:
+        IamActionDefinition:
+          PolicyArn: !Ref BedrockDenyPolicy
+          Roles:
+            - !Ref ApiRole
+      Subscribers:
+        - Type: EMAIL
+          Address: !Ref BudgetEmail
 
 Outputs:
   SiteUrl:
