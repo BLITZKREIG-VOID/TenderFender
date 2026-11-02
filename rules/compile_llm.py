@@ -16,7 +16,8 @@ from rules.ir import Atom, REG_CLASSES, VENDOR_FIELDS, TENDER_FIELDS
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_MODEL = "nvidia/nemotron-3-ultra-550b-a55b:free"
 SEED = 42
-MAX_TOKENS = 4096
+# Batched RT- tenders can exceed 4096 output tokens on reasoning models; override with RULES_MAX_TOKENS.
+MAX_TOKENS = int(os.environ.get("RULES_MAX_TOKENS", "4096"))
 TIMEOUT_SECONDS = 120
 
 

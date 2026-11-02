@@ -1,0 +1,93 @@
+[
+  {
+    "id": "CL1.1",
+    "clause_id": "CL1",
+    "field": "estimated_cost_lakh",
+    "op": "==",
+    "value": 103.92,
+    "source_text": "₹ 103.92 Lakhs"
+  },
+  {
+    "id": "CL5.1",
+    "clause_id": "CL5",
+    "field": "emd_amount_lakh",
+    "op": "==",
+    "value": 2.0784,
+    "source_text": "₹ 2,07,840/-"
+  },
+  {
+    "id": "CL6.1",
+    "clause_id": "CL6",
+    "field": "similar_works",
+    "op": "==",
+    "value": {
+      "years": 7,
+      "alternatives": [
+        {
+          "count": 3,
+          "pct": 40,
+          "amount_lakh": 41.57
+        },
+        {
+          "count": 2,
+          "pct": 60,
+          "amount_lakh": 62.35
+        },
+        {
+          "count": 1,
+          "pct": 80,
+          "amount_lakh": 83.14
+        }
+      ]
+    },
+    "source_text": "Should have satisfactorily completed the works as mentioned below during the last 7 years ending previous day of last date of submission of bids. i. Three similar works each costing not less than 40% of the estimated cost. i.e. ₹ 41.57 Lakhs (or) ii. Two similar works each costing not less than 60% of the estimated cost i.e. ₹ 62.35 Lakhs (or) iii. One similar work costing not less than 80% of the estimated cost i.e. ₹ 83.14 Lakhs."
+  },
+  {
+    "id": "CL7.1",
+    "clause_id": "CL7",
+    "field": "turnover_pct",
+    "op": ">=",
+    "value": 30,
+    "source_text": "average annual financial turnover not less than 30% of the estimated cost"
+  },
+  {
+    "id": "CL7.2",
+    "clause_id": "CL7",
+    "field": "turnover_lakh",
+    "op": ">=",
+    "value": 31.18,
+    "source_text": "i.e. ₹ 31.18 Lakhs"
+  },
+  {
+    "id": "CL7.3",
+    "clause_id": "CL7",
+    "field": "turnover_period_years",
+    "op": "==",
+    "value": 3,
+    "source_text": "during the last three years ending 31st March of preceding year (31.03.2025)"
+  },
+  {
+    "id": "CL8.1",
+    "clause_id": "CL8",
+    "field": "max_loss_years",
+    "op": "<=",
+    "value": 2,
+    "source_text": "Should not have incurred any loss in more than two years during the last five years ending 31st March 2025."
+  },
+  {
+    "id": "CL9.1",
+    "clause_id": "CL9",
+    "field": "solvency_pct",
+    "op": ">=",
+    "value": 40,
+    "source_text": "Should have a solvency of 40% of the estimated cost of the work"
+  },
+  {
+    "id": "CL9.2",
+    "clause_id": "CL9",
+    "field": "solvency_lakh",
+    "op": ">=",
+    "value": 41.57,
+    "source_text": "i.e₹ 41.57 Lakhs"
+  }
+]
