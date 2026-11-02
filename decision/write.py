@@ -18,7 +18,7 @@ API_URL = "https://openrouter.ai/api/v1/chat/completions"
 BEDROCK_DEFAULT_MODEL = "openai.gpt-oss-120b-1:0"
 OPENROUTER_DEFAULT_MODEL = "nvidia/nemotron-3-ultra-550b-a55b:free"
 BEDROCK_DEFAULT_REGION = "ap-south-1"
-DEFAULT_MODEL = BEDROCK_DEFAULT_MODEL
+DEFAULT_MODEL = OPENROUTER_DEFAULT_MODEL
 SEED = 42
 MAX_TOKENS = 4096
 TIMEOUT_SECONDS = 120
@@ -164,7 +164,7 @@ def resolve_provider(provider: str | None = None, api_key: str | None = None,
         return "openrouter"
     if transport is not None and transport is not urllib_transport:
         return "openrouter"
-    return "bedrock"
+    return "openrouter"
 def resolve_model(model: str | None = None, provider: str | None = None) -> str:
     if model:
         return model
