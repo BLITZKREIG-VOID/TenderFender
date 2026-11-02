@@ -14,7 +14,10 @@ from rules.ir import Atom, REG_CLASSES, VENDOR_FIELDS, TENDER_FIELDS
 # The OpenRouter request pattern below is copied from decision/write.py on purpose: SoT section 4
 # forbids one module importing another module's code, so rules/ keeps its own minimal copy.
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
-DEFAULT_MODEL = "nvidia/nemotron-3-ultra-550b-a55b:free"
+OPENROUTER_DEFAULT_MODEL = "nvidia/nemotron-3-ultra-550b-a55b:free"
+BEDROCK_DEFAULT_MODEL = "openai.gpt-oss-120b-1:0"
+BEDROCK_DEFAULT_REGION = "ap-south-1"
+DEFAULT_MODEL = OPENROUTER_DEFAULT_MODEL
 SEED = 42
 # Batched RT- tenders can exceed 4096 output tokens on reasoning models; override with RULES_MAX_TOKENS.
 MAX_TOKENS = int(os.environ.get("RULES_MAX_TOKENS", "4096"))
@@ -45,10 +48,28 @@ class InvalidModelOutput(Exception):
     """The model replied, but with truncated or empty content; counts as an invalid attempt."""
 
 
+def resolve_provider() -> str:
+    prov = os.environ.get("LLM_PROVIDER")
+    if prov:
+        return prov.strip().lower()
+    if os.environ.get("OPENROUTER_API_KEY") and not (
+        os.environ.get("AWS_ACCESS_KEY_ID") or os.environ.get("AWS_DEFAULT_REGION") or os.environ.get("AWS_REGION")
+    ):
+        return "openrouter"
+    return "bedrock"
+
+
 def resolve_model() -> str:
-    return os.environ.get("RULES_MODEL") or DEFAULT_MODEL
+    env_m = os.environ.get("RULES_MODEL")
+    if env_m:
+        return env_m
+    return BEDROCK_DEFAULT_MODEL if resolve_provider() == "bedrock" else OPENROUTER_DEFAULT_MODEL
 
 
+def get_bedrock_client(region: str | None = None) -> Any:
+    import boto3
+    reg = region or os.environ.get("BEDROCK_REGION", BEDROCK_DEFAULT_REGION)
+    return boto3.client("bedrock-runtime", region_name=reg)
 def _http_error_message(code: int, body: str) -> str:
     snippet = body[:500]
     if code == 429:
@@ -163,7 +184,70 @@ def _post(request: dict[str, Any]) -> dict[str, Any]:
         raise CompileError(f"OpenRouter request failed: {type(exc).__name__}: {exc}") from exc
 
 
-def _call_api(system: str, messages: list[dict[str, Any]]) -> str:
+def _call_bedrock(system: str, messages: list[dict[str, Any]], *, client: Any | None = None) -> str:
+    import botocore.exceptions
+    try:
+        bedrock = client if client is not None else get_bedrock_client()
+        if client is None:
+            import boto3
+            sess = boto3.Session(region_name=os.environ.get("BEDROCK_REGION", BEDROCK_DEFAULT_REGION))
+            if sess.get_credentials() is None:
+                raise CompileError("AWS credentials not found: configure AWS credentials")
+    except (botocore.exceptions.NoCredentialsError, botocore.exceptions.PartialCredentialsError,
+            botocore.exceptions.MissingDependencyException) as exc:
+        raise CompileError(f"AWS credentials not found: {exc}") from exc
+    except CompileError:
+        raise
+    except Exception as exc:
+        raise CompileError(f"AWS credentials not found: {exc}") from exc
+    converse_system = [{"text": system}]
+    converse_messages = [{"role": m["role"], "content": [{"text": m["content"]}]} for m in messages]
+
+    try:
+        response = bedrock.converse(
+            modelId=resolve_model(),
+            messages=converse_messages,
+            system=converse_system,
+            inferenceConfig={"maxTokens": MAX_TOKENS},
+        )
+    except (botocore.exceptions.NoCredentialsError, botocore.exceptions.PartialCredentialsError) as exc:
+        raise CompileError(f"AWS credentials not found: {exc}") from exc
+    except botocore.exceptions.ClientError as exc:
+        code = exc.response.get("Error", {}).get("Code", "")
+        msg = exc.response.get("Error", {}).get("Message", str(exc))
+        if code in ("AccessDeniedException", "ValidationException", "ResourceNotFoundException"):
+            raise CompileError(f"Bedrock {code}: {msg}") from exc
+        if code in ("ThrottlingException", "ServiceUnavailableException", "ModelTimeoutException", "InternalServerException"):
+            raise HTTP503Error(f"Bedrock {code}: {msg}") from exc
+        raise CompileError(f"Bedrock request failed ({code}): {msg}") from exc
+    except Exception as exc:
+        raise CompileError(f"Bedrock request failed: {type(exc).__name__}: {exc}") from exc
+
+    try:
+        output_msg = response.get("output", {}).get("message", {})
+        content_blocks = output_msg.get("content", [])
+        text = "".join(b["text"] for b in content_blocks if isinstance(b, dict) and "text" in b)
+        stop_reason = response.get("stopReason")
+    except (KeyError, IndexError, TypeError, AttributeError) as exc:
+        raise CompileError(f"unexpected Bedrock response shape: {str(response)[:300]}") from exc
+
+    if text is None:
+        text = ""
+    if not isinstance(text, str):
+        raise CompileError(f"unexpected Bedrock response shape: {str(response)[:300]}")
+    if stop_reason == "max_tokens":
+        raise InvalidModelOutput(
+            f"model output was truncated (stopReason=max_tokens, max_tokens={MAX_TOKENS})")
+    if not text.strip():
+        raise InvalidModelOutput("model returned empty content")
+    return text
+
+
+def _call_api(system: str, messages: list[dict[str, Any]], *, client: Any | None = None) -> str:
+    prov = resolve_provider()
+    if prov == "bedrock":
+        return _call_bedrock(system, messages, client=client)
+
     key = os.environ.get("OPENROUTER_API_KEY")
     if not key:
         raise CompileError("OPENROUTER_API_KEY is not set")

@@ -20,6 +20,11 @@ SITE_URL="${SITE_URL:-}"
 DEV_CALLBACK_URL="${DEV_CALLBACK_URL:-}"
 LLM_FEATURES_ENABLED="${LLM_FEATURES_ENABLED:-true}"
 KEEP_WARM="${KEEP_WARM:-true}"
+SITE_AI_ENABLED="${SITE_AI_ENABLED:-true}"
+SITE_AI_MONTHLY_CAP_USD="${SITE_AI_MONTHLY_CAP_USD:-10}"
+BEDROCK_MODEL_ID="${BEDROCK_MODEL_ID:-openai.gpt-oss-120b-1:0}"
+BEDROCK_PRICE_IN_PER_MTOK="${BEDROCK_PRICE_IN_PER_MTOK:-0.18}"
+BEDROCK_PRICE_OUT_PER_MTOK="${BEDROCK_PRICE_OUT_PER_MTOK:-0.71}"
 SKIP_GATES="${SKIP_GATES:-0}"
 log() { printf '\n==> %s\n' "$*"; }
 
@@ -116,8 +121,12 @@ write_params() {
   "DevCallbackUrl=$DEV_CALLBACK_URL",
   "GoogleClientId=$GOOGLE_CLIENT_ID",
   "GoogleClientSecret=$GOOGLE_CLIENT_SECRET",
-  "LlmFeaturesEnabled=$LLM_FEATURES_ENABLED"
-]
+  "LlmFeaturesEnabled=$LLM_FEATURES_ENABLED",
+  "SiteAiEnabled=$SITE_AI_ENABLED",
+  "SiteAiMonthlyCapUsd=$SITE_AI_MONTHLY_CAP_USD",
+  "BedrockModelId=$BEDROCK_MODEL_ID",
+  "BedrockPriceInPerMtok=$BEDROCK_PRICE_IN_PER_MTOK",
+  "BedrockPriceOutPerMtok=$BEDROCK_PRICE_OUT_PER_MTOK"
 EOF
 }
 
@@ -126,7 +135,7 @@ aws cloudformation deploy \
   --stack-name "$STACK_NAME" \
   --template-file infra/template.yaml \
   --s3-bucket "$DEPLOY_BUCKET" --s3-prefix cfn \
-  --capabilities CAPABILITY_IAM \
+  --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
   --no-fail-on-empty-changeset \
   --parameter-overrides "file://$PARAM_FILE"
 out() {

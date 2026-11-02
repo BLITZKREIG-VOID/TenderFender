@@ -9,14 +9,16 @@ import json
 import os
 import urllib.error
 import urllib.request
-from typing import Callable
-
+from typing import Any, Callable
 from decision.retrieve import Passage
 from decision.validate import DecisionValidationError, validate_decision
 
 PROMPT_VERSION = "v2-openrouter"
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
-DEFAULT_MODEL = "nvidia/nemotron-3-ultra-550b-a55b:free"
+BEDROCK_DEFAULT_MODEL = "openai.gpt-oss-120b-1:0"
+OPENROUTER_DEFAULT_MODEL = "nvidia/nemotron-3-ultra-550b-a55b:free"
+BEDROCK_DEFAULT_REGION = "ap-south-1"
+DEFAULT_MODEL = BEDROCK_DEFAULT_MODEL
 SEED = 42
 MAX_TOKENS = 4096
 TIMEOUT_SECONDS = 120
@@ -150,9 +152,33 @@ def build_user_prompt(fusion: dict, retrieved: Retrieved) -> str:
     return json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True)
 
 
-def resolve_model(model: str | None = None) -> str:
-    return model or os.environ.get("DECISION_MODEL") or DEFAULT_MODEL
+def resolve_provider(provider: str | None = None, api_key: str | None = None,
+                     transport: Transport | None = None, bedrock_client: Any = None) -> str:
+    if provider:
+        return provider.strip().lower()
+    if bedrock_client is not None:
+        return "bedrock"
+    if "LLM_PROVIDER" in os.environ:
+        return os.environ["LLM_PROVIDER"].strip().lower()
+    if api_key or os.environ.get("OPENROUTER_API_KEY"):
+        return "openrouter"
+    if transport is not None and transport is not urllib_transport:
+        return "openrouter"
+    return "bedrock"
+def resolve_model(model: str | None = None, provider: str | None = None) -> str:
+    if model:
+        return model
+    env_m = os.environ.get("DECISION_MODEL")
+    if env_m:
+        return env_m
+    prov = resolve_provider(provider)
+    return BEDROCK_DEFAULT_MODEL if prov == "bedrock" else OPENROUTER_DEFAULT_MODEL
 
+
+def get_bedrock_client(region: str | None = None) -> Any:
+    import boto3
+    reg = region or os.environ.get("BEDROCK_REGION", BEDROCK_DEFAULT_REGION)
+    return boto3.client("bedrock-runtime", region_name=reg)
 
 def _http_error_message(code: int, body: str) -> str:
     snippet = body[:500]
@@ -192,16 +218,13 @@ def _parse_json(text: str) -> dict:
     return {"reasoning": obj.get("reasoning"), "recommended_actions": obj.get("recommended_actions")}
 
 
-def write_llm(fusion: dict, retrieved: Retrieved, placeholder_ids: set[str], *,
-              api_key: str | None = None, model: str | None = None,
-              transport: Transport = urllib_transport) -> dict:
-    """Ask the LLM for reasoning/actions; validate; retry with feedback at most MAX_RETRIES times.
-
-    Raises DecisionValidationError if still invalid, LLMError on transport problems."""
+def write_llm_openrouter(fusion: dict, retrieved: Retrieved, placeholder_ids: set[str], *,
+                         api_key: str | None = None, model: str | None = None,
+                         transport: Transport = urllib_transport) -> dict:
     api_key = api_key or os.environ.get("OPENROUTER_API_KEY")
     if not api_key:
         raise LLMError("OPENROUTER_API_KEY is not set")
-    model = resolve_model(model)
+    model = resolve_model(model, provider="openrouter")
     allowed = allowed_refs(fusion["_inputs"], retrieved)
     messages = [{"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": build_user_prompt(fusion, retrieved)}]
@@ -247,3 +270,102 @@ def write_llm(fusion: dict, retrieved: Retrieved, placeholder_ids: set[str], *,
                  + ". Return corrected JSON only, citing only identifiers present in the input."},
             ]
     raise DecisionValidationError([f"LLM output still invalid after {MAX_RETRIES} retries"] + errors)
+
+
+def write_llm_bedrock(fusion: dict, retrieved: Retrieved, placeholder_ids: set[str], *,
+                      model: str | None = None, client: Any = None) -> dict:
+    import botocore.exceptions
+    try:
+        bedrock = client if client is not None else get_bedrock_client()
+        if client is None:
+            import boto3
+            sess = boto3.Session(region_name=os.environ.get("BEDROCK_REGION", BEDROCK_DEFAULT_REGION))
+            if sess.get_credentials() is None:
+                raise LLMError("AWS credentials not found: configure AWS credentials")
+    except (botocore.exceptions.NoCredentialsError, botocore.exceptions.PartialCredentialsError,
+            botocore.exceptions.MissingDependencyException) as exc:
+        raise LLMError(f"AWS credentials not found: {exc}") from exc
+    except LLMError:
+        raise
+    except Exception as exc:
+        raise LLMError(f"AWS credentials not found: {exc}") from exc
+    model = resolve_model(model, provider="bedrock")
+    allowed = allowed_refs(fusion["_inputs"], retrieved)
+    system = [{"text": SYSTEM_PROMPT}]
+    messages = [{"role": "user", "content": [{"text": build_user_prompt(fusion, retrieved)}]}]
+
+    errors: list[str] = []
+    for attempt in range(MAX_RETRIES + 1):
+        try:
+            response = bedrock.converse(
+                modelId=model,
+                messages=messages,
+                system=system,
+                inferenceConfig={"maxTokens": MAX_TOKENS},
+            )
+        except (botocore.exceptions.NoCredentialsError, botocore.exceptions.PartialCredentialsError) as exc:
+            raise LLMError(f"AWS credentials not found: {exc}") from exc
+        except botocore.exceptions.ClientError as exc:
+            code = exc.response.get("Error", {}).get("Code", "")
+            msg = exc.response.get("Error", {}).get("Message", str(exc))
+            if code in ("AccessDeniedException", "ValidationException", "ResourceNotFoundException"):
+                raise LLMError(f"Bedrock {code}: {msg}") from exc
+            if code in ("ThrottlingException", "ServiceUnavailableException", "ModelTimeoutException", "InternalServerException"):
+                if attempt >= MAX_RETRIES:
+                    raise LLMError(f"Bedrock {code} after {MAX_RETRIES} retries: {msg}") from exc
+                continue
+            raise LLMError(f"Bedrock ClientError ({code}): {msg}") from exc
+        except Exception as exc:
+            raise LLMError(f"Bedrock request failed: {type(exc).__name__}: {exc}") from exc
+
+        try:
+            output_msg = response.get("output", {}).get("message", {})
+            content_blocks = output_msg.get("content", [])
+            text = "".join(b["text"] for b in content_blocks if isinstance(b, dict) and "text" in b)
+            stop_reason = response.get("stopReason")
+        except (KeyError, IndexError, TypeError, AttributeError) as exc:
+            raise LLMError(f"unexpected Bedrock response shape: {str(response)[:300]}") from exc
+
+        try:
+            if stop_reason == "max_tokens":
+                raise DecisionValidationError([f"model output was truncated (stopReason=max_tokens, "
+                                               f"max_tokens={MAX_TOKENS}); reasoning may have used the budget"])
+            if not text.strip():
+                raise DecisionValidationError(["model returned empty content"])
+            fields = _parse_json(text)
+            fixed = _actions(fusion)
+            extras = fields["recommended_actions"]
+            if isinstance(extras, list):
+                extras = [a for a in extras if a not in fixed]
+                fields["recommended_actions"] = fixed + extras
+            citations = validate_decision(fields, allowed, placeholder_ids, fusion["decision"])
+            return {**fields, "citations": citations, "model": model}
+        except DecisionValidationError as exc:
+            errors = exc.errors
+            messages = messages + [
+                {"role": "assistant", "content": [{"text": text}]},
+                {"role": "user", "content": [{"text": "Your reply was rejected: " + "; ".join(errors)
+                 + ". Return corrected JSON only, citing only identifiers present in the input."}]},
+            ]
+    raise DecisionValidationError([f"LLM output still invalid after {MAX_RETRIES} retries"] + errors)
+
+
+def write_llm(fusion: dict, retrieved: Retrieved, placeholder_ids: set[str], *,
+              api_key: str | None = None, model: str | None = None,
+              provider: str | None = None,
+              transport: Transport = urllib_transport,
+              bedrock_client: Any = None) -> dict:
+    """Ask the LLM for reasoning/actions; validate; retry with feedback at most MAX_RETRIES times.
+
+    Raises DecisionValidationError if still invalid, LLMError on transport problems."""
+    if bedrock_client is not None:
+        return write_llm_bedrock(fusion, retrieved, placeholder_ids, model=model, client=bedrock_client)
+    if transport is not urllib_transport:
+        default_key = "site_ai" if provider == "bedrock" else os.environ.get("OPENROUTER_API_KEY")
+        return write_llm_openrouter(fusion, retrieved, placeholder_ids,
+                                    api_key=api_key or default_key,
+                                    model=model, transport=transport)
+    prov = resolve_provider(provider, api_key=api_key, transport=transport, bedrock_client=bedrock_client)
+    if prov == "bedrock":
+        return write_llm_bedrock(fusion, retrieved, placeholder_ids, model=model, client=bedrock_client)
+    return write_llm_openrouter(fusion, retrieved, placeholder_ids, api_key=api_key, model=model, transport=transport)

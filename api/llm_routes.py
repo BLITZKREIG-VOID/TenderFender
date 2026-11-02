@@ -63,6 +63,58 @@ def _now() -> str:
     return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def site_ai_enabled() -> bool:
+    val = os.environ.get("SITE_AI_ENABLED", "true").lower()
+    return val in ("true", "1", "yes")
+
+
+def bedrock_model_id() -> str:
+    return os.environ.get("BEDROCK_MODEL_ID") or os.environ.get("BedrockModelId") or "openai.gpt-oss-120b-1:0"
+
+
+def site_ai_cap_usd() -> float:
+    return float(os.environ.get("SITE_AI_MONTHLY_CAP_USD", os.environ.get("SiteAiMonthlyCapUsd", "10")))
+
+
+def check_site_ai_budget(store: Any) -> None:
+    cap = site_ai_cap_usd()
+    cap_micro = int(cap * 1_000_000)
+    current_spend_micro = store.get_site_ai_spend()
+    if current_spend_micro >= cap_micro:
+        raise _error(503, "Site AI monthly budget has been exhausted. Please bring your own API key in AI Settings.",
+                     "site_ai_budget_exhausted")
+
+
+def record_call_cost(usage: dict[str, int], store: Any) -> None:
+    in_tokens = usage.get("inputTokens", 0)
+    out_tokens = usage.get("outputTokens", 0)
+    price_in = float(os.environ.get("BEDROCK_PRICE_IN_PER_MTOK") or os.environ.get("BedrockPriceInPerMtok", "0.18"))
+    price_out = float(os.environ.get("BEDROCK_PRICE_OUT_PER_MTOK") or os.environ.get("BedrockPriceOutPerMtok", "0.71"))
+    cost_micro = round(in_tokens * price_in + out_tokens * price_out)
+    if cost_micro > 0:
+        store.record_site_ai_spend(cost_micro)
+
+
+def _resolve_caller(request: Request, model_override: str, store: Any) -> tuple[str, str | None, str, bool]:
+    """Returns (provider_id, key, model, is_site_ai)."""
+    key = request.headers.get("x-llm-key")
+    if not key:
+        if not site_ai_enabled():
+            raise _error(400, "Send your LLM API key in the X-LLM-Key header.", "llm_key_required")
+        check_site_ai_budget(store)
+        return "bedrock", None, bedrock_model_id(), True
+
+    hint = (request.headers.get("x-llm-provider") or "").strip().lower() or None
+    try:
+        providers.check_key_format(key)
+        providers.candidates(key, hint)
+        pid = providers.resolve(key, hint)
+        providers.check_model(pid, model_override)
+    except providers.ProviderError as exc:
+        raise _provider_http(exc) from None
+    return pid, key, model_override, False
+
+
 def _llm_key(request: Request) -> tuple[str, str | None]:
     """(key, provider hint). Read from raw headers so no validation error can ever echo the key."""
     key = request.headers.get("x-llm-key")
@@ -121,6 +173,25 @@ def detect_key(request: Request, user: dict = Depends(require_user), store=Depen
     except providers.ProviderError as exc:
         raise _provider_http(exc) from None
 
+# ── Site AI Info ─────────────────────────────────────────────────────────────
+
+@router.get("/api/llm/site")
+def get_llm_site(user: dict = Depends(require_user), store=Depends(users_store)):
+    cap = site_ai_cap_usd()
+    spend_micro = store.get_site_ai_spend()
+    month_spend_usd = round(spend_micro / 1_000_000.0, 6)
+    llm_on = os.environ.get("LLM_FEATURES_ENABLED", "true").lower() in ("true", "1", "yes")
+    site_on = site_ai_enabled()
+    available = llm_on and site_on and (spend_micro < int(cap * 1_000_000))
+    return {
+        "available": available,
+        "provider": "bedrock",
+        "model": bedrock_model_id(),
+        "month_spend_usd": month_spend_usd,
+        "cap_usd": cap,
+    }
+
+
 
 # ── Regenerate ───────────────────────────────────────────────────────────────
 
@@ -176,10 +247,9 @@ def _write_transport(pid: str, key: str, deadline: providers.Deadline) -> write.
 @router.post("/api/tenders/{tender_id}/regenerate")
 def regenerate(tender_id: str, body: RegenerateBody, request: Request, user: dict = Depends(require_user),
                store=Depends(users_store)):
-    """Re-write a public tender's reasoning with the user's model; risk_level and decision stay fixed."""
+    """Re-write a public tender's reasoning with the user's model or site AI; risk_level and decision stay fixed."""
     check_llm_enabled()
-    key, hint = _llm_key(request)
-    pid = _provider_for(key, hint, body.model)
+    pid, key, model, is_site = _resolve_caller(request, body.model, store)
     fusion = _fusion_intermediate(tender_id)
     if not write.has_evidence(fusion):
         raise _error(409, f"Tender {tender_id} has no findings or flagged rings, so there is nothing to explain.",
@@ -192,9 +262,23 @@ def regenerate(tender_id: str, body: RegenerateBody, request: Request, user: dic
     retrieved, retrieval = _retrieved(tender_id, fusion, passages)
 
     consume(user["user_id"], "regen", store)
+    deadline = providers.Deadline()
+    last_usage: dict[str, int] = {}
+
+    def transport(req: dict) -> dict:
+        nonlocal last_usage
+        b = req["body"]
+        msgs = b["messages"]
+        out = providers.complete(pid, key or "", model, msgs[0]["content"], msgs[1:],
+                                 max_tokens=b["max_tokens"], deadline=deadline)
+        if out.usage:
+            last_usage = out.usage
+        return {"choices": [{"message": {"content": out.text},
+                             "finish_reason": "length" if out.truncated else "stop"}]}
+
     try:
-        out = write.write_llm(fusion, retrieved, placeholder_ids, api_key=key, model=body.model,
-                              transport=_write_transport(pid, key, providers.Deadline()))
+        out = write.write_llm(fusion, retrieved, placeholder_ids, api_key=key, model=model,
+                              provider=pid, transport=transport)
     except providers.ProviderError as exc:
         raise _provider_http(exc) from None
     except DecisionValidationError as exc:
@@ -203,13 +287,15 @@ def regenerate(tender_id: str, body: RegenerateBody, request: Request, user: dic
     except write.LLMError as exc:
         raise _error(502, providers.scrub(str(exc), key), "provider_error", provider=pid) from None
 
+    if is_site:
+        record_call_cost(last_usage, store)
+
     result = {"tender_id": tender_id, "reasoning": out["reasoning"],
               "recommended_actions": out["recommended_actions"], "citations": out["citations"],
-              "model": body.model, "provider": pid, "decision_source": "user_llm", "validated": True,
+              "model": model, "provider": pid, "decision_source": "site_ai" if is_site else "user_llm", "validated": True,
               "retrieval": retrieval, "created_at": _now()}
     store.put_item(user["user_id"], f"REGEN#{tender_id}", result)
     return result
-
 
 # ── Compile ──────────────────────────────────────────────────────────────────
 
@@ -229,15 +315,14 @@ def _compile_call(pid: str, key: str, model: str, deadline: providers.Deadline):
 @router.post("/api/compile")
 def compile_tender(body: CompileBody, request: Request, user: dict = Depends(require_user),
                    store=Depends(users_store)):
-    """Split pasted eligibility text into clauses, compile them with the user's model, run the deterministic checks."""
+    """Split pasted eligibility text into clauses, compile them with the user's model or site AI, run the deterministic checks."""
     check_llm_enabled()
     # Lazy: the splitter needs jsonschema and the checks need z3; keep both off the public endpoints' cold start.
     from rules.checks import run_checks
     from rules.compile_llm import CompileError, compile_tender_batched
     from scripts.import_tender import split_clauses
 
-    key, hint = _llm_key(request)
-    pid = _provider_for(key, hint, body.model)
+    pid, key, model, is_site = _resolve_caller(request, body.model, store)
     clauses = split_clauses(body.text.splitlines())
     if not clauses:
         raise _error(400, "No clauses were found in the text.", "no_clauses")
@@ -246,7 +331,21 @@ def compile_tender(body: CompileBody, request: Request, user: dict = Depends(req
                      limit=MAX_USER_TENDERS)
     tender_id = f"U-{uuid.uuid4().hex[:8]}"
     consume(user["user_id"], "compile", store)
-    call = _compile_call(pid, key, body.model, providers.Deadline())
+    deadline = providers.Deadline()
+    total_usage = {"inputTokens": 0, "outputTokens": 0}
+
+    def call(system: str, messages: list[dict[str, Any]]) -> str:
+        from rules.compile_llm import MAX_TOKENS, InvalidModelOutput
+        out = providers.complete(pid, key or "", model, system, messages, max_tokens=MAX_TOKENS, deadline=deadline)
+        if out.usage:
+            total_usage["inputTokens"] += out.usage.get("inputTokens", 0)
+            total_usage["outputTokens"] += out.usage.get("outputTokens", 0)
+        if out.truncated:
+            raise InvalidModelOutput(f"model output was truncated (max_tokens={MAX_TOKENS})")
+        if not out.text.strip():
+            raise InvalidModelOutput("model returned empty content")
+        return out.text
+
     atoms = []
     try:
         for i in range(0, len(clauses), COMPILE_BATCH_CLAUSES):
@@ -257,11 +356,14 @@ def compile_tender(body: CompileBody, request: Request, user: dict = Depends(req
     except CompileError as exc:
         raise _error(422, "The model's reply could not be validated as IR atoms after retries.",
                      "llm_output_invalid", errors=[providers.scrub(str(exc), key)]) from None
+
+    if is_site:
+        record_call_cost(total_usage, store)
+
     try:
         checked = run_checks(atoms, None)
     except RuntimeError as exc:
         raise _error(500, f"Deterministic checks failed: {exc}", "check_failed") from None
-
     with_atoms = {a.clause_id for a in atoms}
     result = {
         "tender_id": tender_id,
@@ -410,8 +512,7 @@ def chat(tender_id: str, body: ChatBody, request: Request, user: dict = Depends(
          store=Depends(users_store)):
     """Answer about one tender, grounded only on its findings, clauses and cited passages."""
     check_llm_enabled()
-    key, hint = _llm_key(request)
-    pid = _provider_for(key, hint, body.model)
+    pid, key, model, is_site = _resolve_caller(request, body.model, store)
     roles = [m.role for m in body.messages]
     if roles[0] != "user" or roles[-1] != "user" or any(a == b for a, b in zip(roles, roles[1:])):
         raise _error(400, "messages must alternate user/assistant, starting and ending with a user message.",
@@ -424,21 +525,29 @@ def chat(tender_id: str, body: ChatBody, request: Request, user: dict = Depends(
     deadline = providers.Deadline()
     messages = [m.model_dump() for m in body.messages]
     errors: list[str] = []
+    chat_usage = {"inputTokens": 0, "outputTokens": 0}
     for _attempt in range(CHAT_MAX_ATTEMPTS):
         try:
-            out = providers.complete(pid, key, body.model, system, messages, max_tokens=write.MAX_TOKENS,
+            out = providers.complete(pid, key or "", model, system, messages, max_tokens=write.MAX_TOKENS,
                                      deadline=deadline)
+            if out.usage:
+                chat_usage["inputTokens"] += out.usage.get("inputTokens", 0)
+                chat_usage["outputTokens"] += out.usage.get("outputTokens", 0)
         except providers.ProviderError as exc:
             raise _provider_http(exc) from None
         citations, errors = validate_answer(out.text, allowed)
         if out.truncated:
             errors.append(f"the answer was truncated (max_tokens={write.MAX_TOKENS})")
         if not errors:
+            if is_site:
+                record_call_cost(chat_usage, store)
             return {"answer": out.text.strip(), "citations": citations}
         messages = messages + [
             {"role": "assistant", "content": out.text.strip() or "(empty reply)"},
             {"role": "user", "content": "Your reply was rejected: " + "; ".join(errors)
              + ". Answer the previous question again, citing only identifiers present in the TENDER DATA."},
         ]
+    if is_site:
+        record_call_cost(chat_usage, store)
     raise _error(422, "The model's answer failed reference/wording validation after one retry.",
                  "llm_output_invalid", errors=[providers.scrub(e, key) for e in errors])
