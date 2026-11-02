@@ -294,10 +294,8 @@ def test_model_change_makes_cache_stale(env, monkeypatch):
     with pytest.raises(drun.DecisionError, match="stale"):
         go(env, "cache")
     monkeypatch.delenv("OPENROUTER_API_KEY")
-    with pytest.raises(drun.DecisionError, match="OPENROUTER_API_KEY") as ei:
-        go(env, "auto")
-    assert "DECISION_MODE=template" in str(ei.value)
-
+    go(env, "auto")  # per spec: in auto mode, reviewed decision stays a cache hit
+    assert read(env, "T-002")["decision_source"] == "cache"
 
 def test_input_change_makes_cache_stale_and_auto_fails_loudly(env, monkeypatch):
     monkeypatch.setenv("OPENROUTER_API_KEY", FAKE_KEY)
@@ -573,3 +571,129 @@ def test_rt_stem_must_equal_tender_id(env):
     put_fusion(env, "RT-009", make_real_fusion("RT-001"))
     with pytest.raises(drun.DecisionError, match="file name"):
         go(env, "template")
+
+
+# ---------------------------------------------------------------- Bedrock & Cache rules
+
+class FakeBedrockClient:
+    def __init__(self, replies):
+        self.replies = list(replies)
+        self.calls = []
+
+    def converse(self, **kwargs):
+        self.calls.append(kwargs)
+        item = self.replies.pop(0)
+        if isinstance(item, Exception):
+            raise item
+        return item
+
+
+def test_decision_cache_hit_when_default_model_changes(env, monkeypatch):
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.delenv("AWS_ACCESS_KEY_ID", raising=False)
+    monkeypatch.setenv("LLM_PROVIDER", "bedrock")
+    monkeypatch.delenv("DECISION_MODEL", raising=False)
+
+    # Create cache entry for T-002 recorded with openrouter model
+    fusion = json.loads((env["fusion_dir"] / "T-002.json").read_text(encoding="utf-8"))
+    r = retrieved_for(fusion, env["kb_dir"])
+    old_model = "nvidia/nemotron-3-ultra-550b-a55b:free"
+    old_hash = drun.compute_input_hash(fusion, r, "keyword", old_model)
+
+    cache_data = {
+        "input_hash": old_hash,
+        "decision_source": "llm",
+        "retriever": "keyword",
+        "model": old_model,
+        "reasoning": "Finding [F-1] and ring [R-1] supported by [KB-901].",
+        "recommended_actions": ["Escalate this tender."],
+        "citations": [{"ref": "KB-901", "kind": "guideline"}, {"ref": "F-1", "kind": "finding"}, {"ref": "R-1", "kind": "ring"}],
+        "retrieved": drun._retrieved_summary(r),
+    }
+    env["cache_dir"].mkdir(parents=True, exist_ok=True)
+    (env["cache_dir"] / "T-002.json").write_text(json.dumps(cache_data), encoding="utf-8")
+
+    # Run auto mode - should hit cache even though default model is now Bedrock openai.gpt-oss-120b-1:0
+    go(env, "auto")
+    rec = read(env, "T-002")
+    assert rec["decision_source"] == "cache"
+    assert "Finding [F-1]" in rec["reasoning"]
+
+
+def test_bedrock_converse_success(kb_dir):
+    import botocore.exceptions
+    f = make_fusion()
+    r = retrieved_for(f, kb_dir)
+    reply = {
+        "output": {
+            "message": {
+                "role": "assistant",
+                "content": [
+                    {"reasoningContent": {"reasoningText": {"text": "Thinking..."}}},
+                    {"text": GOOD},
+                ],
+            }
+        },
+        "stopReason": "end_turn",
+        "usage": {"inputTokens": 100, "outputTokens": 50},
+    }
+    fake = FakeBedrockClient([reply])
+    out = write.write_llm_bedrock(f, r, set(), client=fake)
+    assert out["citations"] == [{"ref": "KB-901", "kind": "guideline"}, {"ref": "F-1", "kind": "finding"}, {"ref": "R-1", "kind": "ring"}]
+    assert len(fake.calls) == 1
+    call = fake.calls[0]
+    assert call["modelId"] == write.BEDROCK_DEFAULT_MODEL
+    assert call["inferenceConfig"] == {"maxTokens": write.MAX_TOKENS}
+
+
+def test_bedrock_converse_max_tokens_truncated(kb_dir):
+    f = make_fusion()
+    r = retrieved_for(f, kb_dir)
+    reply = {
+        "output": {"message": {"role": "assistant", "content": [{"text": GOOD}]}},
+        "stopReason": "max_tokens",
+    }
+    fake = FakeBedrockClient([reply, reply, reply])
+    with pytest.raises(DecisionValidationError, match="max_tokens"):
+        write.write_llm_bedrock(f, r, set(), client=fake)
+
+
+def test_bedrock_converse_no_credentials(kb_dir):
+    import botocore.exceptions
+    f = make_fusion()
+    r = retrieved_for(f, kb_dir)
+    fake = FakeBedrockClient([botocore.exceptions.NoCredentialsError()])
+    with pytest.raises(write.LLMError, match="AWS credentials not found"):
+        write.write_llm_bedrock(f, r, set(), client=fake)
+
+
+def test_bedrock_converse_access_denied_no_retry(kb_dir):
+    import botocore.exceptions
+    f = make_fusion()
+    r = retrieved_for(f, kb_dir)
+    err = botocore.exceptions.ClientError(
+        {"Error": {"Code": "AccessDeniedException", "Message": "Account under verification"}},
+        "converse",
+    )
+    fake = FakeBedrockClient([err])
+    with pytest.raises(write.LLMError, match="AccessDeniedException"):
+        write.write_llm_bedrock(f, r, set(), client=fake)
+    assert len(fake.calls) == 1  # no retry
+
+
+def test_bedrock_converse_throttling_retries(kb_dir):
+    import botocore.exceptions
+    f = make_fusion()
+    r = retrieved_for(f, kb_dir)
+    throttle = botocore.exceptions.ClientError(
+        {"Error": {"Code": "ThrottlingException", "Message": "Rate exceeded"}},
+        "converse",
+    )
+    valid = {
+        "output": {"message": {"role": "assistant", "content": [{"text": GOOD}]}},
+        "stopReason": "end_turn",
+    }
+    fake = FakeBedrockClient([throttle, valid])
+    out = write.write_llm_bedrock(f, r, set(), client=fake)
+    assert len(fake.calls) == 2
+    assert out["citations"]

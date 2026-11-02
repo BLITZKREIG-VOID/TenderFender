@@ -536,3 +536,144 @@ def test_p3_5_compile_atomic_tender_cap(client, store):
     assert res.status_code == 409
     assert res.json()["detail"]["code"] == "tender_limit"
     assert store.get_tender_count("test-user-001") == 20
+
+# ── Site AI & Bedrock Spend Guard Tests ─────────────────────────────────────
+
+class FakeBedrockApi:
+    def __init__(self, reply_text, in_tok=1000, out_tok=500):
+        self.reply_text = reply_text
+        self.in_tok = in_tok
+        self.out_tok = out_tok
+        self.calls = []
+
+    def converse(self, **kwargs):
+        self.calls.append(kwargs)
+        return {
+            "output": {"message": {"role": "assistant", "content": [{"text": self.reply_text}]}},
+            "stopReason": "end_turn",
+            "usage": {"inputTokens": self.in_tok, "outputTokens": self.out_tok},
+        }
+
+
+def test_get_llm_site_default(client):
+    res = client.get("/api/llm/site")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["available"] is True
+    assert data["provider"] == "bedrock"
+    assert data["model"] == "openai.gpt-oss-120b-1:0"
+    assert data["month_spend_usd"] == 0.0
+    assert data["cap_usd"] == 10.0
+
+
+def test_get_llm_site_disabled_and_spent(client, store, monkeypatch):
+    # 1. Spent >= cap
+    store.record_site_ai_spend(10_000_000)  # $10 in micro-dollars
+    res = client.get("/api/llm/site")
+    assert res.status_code == 200
+    assert res.json()["available"] is False
+    assert res.json()["month_spend_usd"] == 10.0
+
+    # 2. SITE_AI_ENABLED=false
+    monkeypatch.setenv("SITE_AI_ENABLED", "false")
+    res2 = client.get("/api/llm/site")
+    assert res2.status_code == 200
+    assert res2.json()["available"] is False
+
+
+def test_keyless_regenerate_site_ai_success_and_spend_tracked(client, store, monkeypatch):
+    payload = json.dumps({
+        "reasoning": "Finding [F-1] supported by [KB-012].",
+        "recommended_actions": ["Review procurement procedure."],
+    })
+    fake_bedrock = FakeBedrockApi(payload, in_tok=1000, out_tok=500)
+    monkeypatch.setattr(providers, "bedrock_client_getter", lambda: fake_bedrock)
+
+    res = client.post("/api/tenders/T-001/regenerate", json={"model": "openai.gpt-oss-120b-1:0"})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["decision_source"] == "site_ai"
+    assert data["provider"] == "bedrock"
+    assert len(fake_bedrock.calls) == 1
+    assert fake_bedrock.calls[0]["modelId"] == "openai.gpt-oss-120b-1:0"
+
+    # Spend was recorded in micro-dollars: round(1000 * 0.18 + 500 * 0.71) = 180 + 355 = 535 micro-dollars
+    spend = store.get_site_ai_spend()
+    assert spend == 535
+
+
+def test_keyless_calls_blocked_when_site_ai_disabled(client, monkeypatch):
+    monkeypatch.setenv("SITE_AI_ENABLED", "false")
+    res = client.post("/api/tenders/T-001/regenerate", json={"model": "openai.gpt-oss-120b-1:0"})
+    assert res.status_code == 400
+    assert res.json()["detail"]["code"] == "llm_key_required"
+
+
+def test_keyless_calls_blocked_when_budget_exhausted(client, store, monkeypatch):
+    store.record_site_ai_spend(10_000_000)  # $10 cap reached
+    fake_bedrock = FakeBedrockApi("{}", in_tok=1000, out_tok=500)
+    monkeypatch.setattr(providers, "bedrock_client_getter", lambda: fake_bedrock)
+
+    res = client.post("/api/tenders/T-001/regenerate", json={"model": "openai.gpt-oss-120b-1:0"})
+    assert res.status_code == 503
+    body = res.json()
+    assert body["detail"]["code"] == "site_ai_budget_exhausted"
+    assert len(fake_bedrock.calls) == 0  # blocked before calling Bedrock
+
+
+def test_byok_not_blocked_by_site_ai_budget(client, store, http):
+    store.record_site_ai_spend(10_000_000)  # Site AI is exhausted
+    key = fake_key("openrouter")
+    payload = json.dumps({
+        "reasoning": "Finding [F-1] supported by [KB-012].",
+        "recommended_actions": ["Review procurement procedure."],
+    })
+    http.add("POST", chat_url("openrouter"), openai_reply(payload))
+
+    # BYOK call still succeeds and does not increment site AI spend
+    res = client.post("/api/tenders/T-001/regenerate", json={"model": "m-1"}, headers={"X-LLM-Key": key})
+    assert res.status_code == 200
+    assert res.json()["decision_source"] == "user_llm"
+    assert store.get_site_ai_spend() == 10_000_000  # unchanged
+
+
+def test_keyless_chat_site_ai_success_and_spend_tracked(client, store, monkeypatch):
+    fake_bedrock = FakeBedrockApi("Finding [F-1] indicates contradictory criteria.", in_tok=200, out_tok=100)
+    monkeypatch.setattr(providers, "bedrock_client_getter", lambda: fake_bedrock)
+
+    res = client.post("/api/tenders/T-001/chat", json={
+        "model": "openai.gpt-oss-120b-1:0",
+        "messages": [{"role": "user", "content": "What findings exist?"}],
+    })
+    assert res.status_code == 200
+    assert "Finding [F-1]" in res.json()["answer"]
+    # 200 * 0.18 + 100 * 0.71 = 36 + 71 = 107 micro-dollars
+    assert store.get_site_ai_spend() == 107
+
+
+def test_keyless_compile_site_ai_success_and_spend_tracked(client, store, monkeypatch):
+    atoms_reply = json.dumps({
+        "CL1": [
+            {
+                "id": "CL1.1",
+                "clause_id": "CL1",
+                "field": "turnover_cr",
+                "op": ">=",
+                "value": 50,
+                "source_text": "The bidder must have turnover >= 50 cr.",
+            }
+        ]
+    })
+    fake_bedrock = FakeBedrockApi(atoms_reply, in_tok=500, out_tok=200)
+    monkeypatch.setattr(providers, "bedrock_client_getter", lambda: fake_bedrock)
+
+    res = client.post("/api/compile", json={
+        "title": "Test Tender",
+        "text": "1. The bidder must have turnover >= 50 cr.",
+        "model": "openai.gpt-oss-120b-1:0",
+    })
+    assert res.status_code == 200
+    assert len(res.json()["atoms"]) == 1
+    # 500 * 0.18 + 200 * 0.71 = 90 + 142 = 232 micro-dollars
+    assert store.get_site_ai_spend() == 232
+    assert store.get_tender_count("test-user-001") == 1

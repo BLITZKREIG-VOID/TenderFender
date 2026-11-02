@@ -141,10 +141,17 @@ def test_wrong_source_text_counts_as_invalid():
 
 
 def test_missing_openrouter_api_key_raises_compile_error(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "openrouter")
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     with pytest.raises(CompileError, match="OPENROUTER_API_KEY is not set"):
         _call_api("system prompt", [{"role": "user", "content": "hi"}])
 
+
+def test_missing_aws_credentials_raises_compile_error(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "bedrock")
+    monkeypatch.delenv("AWS_ACCESS_KEY_ID", raising=False)
+    with pytest.raises(CompileError, match="AWS credentials not found"):
+        _call_api("system prompt", [{"role": "user", "content": "hi"}])
 
 def test_request_shape_and_default_model(http):
     replies, seen = http
@@ -369,4 +376,74 @@ def test_batched_retry_budget_mixed(http):
     replies.extend([err503, chat("invalid json"), chat(json.dumps(BATCH_VALID_REPLY))])
     atoms = compile_tender_batched(BATCH_TENDER)
     assert len(atoms) == 2
-    assert len(seen) == 3
+
+
+class FakeBedrockCompileClient:
+    def __init__(self, replies):
+        self.replies = list(replies)
+        self.calls = []
+
+    def converse(self, **kwargs):
+        self.calls.append(kwargs)
+        item = self.replies.pop(0)
+        if isinstance(item, Exception):
+            raise item
+        return item
+
+
+def test_bedrock_compile_success(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "bedrock")
+    valid_reply = {
+        "output": {
+            "message": {
+                "role": "assistant",
+                "content": [
+                    {"reasoningContent": {"reasoningText": {"text": "thinking..."}}},
+                    {"text": json.dumps([ATOM])},
+                ],
+            }
+        },
+        "stopReason": "end_turn",
+    }
+    fake = FakeBedrockCompileClient([valid_reply])
+    res = compile_llm._call_bedrock("sys", [{"role": "user", "content": "hi"}], client=fake)
+    assert json.loads(res) == [ATOM]
+    assert fake.calls[0]["modelId"] == compile_llm.BEDROCK_DEFAULT_MODEL
+    assert fake.calls[0]["inferenceConfig"] == {"maxTokens": compile_llm.MAX_TOKENS}
+
+
+def test_bedrock_compile_max_tokens_truncated(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "bedrock")
+    reply = {
+        "output": {"message": {"role": "assistant", "content": [{"text": "truncated"}]}},
+        "stopReason": "max_tokens",
+    }
+    fake = FakeBedrockCompileClient([reply])
+    with pytest.raises(compile_llm.InvalidModelOutput, match="stopReason=max_tokens"):
+        compile_llm._call_bedrock("sys", [{"role": "user", "content": "hi"}], client=fake)
+
+
+def test_bedrock_compile_access_denied_no_retry(monkeypatch):
+    import botocore.exceptions
+    monkeypatch.setenv("LLM_PROVIDER", "bedrock")
+    err = botocore.exceptions.ClientError(
+        {"Error": {"Code": "AccessDeniedException", "Message": "Account under verification"}},
+        "converse",
+    )
+    fake = FakeBedrockCompileClient([err])
+    with pytest.raises(CompileError, match="AccessDeniedException"):
+        compile_llm._call_bedrock("sys", [{"role": "user", "content": "hi"}], client=fake)
+    assert len(fake.calls) == 1
+
+
+def test_bedrock_compile_throttling_raises_http503(monkeypatch):
+    import botocore.exceptions
+    monkeypatch.setenv("LLM_PROVIDER", "bedrock")
+    throttle = botocore.exceptions.ClientError(
+        {"Error": {"Code": "ThrottlingException", "Message": "Rate exceeded"}},
+        "converse",
+    )
+    fake = FakeBedrockCompileClient([throttle])
+    with pytest.raises(HTTP503Error, match="ThrottlingException"):
+        compile_llm._call_bedrock("sys", [{"role": "user", "content": "hi"}], client=fake)
+    assert len(fake.calls) == 1

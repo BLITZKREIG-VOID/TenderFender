@@ -96,16 +96,28 @@ def _decide_one(fusion: dict, retrieved: write.Retrieved, retriever_name: str, *
                         f"{tid}: DECISION_MODE=auto found no matching cached decision and OPENROUTER_API_KEY is not set. "
                         "Set DECISION_MODE=template to use the deterministic template writer, or set OPENROUTER_API_KEY.")
             else:
-                effective = "llm"
-
+                has_creds = False
+                try:
+                    import boto3
+                    sess = boto3.Session()
+                    has_creds = sess.get_credentials() is not None
+                except Exception:
+                    has_creds = False
+                if has_creds:
+                    effective = "llm"
+                else:
+                    raise DecisionError(
+                        f"{tid}: DECISION_MODE=auto found no matching cached decision and no AWS credentials or OPENROUTER_API_KEY configured. "
+                        "Set DECISION_MODE=template to use the deterministic template writer, or configure credentials.")
     if effective == "template":
         return write.write_template(fusion, retrieved), "template"
 
     if effective == "cache":
         if entry is None:
             raise DecisionError(f"{tid}: no cached decision at {cache_path}")
-        cached_model = entry.get("model") or model
-        expected_hash = compute_input_hash(fusion, retrieved, retriever_name, cached_model)
+        explicit_model = os.environ.get("DECISION_MODEL")
+        expected_model = model if (mode == "cache" and explicit_model) else (entry.get("model") or model)
+        expected_hash = compute_input_hash(fusion, retrieved, retriever_name, expected_model)
         if entry.get("input_hash") != expected_hash:
             raise DecisionError(f"{tid}: cached decision is stale (input_hash mismatch) at {cache_path}")
         fields = {"reasoning": entry.get("reasoning"), "recommended_actions": entry.get("recommended_actions")}

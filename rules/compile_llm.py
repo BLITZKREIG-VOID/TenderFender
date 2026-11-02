@@ -14,10 +14,10 @@ from rules.ir import Atom, REG_CLASSES, VENDOR_FIELDS, TENDER_FIELDS
 # The OpenRouter request pattern below is copied from decision/write.py on purpose: SoT section 4
 # forbids one module importing another module's code, so rules/ keeps its own minimal copy.
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
-BEDROCK_DEFAULT_MODEL = "openai.gpt-oss-120b-1:0"
 OPENROUTER_DEFAULT_MODEL = "nvidia/nemotron-3-ultra-550b-a55b:free"
+BEDROCK_DEFAULT_MODEL = "openai.gpt-oss-120b-1:0"
 BEDROCK_DEFAULT_REGION = "ap-south-1"
-DEFAULT_MODEL = BEDROCK_DEFAULT_MODEL
+DEFAULT_MODEL = OPENROUTER_DEFAULT_MODEL
 SEED = 42
 # Batched RT- tenders can exceed 4096 output tokens on reasoning models; override with RULES_MAX_TOKENS.
 MAX_TOKENS = int(os.environ.get("RULES_MAX_TOKENS", "4096"))
@@ -188,11 +188,18 @@ def _call_bedrock(system: str, messages: list[dict[str, Any]], *, client: Any | 
     import botocore.exceptions
     try:
         bedrock = client if client is not None else get_bedrock_client()
-    except (botocore.exceptions.NoCredentialsError, botocore.exceptions.PartialCredentialsError) as exc:
+        if client is None:
+            import boto3
+            sess = boto3.Session(region_name=os.environ.get("BEDROCK_REGION", BEDROCK_DEFAULT_REGION))
+            if sess.get_credentials() is None:
+                raise CompileError("AWS credentials not found: configure AWS credentials")
+    except (botocore.exceptions.NoCredentialsError, botocore.exceptions.PartialCredentialsError,
+            botocore.exceptions.MissingDependencyException) as exc:
         raise CompileError(f"AWS credentials not found: {exc}") from exc
+    except CompileError:
+        raise
     except Exception as exc:
-        raise CompileError(f"Failed to initialize Bedrock client: {exc}") from exc
-
+        raise CompileError(f"AWS credentials not found: {exc}") from exc
     converse_system = [{"text": system}]
     converse_messages = [{"role": m["role"], "content": [{"text": m["content"]}]} for m in messages]
 

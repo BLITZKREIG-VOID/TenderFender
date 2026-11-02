@@ -151,10 +151,11 @@ class FakeTable:
             out["LastEvaluatedKey"] = {"pk": page[-1][0][0], "sk": page[-1][0][1]}
         return out
 
-    def update_item(self, Key, UpdateExpression, ConditionExpression, ExpressionAttributeNames,
-                    ExpressionAttributeValues, ReturnValues="NONE"):
-        attr = ExpressionAttributeNames.get("#k") or ExpressionAttributeNames.get("#c") or ExpressionAttributeNames.get("#s")
-        values = ExpressionAttributeValues
+    def update_item(self, Key, UpdateExpression, ConditionExpression=None, ExpressionAttributeNames=None,
+                    ExpressionAttributeValues=None, ReturnValues="NONE"):
+        names = ExpressionAttributeNames or {}
+        attr = names.get("#k") or names.get("#c") or names.get("#s")
+        values = ExpressionAttributeValues or {}
         item = self.items.setdefault((Key["pk"], Key["sk"]), {"pk": Key["pk"], "sk": Key["sk"]})
         if ":limit" in values:
             if attr in item and not item[attr] < values[":limit"]:

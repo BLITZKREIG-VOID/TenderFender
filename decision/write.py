@@ -152,16 +152,19 @@ def build_user_prompt(fusion: dict, retrieved: Retrieved) -> str:
     return json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True)
 
 
-def resolve_provider(provider: str | None = None, api_key: str | None = None) -> str:
+def resolve_provider(provider: str | None = None, api_key: str | None = None,
+                     transport: Transport | None = None, bedrock_client: Any = None) -> str:
     if provider:
         return provider.strip().lower()
+    if bedrock_client is not None:
+        return "bedrock"
     if "LLM_PROVIDER" in os.environ:
         return os.environ["LLM_PROVIDER"].strip().lower()
-    if api_key:
+    if api_key or os.environ.get("OPENROUTER_API_KEY"):
+        return "openrouter"
+    if transport is not None and transport is not urllib_transport:
         return "openrouter"
     return "bedrock"
-
-
 def resolve_model(model: str | None = None, provider: str | None = None) -> str:
     if model:
         return model
@@ -274,11 +277,18 @@ def write_llm_bedrock(fusion: dict, retrieved: Retrieved, placeholder_ids: set[s
     import botocore.exceptions
     try:
         bedrock = client if client is not None else get_bedrock_client()
-    except (botocore.exceptions.NoCredentialsError, botocore.exceptions.PartialCredentialsError) as exc:
+        if client is None:
+            import boto3
+            sess = boto3.Session(region_name=os.environ.get("BEDROCK_REGION", BEDROCK_DEFAULT_REGION))
+            if sess.get_credentials() is None:
+                raise LLMError("AWS credentials not found: configure AWS credentials")
+    except (botocore.exceptions.NoCredentialsError, botocore.exceptions.PartialCredentialsError,
+            botocore.exceptions.MissingDependencyException) as exc:
         raise LLMError(f"AWS credentials not found: {exc}") from exc
+    except LLMError:
+        raise
     except Exception as exc:
-        raise LLMError(f"Failed to initialize Bedrock client: {exc}") from exc
-
+        raise LLMError(f"AWS credentials not found: {exc}") from exc
     model = resolve_model(model, provider="bedrock")
     allowed = allowed_refs(fusion["_inputs"], retrieved)
     system = [{"text": SYSTEM_PROMPT}]
@@ -348,7 +358,14 @@ def write_llm(fusion: dict, retrieved: Retrieved, placeholder_ids: set[str], *,
     """Ask the LLM for reasoning/actions; validate; retry with feedback at most MAX_RETRIES times.
 
     Raises DecisionValidationError if still invalid, LLMError on transport problems."""
-    prov = resolve_provider(provider, api_key=api_key)
+    if bedrock_client is not None:
+        return write_llm_bedrock(fusion, retrieved, placeholder_ids, model=model, client=bedrock_client)
+    if transport is not urllib_transport:
+        default_key = "site_ai" if provider == "bedrock" else os.environ.get("OPENROUTER_API_KEY")
+        return write_llm_openrouter(fusion, retrieved, placeholder_ids,
+                                    api_key=api_key or default_key,
+                                    model=model, transport=transport)
+    prov = resolve_provider(provider, api_key=api_key, transport=transport, bedrock_client=bedrock_client)
     if prov == "bedrock":
         return write_llm_bedrock(fusion, retrieved, placeholder_ids, model=model, client=bedrock_client)
     return write_llm_openrouter(fusion, retrieved, placeholder_ids, api_key=api_key, model=model, transport=transport)
