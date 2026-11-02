@@ -64,7 +64,7 @@ def _now() -> str:
 
 
 def site_ai_enabled() -> bool:
-    val = os.environ.get("SITE_AI_ENABLED", "true").lower()
+    val = os.environ.get("SITE_AI_ENABLED", "false").lower()
     return val in ("true", "1", "yes")
 
 
@@ -100,32 +100,28 @@ def _resolve_caller(request: Request, model_override: str, store: Any) -> tuple[
     key = request.headers.get("x-llm-key")
     if not key:
         if not site_ai_enabled():
-            raise _error(400, "Send your LLM API key in the X-LLM-Key header.", "llm_key_required")
+            raise _error(400, "Add your OpenRouter API key in Settings to use AI features.", "llm_key_required")
         check_site_ai_budget(store)
         return "bedrock", None, bedrock_model_id(), True
 
-    hint = (request.headers.get("x-llm-provider") or "").strip().lower() or None
     try:
-        providers.check_key_format(key)
-        providers.candidates(key, hint)
-        pid = providers.resolve(key, hint)
-        providers.check_model(pid, model_override)
+        providers.check_openrouter_key(key)
+        providers.check_model("openrouter", model_override)
     except providers.ProviderError as exc:
         raise _provider_http(exc) from None
-    return pid, key, model_override, False
+    return "openrouter", key, model_override, False
 
 
 def _llm_key(request: Request) -> tuple[str, str | None]:
     """(key, provider hint). Read from raw headers so no validation error can ever echo the key."""
     key = request.headers.get("x-llm-key")
     if not key:
-        raise _error(400, "Send your LLM API key in the X-LLM-Key header.", "llm_key_required")
-    hint = (request.headers.get("x-llm-provider") or "").strip().lower() or None
+        raise _error(400, "Add your OpenRouter API key in Settings to use AI features.", "llm_key_required")
     try:
-        providers.check_key_format(key)
-        providers.candidates(key, hint)
+        providers.check_openrouter_key(key)
     except providers.ProviderError as exc:
         raise _provider_http(exc) from None
+    hint = (request.headers.get("x-llm-provider") or "").strip().lower() or None
     return key, hint
 
 
