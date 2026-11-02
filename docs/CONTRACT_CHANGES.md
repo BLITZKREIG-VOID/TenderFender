@@ -90,3 +90,14 @@ Everyone proposes changes here; only the Lead (P3) edits `SOURCE_OF_TRUTH.md`, `
   - With `X-LLM-Key`, BYOK requests continue unchanged and do not count against or get blocked by the site AI cap.
 - Why: Enable site AI using AWS credits without requiring users to bring an API key, bounded by a strict $10/month hard cap.
 - Impacted owners: UI (P4) consumes `GET /api/llm/site` and displays site AI shared budget status when no key is saved.
+
+### CC-10: BYOK OpenRouter only error codes (`llm_key_required` and `openrouter_key_required`)
+- Date / proposer: 2026-11-03, Backend Worker (Lead / Boss approved).
+- Status: applied (SoT §13 D42; `api/llm_routes.py`, `api/providers.py`, `decision/write.py`, `rules/compile_llm.py`).
+- Contract(s) affected: API endpoints (`POST /api/llm/detect`, `POST /api/tenders/{tender_id}/regenerate`, `POST /api/compile`, `POST /api/tenders/{tender_id}/chat`, `GET /api/llm/site`).
+- Change:
+  - When no `X-LLM-Key` is provided and Site AI is disabled (`SITE_AI_ENABLED=false`, the new default), all interactive AI endpoints (regenerate, compile, chat) and detect return HTTP 400 `{"code": "llm_key_required", "error": "Add your OpenRouter API key in Settings to use AI features."}` without invoking Bedrock or touching the spend counter.
+  - When a non-OpenRouter key (other provider prefixes, ambiguous `sk-` keys, garbage) is provided in `X-LLM-Key`, `POST /api/llm/detect` and all interactive AI endpoints return HTTP 400 `{"code": "openrouter_key_required", "error": "Only OpenRouter keys are supported."}`. The provided key is never echoed in the response body or logs.
+  - `GET /api/llm/site` reports `available: false` while keeping other fields (`provider: "bedrock"`, `model`, `month_spend_usd`, `cap_usd`).
+- Why: AWS account verification is blocked for Bedrock invocations. Restricting BYOK to OpenRouter eliminates shared cloud costs, simplifies key handling, and avoids multi-provider complexity.
+- Impacted owners: UI (P4) displays the key guidance and handles the 400 error codes (`llm_key_required` and `openrouter_key_required`).
