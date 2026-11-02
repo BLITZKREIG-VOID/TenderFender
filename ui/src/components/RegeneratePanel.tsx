@@ -15,24 +15,21 @@ interface Props {
   onShow: (which: "shared" | "user") => void;
 }
 
-// "Re-generate with my model": the user's key rewrites reasoning/actions/citations; risk level and decision stay fixed.
+// "Re-generate with AI": site AI or the user's key rewrites reasoning/actions/citations; risk level and decision stay fixed.
 export default function RegeneratePanel({ tenderId, result, showing, onResult, onShow }: Props) {
-  const { refreshMe } = useAuth();
+  const { refreshMe, refreshSite } = useAuth();
   const gate = useLlmGate("regen");
   const [model, setModel] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const chosen = model ?? gate.llm?.model ?? null;
+  const chosen = (gate.mode === "own" ? model : null) ?? gate.model;
 
   const run = async () => {
-    if (!gate.llm || !chosen) return;
+    if (gate.status !== "ready" || !chosen) return;
     setBusy(true);
     setError(null);
     try {
-      const r = await api.regenerate(tenderId, chosen, {
-        key: gate.llm.key,
-        provider: gate.llm.provider ?? undefined,
-      });
+      const r = await api.regenerate(tenderId, chosen, gate.creds);
       onResult(r.data);
       onShow("user");
     } catch (err) {
@@ -40,6 +37,7 @@ export default function RegeneratePanel({ tenderId, result, showing, onResult, o
     } finally {
       setBusy(false);
       void refreshMe();
+      if (gate.mode === "site") void refreshSite();
     }
   };
 
@@ -47,7 +45,7 @@ export default function RegeneratePanel({ tenderId, result, showing, onResult, o
     <div className={panel} data-testid="regenerate-panel">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-gray-300 pb-3 mb-4">
         <h2 className="text-xl font-black text-black flex items-center gap-2 uppercase tracking-wide">
-          <Sparkles size={24} /> Re-generate with my model
+          <Sparkles size={24} /> Re-generate with AI
         </h2>
         {result && (
           <div role="group" aria-label="Choose which reasoning to show" className="flex gap-2">
@@ -61,31 +59,33 @@ export default function RegeneratePanel({ tenderId, result, showing, onResult, o
                   showing === w ? "bg-black text-white" : "bg-white text-black hover:bg-gray-100"
                 }`}
               >
-                {w === "shared" ? "Shared analysis" : "My model"}
+                {w === "shared" ? "Shared analysis" : "My result"}
               </button>
             ))}
           </div>
         )}
       </div>
       <p className="text-sm font-semibold text-gray-900 mb-4">
-        Your model rewrites the reasoning, recommended actions and citations from the same evidence. The risk level and
+        The model rewrites the reasoning, recommended actions and citations from the same evidence. The risk level and
         decision stay fixed, every citation is checked by the validator, and the shared analysis is never overwritten.
       </p>
 
       {gate.status !== "ready" ? (
-        <GatePrompt gate={gate} verb="re-generate the reasoning with your own model" />
+        <GatePrompt gate={gate} verb="re-generate the reasoning" />
       ) : (
         <div className="space-y-3">
           <BudgetNote gate={gate} action="regen" />
           <div className="flex flex-wrap items-end gap-3">
-            <ModelSelect
-              id="regen-model"
-              models={gate.llm?.detect?.models ?? []}
-              value={chosen}
-              onChange={setModel}
-              freeFirst={isFreeOpenRouterKey(gate.llm?.detect)}
-              recommended={gate.llm?.detect?.recommended_model}
-            />
+            {gate.mode === "own" && (
+              <ModelSelect
+                id="regen-model"
+                models={gate.llm?.detect?.models ?? []}
+                value={chosen}
+                onChange={setModel}
+                freeFirst={isFreeOpenRouterKey(gate.llm?.detect)}
+                recommended={gate.llm?.detect?.recommended_model}
+              />
+            )}
             <button
               type="button"
               className={btnPrimary}
@@ -104,7 +104,7 @@ export default function RegeneratePanel({ tenderId, result, showing, onResult, o
           </div>
           {busy && (
             <p role="status" className="text-sm font-bold text-gray-800">
-              Waiting for your model{gate.isFree ? "; free models can be slow" : ""}…
+              Waiting for the model{gate.isFree ? "; free models can be slow" : ""}…
             </p>
           )}
           {gate.low && !busy && (

@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { KeyRound, ShieldAlert, CheckCircle2, AlertTriangle, HelpCircle, Loader2, Save, Trash2 } from "lucide-react";
 import { api, apiError, describeError, type DetectResponse } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
-import { maskKey, isFreeOpenRouterKey, type LlmSettings } from "../auth/llmKey";
+import { maskKey, isFreeOpenRouterKey, siteAiSummary, siteExhausted, siteUsable, type LlmSettings } from "../auth/llmKey";
 import ModelSelect from "../components/ModelSelect";
 import {
   panel,
@@ -17,7 +17,7 @@ import {
 } from "../components/styles";
 
 export default function SettingsAi() {
-  const { signedIn, llm, setLlm } = useAuth();
+  const { signedIn, llm, setLlm, site, siteChecked } = useAuth();
   const [keyInput, setKeyInput] = useState(llm?.key ?? "");
   const [remember, setRemember] = useState(llm?.remember ?? false);
   const [detectResult, setDetectResult] = useState<DetectResponse | null>(llm?.detect ?? null);
@@ -128,9 +128,12 @@ export default function SettingsAi() {
           </Link>
         </div>
 
-        <p className="text-sm font-bold text-gray-800 mb-6 leading-relaxed">
-          Your key unlocks AI re-generation, custom tender compilation, and investigation chat.
-          Keys are stored in your browser and sent only in a request header to our API. They are never logged or stored server-side.
+        <p className="text-sm font-bold text-gray-800 mb-6 leading-relaxed" data-testid="ai-modes-explainer">
+          AI re-generation, custom tender compilation and investigation chat work in two modes. Without a key they run
+          on <strong>site AI</strong>: gpt-oss-120b on AWS Bedrock, paid from one shared monthly budget, and they pause
+          for keyless users once that budget is spent. With <strong>your own key</strong>, requests go to your provider
+          and are billed to your account, never to the shared budget. Keys are stored in your browser and sent only in a
+          request header to our API. They are never logged or stored server-side.
         </p>
 
         {!signedIn && (
@@ -139,6 +142,31 @@ export default function SettingsAi() {
               Note: You are currently signed out. You can configure your key now, but signing in is required to make generation requests.
             </p>
           </div>
+        )}
+
+        {/* Site AI status: who answers when no key is saved */}
+        {signedIn && !llm && siteChecked && (
+          siteUsable(site) && site ? (
+            <div className="p-4 bg-emerald-50 border-2 border-emerald-700 rounded-lg mb-6" data-testid="site-ai-summary">
+              <span className="text-xs font-black uppercase tracking-wider text-emerald-900 block">
+                Active Configuration
+              </span>
+              <span className="text-sm font-bold text-emerald-950">{siteAiSummary(site)}</span>
+            </div>
+          ) : siteExhausted(site) && site ? (
+            <div className={`${noteBox} mb-6 border-amber-500 bg-amber-50`} data-testid="site-ai-summary">
+              <p className="font-bold text-amber-950 text-sm">
+                The investigation bureau has spent this month's shared AI budget ({siteAiSummary(site)}). Add your own key
+                below to keep investigating; the shared budget resets next month.
+              </p>
+            </div>
+          ) : (
+            <div className={`${noteBox} mb-6`} data-testid="site-ai-summary">
+              <p className="font-bold text-gray-900 text-sm">
+                Site AI is not available right now. Add your own key below to use the AI features.
+              </p>
+            </div>
+          )
         )}
 
         {/* Existing configured key summary */}

@@ -1,4 +1,4 @@
-import type { DetectResponse } from "../api/client";
+import type { DetectResponse, LlmSite } from "../api/client";
 
 // Key storage rules: sessionStorage by default; localStorage only when the user ticks
 // "Remember on this device". The key is only ever sent to our own /api/* in the X-LLM-Key header.
@@ -59,4 +59,22 @@ export function isFreeModel(s: LlmSettings | null): boolean {
 
 export function maskKey(key: string): string {
   return key.length <= 8 ? "••••" : `${key.slice(0, 4)}••••${key.slice(-4)}`;
+}
+
+// The month's shared site-AI budget is spent; the server answers keyless requests with 503 site_ai_budget_exhausted.
+export function siteExhausted(s: LlmSite | null): boolean {
+  return s !== null && s.month_spend_usd >= s.cap_usd;
+}
+
+export function siteUsable(s: LlmSite | null): boolean {
+  return s !== null && s.available && !siteExhausted(s);
+}
+
+const usd = (n: number) => (Number.isInteger(n) ? `$${n}` : `$${n.toFixed(2)}`);
+
+// "openai.gpt-oss-120b-1:0" on "bedrock" -> "Site AI: gpt-oss-120b on AWS Bedrock — shared budget $X of $10 used this month".
+export function siteAiSummary(s: LlmSite): string {
+  const model = s.model.replace(/^[a-z0-9-]+\./i, "").replace(/-v?\d+:\d+$/, "");
+  const provider = s.provider === "bedrock" ? "AWS Bedrock" : s.provider;
+  return `Site AI: ${model} on ${provider} — shared budget ${usd(s.month_spend_usd)} of ${usd(s.cap_usd)} used this month`;
 }

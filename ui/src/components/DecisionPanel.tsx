@@ -7,12 +7,12 @@ interface Props {
 }
 
 // "llm" and "cache" (a stored LLM answer) are AI-written; "template" is the deterministic writer;
-// "user_llm" is a signed-in user's re-generation with their own key.
+// "user_llm" is a signed-in user's re-generation, with site AI or their own key.
 function sourceLabel(source: string): string {
   if (source === "template") return "Template";
   if (source === "cache") return "Cached LLM";
   if (source === "llm") return "LLM";
-  if (source === "user_llm") return "Your model";
+  if (source === "user_llm") return "Your re-generation";
   return source;
 }
 
