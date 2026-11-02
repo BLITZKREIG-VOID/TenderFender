@@ -133,6 +133,8 @@ Resources:
                   - dynamodb:DeleteItem
                   - dynamodb:Query
                   - dynamodb:BatchWriteItem
+                  # TransactWriteItems with a ConditionCheck (deleted-account tombstone guard in api/users.py)
+                  - dynamodb:ConditionCheckItem
                 Resource: !GetAtt UsersTable.Arn
         - PolicyName: cognito-admin-delete-user
           PolicyDocument:
