@@ -161,7 +161,40 @@ Models ending in `:free` cost nothing but have rate limits.
 
 ---
 
-## 11. Limitations & Future Work
+## 11. Site Flow & Authentication
+
+TenderFender uses an account-first application flow designed to safeguard real tender data and per-user quotas while offering seamless public exploration of synthetic demo tenders.
+
+### Site Map & Flow
+- **Landing Page (`/`):** Signed-out visitors see the public product landing page explaining TenderFender's risk screening approach, with primary actions "Create account" (`/signup`) and "Sign in" (`/login`), plus a text link to "Preview the demo" (`/demo`). Signed-in users visiting `/` automatically redirect to `/app`.
+- **Custom Auth Forms (`/signup`, `/verify`, `/login`, `/forgot`):** Direct Cognito SRP authentication implemented with `amazon-cognito-identity-js`. Tokens are kept strictly in `sessionStorage` (never in `localStorage` or on disk); passwords are never logged or persisted. The password policy enforces a minimum of 10 characters with uppercase, lowercase, and numbers required.
+- **Signed-in App Shell (`/app`, `/tender/:id`, `/my-tenders`, `/settings/ai`, `/profile`):** Authenticated workspace for reviewing full tender analyses, confirmed formalization atoms, collusive ring graphs, and BYOK settings.
+- **Public Demo Preview (`/demo`, `/demo/tender/:id`):** Read-only exploration of the three synthetic demo tenders (T-001..T-003) with explanatory risk cards and clear synthetic data badges. Attempting to view real tender IDs under `/demo` redirects to `/login`.
+- **API Gating:**
+  - Anonymous `GET /api/tenders` returns only the synthetic demo tenders (`T-*`, `source: "synthetic_demo"`). Signed-in requests return both demo and real tenders.
+  - Anonymous requests to real tender analysis (`/api/tenders/RT-*/analysis`) or graphs (`/api/tenders/RT-*/graph`) return HTTP 401 `{"detail": {"error": "Sign-in required", "code": "unauthenticated"}}`. Demo tender analysis and graphs stay public.
+  - Public `GET /api/auth/config` provides Cognito configuration and `google_enabled: bool`.
+
+### Google OAuth Setup
+
+Google sign-in ("Continue with Google") uses AWS Cognito's Google Identity Provider with PKCE code grant.
+
+1. **Configure Google Credentials:**
+   Run the helper script on the deployment workstation:
+   ```bash
+   bash ~/tenderfender_google_oauth.sh
+   ```
+   The script queries the active CloudFormation stack for the Cognito domain and prints the exact values required by the Google Cloud Console:
+   - **Authorized JavaScript origins:** `https://<CognitoDomain>`
+   - **Authorized redirect URIs:** `https://<CognitoDomain>/oauth2/idpresponse`
+   
+   Enter your Google OAuth Client ID (must end in `.apps.googleusercontent.com`) and Client Secret when prompted. Credentials are saved locally with secure permissions (`0600`) to `$XDG_CONFIG_HOME/tenderfender/google-oauth.env`.
+2. **Deploy with Google Sign-in:**
+   Run `bash ~/tenderfender_deploy.sh`. The CloudFormation template sets `GOOGLE_ENABLED` (`!If [HasGoogle, "true", "false"]`), enabling the Google button across sign-in forms. To remove Google credentials, run `bash ~/tenderfender_google_oauth.sh --remove` and redeploy.
+
+---
+
+## 12. Limitations & Future Work
 
 Per Source of Truth §2 ("Out"):
 - Synthetic vendor identities, bids, and collusive rings (no real-world legal ground truth labels).
@@ -171,7 +204,7 @@ Per Source of Truth §2 ("Out"):
 - Amazon Bedrock Site AI is disabled (pending AWS account verification); the application operates in BYOK OpenRouter mode.
 ---
 
-## 12. Team Table
+## 13. Team Table
 
 | Team Member | Role / Primary Domain |
 |---|---|
@@ -182,6 +215,6 @@ Per Source of Truth §2 ("Out"):
 
 ---
 
-## 13. License Note
+## 14. License Note
 
 No license specified.

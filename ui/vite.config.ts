@@ -5,6 +5,9 @@ import { defineConfig } from 'vite'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  define: {
+    global: 'window',
+  },
   server: {
     // Dev: same-origin /api calls are proxied to the FastAPI server.
     // Production: CloudFront serves /api/* from the same origin.

@@ -9,9 +9,11 @@ interface Props {
   atomStatus?: Record<string, AtomStatusEntry>;
   onConfirm: (atomId: string) => Promise<void>;
   onReject: (atomId: string, note: string) => Promise<void>;
+  /** Demo preview: show atom status only, no confirm/reject actions. */
+  readOnly?: boolean;
 }
 
-export default function ClausePanel({ rules, clauses, atomStatus, onConfirm, onReject }: Props) {
+export default function ClausePanel({ rules, clauses, atomStatus, onConfirm, onReject, readOnly = false }: Props) {
   const [confirming, setConfirming] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -191,7 +193,7 @@ export default function ClausePanel({ rules, clauses, atomStatus, onConfirm, onR
                       >
                         {state.status}
                       </span>
-                      <div className="flex gap-1.5">
+                      {!readOnly && <div className="flex gap-1.5">
                         <button
                           onClick={() => handleConfirm(atom.id)}
                           disabled={isThisConfirming || state.status === "confirmed"}
@@ -210,7 +212,7 @@ export default function ClausePanel({ rules, clauses, atomStatus, onConfirm, onR
                           <XCircle size={16} />
                           <span className="hidden sm:inline">Reject</span>
                         </button>
-                      </div>
+                      </div>}
                     </div>
                   </div>
                 </div>

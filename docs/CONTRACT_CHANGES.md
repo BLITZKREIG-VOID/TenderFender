@@ -101,3 +101,15 @@ Everyone proposes changes here; only the Lead (P3) edits `SOURCE_OF_TRUTH.md`, `
   - `GET /api/llm/site` reports `available: false` while keeping other fields (`provider: "bedrock"`, `model`, `month_spend_usd`, `cap_usd`).
 - Why: AWS account verification is blocked for Bedrock invocations. Restricting BYOK to OpenRouter eliminates shared cloud costs, simplifies key handling, and avoids multi-provider complexity.
 - Impacted owners: UI (P4) displays the key guidance and handles the 400 error codes (`llm_key_required` and `openrouter_key_required`).
+
+### CC-11: Auth gating for real tenders and `google_enabled` in `/api/auth/config`
+- Date / proposer: 2026-11-03, AuthGatingAPI / Backend Worker (SoT §13 D43).
+- Status: applied (`api/auth.py`, `api/main.py`, `api/users.py`, `infra/template.yaml`).
+- Contract(s) affected: API endpoints (`GET /api/tenders`, `GET /api/tenders/{tender_id}/analysis`, `GET /api/tenders/{tender_id}/graph`, `GET /api/auth/config`).
+- Change:
+  - Anonymous `GET /api/tenders` returns only the synthetic demo tenders (`T-*`, `source: "synthetic_demo"`). Signed-in users receive all tenders (synthetic demo and real `RT-*`).
+  - Anonymous requests to `/api/tenders/RT-*/analysis` and `/api/tenders/RT-*/graph` return HTTP 401 `{"detail": {"error": "Sign-in required", "code": "unauthenticated"}}` with header `WWW-Authenticate: Bearer`. Demo tenders (`T-*`) remain public (HTTP 200).
+  - Public `GET /api/auth/config` includes `google_enabled: bool`, reporting `true` when the Google identity provider is enabled in deployment via environment variable `GOOGLE_ENABLED` (configured via CloudFormation `!If [HasGoogle, "true", "false"]`).
+  - Auth dependency in `api/auth.py` provides `optional_user` dependency (valid Bearer token → user dict; no token → `None`; invalid token → 401 `unauthenticated`).
+- Why: Gating real tender data behind user authentication protects ISRO tender notices and quota usage while preserving open access to synthetic demo tenders (T-001..T-003) for evaluations and smoke tests.
+- Impacted owners: UI (P4) renders Google sign-in conditionally based on `google_enabled`, redirects anonymous requests for real tenders to login, and accesses demo previews read-only.

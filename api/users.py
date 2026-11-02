@@ -512,10 +512,11 @@ class ProfileBody(BaseModel):
 
 
 @router.get("/api/auth/config")
-def auth_config() -> dict[str, str]:
+def auth_config() -> dict[str, Any]:
     """Public: what the UI needs to start the PKCE sign-in. Empty strings when sign-in is not configured."""
     settings = auth_settings()
-    return {**settings, "redirect_path": "/auth/callback"}
+    google_enabled = os.environ.get("GOOGLE_ENABLED", "false").lower() in ("true", "1", "yes")
+    return {**settings, "redirect_path": "/auth/callback", "google_enabled": google_enabled}
 
 
 @router.get("/api/me")

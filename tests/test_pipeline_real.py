@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 
 import api.loaders as loaders
 from api.main import app
+import api.auth as auth
 
 REPO = Path(__file__).resolve().parent.parent
 pytestmark = pytest.mark.skipif(shutil.which("make") is None, reason="make not installed")
@@ -121,8 +122,13 @@ def test_end_to_end_review_export_pipeline_and_api(root, monkeypatch):
     monkeypatch.setenv("CONFIRMATIONS_PATH", root.env["CONFIRMATIONS_PATH"])
     monkeypatch.setattr(loaders, "_project_root", lambda: root.tmp)
     client = TestClient(app)
-    for atom_id in ("CL1.1", "CL3.1"):
-        assert client.post(f"/api/tenders/RT-001/atoms/{atom_id}/confirm").status_code == 200
+    assert client.post("/api/tenders/RT-001/atoms/CL1.1/confirm").status_code == 401  # sign-in required
+    app.dependency_overrides[auth.optional_user] = lambda: {"user_id": "test-auditor"}
+    try:
+        for atom_id in ("CL1.1", "CL3.1"):
+            assert client.post(f"/api/tenders/RT-001/atoms/{atom_id}/confirm").status_code == 200
+    finally:
+        app.dependency_overrides.pop(auth.optional_user, None)
 
     # 2. export the confirmed IR
     exp = subprocess.run([sys.executable, str(REPO / "scripts" / "export_confirmed_ir.py"), "RT-001",
@@ -145,13 +151,21 @@ def test_end_to_end_review_export_pipeline_and_api(root, monkeypatch):
     assert fused["graph_flag_ring_ids"] == [] and fused["linked_vendors"] == []
     assert sorted(p.name for p in root.fused.iterdir()) == ["RT-001.json"]  # no T- artifacts appear
 
-    # 4. the API serves it
-    assert [(t["tender_id"], t["source"]) for t in client.get("/api/tenders").json()] == [("RT-001", "real")]
-    analysis = client.get("/api/tenders/RT-001/analysis").json()
-    assert analysis["source_url"] == "https://example.invalid/format-example"
-    assert analysis["rules"]["formalization_status"] == "confirmed"
-    assert [n["clause_id"] for n in analysis["rules"]["not_checked"]] == ["CL2"]
-    assert client.get("/api/tenders/RT-001/graph").json()["network_check"]["status"] == "not_applicable"
+    # 4. the API serves it (anonymous gets empty list and 401 on RT; signed-in gets RT)
+    assert client.get("/api/tenders").json() == []
+    assert client.get("/api/tenders/RT-001/analysis").status_code == 401
+    assert client.get("/api/tenders/RT-001/graph").status_code == 401
+
+    app.dependency_overrides[auth.optional_user] = lambda: {"user_id": "test-auditor"}
+    try:
+        assert [(t["tender_id"], t["source"]) for t in client.get("/api/tenders").json()] == [("RT-001", "real")]
+        analysis = client.get("/api/tenders/RT-001/analysis").json()
+        assert analysis["source_url"] == "https://example.invalid/format-example"
+        assert analysis["rules"]["formalization_status"] == "confirmed"
+        assert [n["clause_id"] for n in analysis["rules"]["not_checked"]] == ["CL2"]
+        assert client.get("/api/tenders/RT-001/graph").json()["network_check"]["status"] == "not_applicable"
+    finally:
+        app.dependency_overrides.pop(auth.optional_user, None)
 
 
 def test_fused_output_validates_against_contract(root):

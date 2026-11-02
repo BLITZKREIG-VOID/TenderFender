@@ -8,7 +8,7 @@ export default function Onboarding() {
   const { signedIn, me, refreshMe } = useAuth();
   const [params] = useSearchParams();
   const navigate = useNavigate();
-  const returnTo = params.get("return_to") ?? "/settings/ai";
+  const returnTo = params.get("return_to") ?? "/app";
 
   if (!signedIn) {
     return (

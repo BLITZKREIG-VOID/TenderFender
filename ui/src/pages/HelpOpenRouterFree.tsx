@@ -16,7 +16,7 @@ export default function HelpOpenRouterFree() {
         <p className="text-sm font-bold text-gray-900 mb-6 leading-relaxed">
           OpenRouter provides access to a variety of large language models with a single unified API key,
           including free community model variants with zero credit purchase required. Follow this guide to create a free key
-          and use it in Tender Integrity Suite.
+          and use it in TenderFender.
         </p>
 
         {/* 3 Steps */}

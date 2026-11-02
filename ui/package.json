@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@types/cytoscape": "^3.21.9",
+    "amazon-cognito-identity-js": "6.3.22",
     "axios": "^1.21.0",
     "cytoscape": "^3.34.4",
     "lucide-react": "^1.65.0",
