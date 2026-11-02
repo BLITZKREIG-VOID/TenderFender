@@ -127,6 +127,7 @@ write_params() {
   "BedrockModelId=$BEDROCK_MODEL_ID",
   "BedrockPriceInPerMtok=$BEDROCK_PRICE_IN_PER_MTOK",
   "BedrockPriceOutPerMtok=$BEDROCK_PRICE_OUT_PER_MTOK"
+]
 EOF
 }
 
