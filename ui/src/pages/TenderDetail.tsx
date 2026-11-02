@@ -107,7 +107,7 @@ export default function TenderDetail() {
     return (
       <div>
         <Link
-          to="/"
+          to="/app"
           className="inline-flex items-center gap-2 text-base font-black text-black hover:text-blue-700 mb-6 px-3 py-1.5 rounded-lg border-2 border-black bg-white shadow-2xs focus:outline-hidden focus:ring-4 focus:ring-blue-600"
         >
           <ArrowLeft size={18} /> Back to Registry
@@ -126,7 +126,7 @@ export default function TenderDetail() {
       {/* Top Navigation & Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 pb-2 border-b-2 border-gray-300">
         <Link
-          to="/"
+          to="/app"
           className="inline-flex items-center gap-2 text-sm sm:text-base font-black text-black hover:text-white hover:bg-black px-4 py-2 rounded-lg border-2 border-black bg-white shadow-2xs focus:outline-hidden focus:ring-4 focus:ring-blue-600 transition-colors cursor-pointer"
         >
           <ArrowLeft size={18} />

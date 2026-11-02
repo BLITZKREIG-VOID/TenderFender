@@ -42,13 +42,14 @@ export default function AuthCallback() {
         const user = await completeSignIn(result.id_token, result.access_token, result.expires_in);
         if (!active) return;
 
+        const target = result.return_to && result.return_to !== "/" ? result.return_to : "/app";
         // If the user has not completed onboarding, direct them to /onboarding
         if (!user?.profile) {
-          navigate(`/onboarding?return_to=${encodeURIComponent(result.return_to)}`, { replace: true });
+          navigate(`/onboarding?return_to=${encodeURIComponent(target)}`, { replace: true });
         } else {
-          navigate(result.return_to || "/", { replace: true });
+          navigate(target, { replace: true });
         }
-      } catch (err) {
+      } catch (err: unknown) {
         if (!active) return;
         const msg = err instanceof Error ? err.message : "Failed to complete authentication.";
         setError(msg);
