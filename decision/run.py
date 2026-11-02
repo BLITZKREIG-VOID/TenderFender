@@ -62,13 +62,18 @@ def _load_cache(path: Path) -> dict | None:
     return data
 
 
-def _cache_usable(entry: dict | None, input_hash: str) -> bool:
-    return entry is not None and entry.get("input_hash") == input_hash
+def _cache_usable(entry: dict | None, fusion: dict, retrieved: write.Retrieved, retriever_name: str, model: str) -> bool:
+    if entry is None:
+        return False
+    cached_model = entry.get("model") or model
+    expected_hash = compute_input_hash(fusion, retrieved, retriever_name, cached_model)
+    return entry.get("input_hash") == expected_hash
 
 
-def _decide_one(fusion: dict, retrieved: write.Retrieved, input_hash: str, retriever_name: str, *,
+def _decide_one(fusion: dict, retrieved: write.Retrieved, retriever_name: str, *,
                 mode: str, cache_path: Path, placeholder_ids: set[str], model: str,
-                transport: write.Transport = write.urllib_transport) -> tuple[dict, str]:
+                transport: write.Transport = write.urllib_transport,
+                bedrock_client: Any = None) -> tuple[dict, str]:
     """Returns (text_fields, decision_source)."""
     tid = fusion["tender_id"]
     allowed = write.allowed_refs(fusion["_inputs"], retrieved)
@@ -79,14 +84,19 @@ def _decide_one(fusion: dict, retrieved: write.Retrieved, input_hash: str, retri
     entry = _load_cache(cache_path)
     effective = mode
     if mode == "auto":
-        if _cache_usable(entry, input_hash):
+        if _cache_usable(entry, fusion, retrieved, retriever_name, model):
             effective = "cache"
-        elif os.environ.get("OPENROUTER_API_KEY"):
-            effective = "llm"
         else:
-            raise DecisionError(
-                f"{tid}: DECISION_MODE=auto found no matching cached decision and OPENROUTER_API_KEY is not set. "
-                "Set DECISION_MODE=template to use the deterministic template writer, or set OPENROUTER_API_KEY.")
+            prov = write.resolve_provider()
+            if prov == "openrouter":
+                if os.environ.get("OPENROUTER_API_KEY"):
+                    effective = "llm"
+                else:
+                    raise DecisionError(
+                        f"{tid}: DECISION_MODE=auto found no matching cached decision and OPENROUTER_API_KEY is not set. "
+                        "Set DECISION_MODE=template to use the deterministic template writer, or set OPENROUTER_API_KEY.")
+            else:
+                effective = "llm"
 
     if effective == "template":
         return write.write_template(fusion, retrieved), "template"
@@ -94,7 +104,9 @@ def _decide_one(fusion: dict, retrieved: write.Retrieved, input_hash: str, retri
     if effective == "cache":
         if entry is None:
             raise DecisionError(f"{tid}: no cached decision at {cache_path}")
-        if entry.get("input_hash") != input_hash:
+        cached_model = entry.get("model") or model
+        expected_hash = compute_input_hash(fusion, retrieved, retriever_name, cached_model)
+        if entry.get("input_hash") != expected_hash:
             raise DecisionError(f"{tid}: cached decision is stale (input_hash mismatch) at {cache_path}")
         fields = {"reasoning": entry.get("reasoning"), "recommended_actions": entry.get("recommended_actions")}
         derived = validate_decision(fields, allowed, placeholder_ids, fusion["decision"])  # re-validate on load
@@ -103,10 +115,11 @@ def _decide_one(fusion: dict, retrieved: write.Retrieved, input_hash: str, retri
         return fields, "cache"
 
     if effective == "llm":
-        out = write.write_llm(fusion, retrieved, placeholder_ids, model=model, transport=transport)
+        out = write.write_llm(fusion, retrieved, placeholder_ids, model=model, transport=transport, bedrock_client=bedrock_client)
         cache_path.parent.mkdir(parents=True, exist_ok=True)
+        new_input_hash = compute_input_hash(fusion, retrieved, retriever_name, out["model"])
         cache_path.write_text(json.dumps({
-            "input_hash": input_hash, "decision_source": "llm", "retriever": retriever_name,
+            "input_hash": new_input_hash, "decision_source": "llm", "retriever": retriever_name,
             "model": out["model"], "reasoning": out["reasoning"],
             "recommended_actions": out["recommended_actions"], "citations": out["citations"],
             "retrieved": _retrieved_summary(retrieved),
@@ -118,7 +131,8 @@ def _decide_one(fusion: dict, retrieved: write.Retrieved, input_hash: str, retri
 
 def run(fusion_dir: Path, kb_dir: Path, out_dir: Path, cache_dir: Path, *, mode: str, retriever_name: str,
         min_score: float | None = None, top_k: int = DEFAULT_TOP_K, allow_placeholder: bool = False,
-        transport: write.Transport = write.urllib_transport) -> list[Path]:
+        transport: write.Transport = write.urllib_transport,
+        bedrock_client: Any = None) -> list[Path]:
     if mode not in MODES:
         raise DecisionError(f"unknown mode {mode!r}; choose one of {', '.join(MODES)}")
     if not fusion_dir.is_dir():
@@ -144,10 +158,9 @@ def run(fusion_dir: Path, kb_dir: Path, out_dir: Path, cache_dir: Path, *, mode:
                                 f"{fusion['risk_level']!r} (expected {DECISION_BY_RISK.get(fusion['risk_level'])!r})")
         retrieved = retrieve(build_queries(fusion["_inputs"]), passages, retriever, top_k=top_k,
                              min_score=min_score, allow_placeholder=allow_placeholder)
-        input_hash = compute_input_hash(fusion, retrieved, retriever.name, model)
-        fields, source = _decide_one(fusion, retrieved, input_hash, retriever.name, mode=mode,
+        fields, source = _decide_one(fusion, retrieved, retriever.name, mode=mode,
                                      cache_path=cache_dir / f"{tid}.json", placeholder_ids=placeholder_ids,
-                                     model=model, transport=transport)
+                                     model=model, transport=transport, bedrock_client=bedrock_client)
         citations = validate_decision(fields, write.allowed_refs(fusion["_inputs"], retrieved), placeholder_ids,
                                       fusion["decision"])
 
@@ -186,8 +199,10 @@ def main(argv: list[str] | None = None) -> int:
             allow_placeholder=args.allow_placeholder)
     except (DecisionError, DecisionValidationError, PassageError, write.LLMError) as exc:
         print(f"decision error: {type(exc).__name__}: {exc}", file=sys.stderr)
+        msg = str(exc).lower()
+        if "credentials" in msg or "not set" in msg:
+            return 1
         return 2
-    return 0
 
 
 if __name__ == "__main__":
