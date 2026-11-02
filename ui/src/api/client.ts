@@ -343,14 +343,6 @@ export interface LlmCreds {
   provider?: string;
 }
 
-// Site AI (the server's own Bedrock model, shared monthly budget) answers requests that carry no X-LLM-Key.
-export interface LlmSite {
-  available: boolean;
-  provider: string;
-  model: string;
-  month_spend_usd: number;
-  cap_usd: number;
-}
 
 // null creds: no key header at all, so the server uses site AI.
 const keyHeaders = (c: LlmCreds | null) => {
@@ -422,8 +414,11 @@ export function describeError(e: ApiErrorInfo): string {
   if (e.code === "global_daily_limit" || (e.status === 429 && e.code === "global_daily_limit")) {
     return "The investigation bureau has hit its daily case quota. Please try again tomorrow.";
   }
-  if (e.code === "site_ai_budget_exhausted") {
-    return "The investigation bureau has spent this month's shared AI budget. Add your own AI key in AI settings to keep investigating; the shared budget resets next month.";
+  if (e.code === "llm_key_required") {
+    return e.message || "Add your OpenRouter API key in Settings to use AI features.";
+  }
+  if (e.code === "openrouter_key_required") {
+    return e.message || "Only OpenRouter keys are supported.";
   }
   if (e.code === "llm_disabled" || e.status === 503) {
     return "AI features are paused by the site owner. The demo is still available.";
@@ -475,8 +470,6 @@ export const api = {
   deleteMe: () => client.delete<void>("/me"),
 
   detectKey: (c: LlmCreds) => client.post<DetectResponse>("/llm/detect", {}, keyHeaders(c)),
-
-  getLlmSite: () => client.get<LlmSite>("/llm/site"),
 
   regenerate: (tenderId: string, model: string, c: LlmCreds | null) =>
     client.post<RegenerateResponse>(

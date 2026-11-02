@@ -52,11 +52,7 @@ def resolve_provider() -> str:
     prov = os.environ.get("LLM_PROVIDER")
     if prov:
         return prov.strip().lower()
-    if os.environ.get("OPENROUTER_API_KEY") and not (
-        os.environ.get("AWS_ACCESS_KEY_ID") or os.environ.get("AWS_DEFAULT_REGION") or os.environ.get("AWS_REGION")
-    ):
-        return "openrouter"
-    return "bedrock"
+    return "openrouter"
 
 
 def resolve_model() -> str:

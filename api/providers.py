@@ -161,6 +161,11 @@ def check_key_format(key: str) -> None:
                             "The X-LLM-Key header must be 16-512 characters with no spaces or control characters.")
 
 
+def check_openrouter_key(key: str) -> None:
+    if not isinstance(key, str) or not key.startswith(PREFIX_OPENROUTER):
+        raise ProviderError(400, "openrouter_key_required", "Only OpenRouter keys are supported.")
+    check_key_format(key)
+
 def check_model(provider_id: str, model: str) -> None:
     """Model ids end up in request bodies and (Google) in the URL path: allow a strict charset only."""
     is_google = provider_id in PROVIDERS and PROVIDERS[provider_id].api == "google"

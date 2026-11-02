@@ -135,39 +135,51 @@ def test_detect_missing_key_header(client):
     res = client.post("/api/llm/detect")
     assert res.status_code == 400
     assert res.json()["detail"]["code"] == "llm_key_required"
+    assert res.json()["detail"]["error"] == "Add your OpenRouter API key in Settings to use AI features."
 
 
 def test_detect_invalid_key_format_does_not_echo_key(client):
-    bad_key = "short"
+    bad_key = fake_key("openrouter") + " has space"
     res = client.post("/api/llm/detect", headers={"X-LLM-Key": bad_key})
     assert res.status_code == 400
     assert res.json()["detail"]["code"] == "invalid_key_format"
     assert bad_key not in res.text
 
 
-@pytest.mark.parametrize("name", ALL_PROVIDERS)
-def test_detect_every_provider_scrubs_key(client, http, caplog, name):
-    caplog.set_level(logging.DEBUG)
+@pytest.mark.parametrize("name", [p for p in ALL_PROVIDERS if p != "openrouter"])
+def test_detect_non_openrouter_provider_keys_rejected(client, name):
     key = fake_key("sk" if name == "deepseek" else name)
-    model = "m-1"
-    if name == "openrouter":
-        http.add("GET", providers.OPENROUTER_KEY_URL, resp(200, {"data": {"is_free_tier": True}}))
-        http.add("GET", models_url(name), resp(200, {"data": [{"id": model, "name": "M1", "pricing": {"prompt": "0"}}]}))
-    elif name == "anthropic":
-        http.add("GET", models_url(name), resp(200, {"data": [{"id": model, "display_name": "M1"}]}))
-    elif name == "google":
-        http.add("GET", models_url(name), resp(200, {"models": [{"name": f"models/{model}", "displayName": "M1", "supportedGenerationMethods": ["generateContent"]}]}))
-    else:
-        http.add("GET", models_url(name), resp(200, {"data": [{"id": model, "name": "M1"}]}))
+    res = client.post("/api/llm/detect", headers={"X-LLM-Key": key})
+    assert res.status_code == 400
+    detail = res.json()["detail"]
+    assert detail["code"] == "openrouter_key_required"
+    assert detail["error"] == "Only OpenRouter keys are supported."
+    assert key not in res.text
 
-    res = client.post("/api/llm/detect", headers={"X-LLM-Key": key, "X-LLM-Provider": name})
+
+@pytest.mark.parametrize("bad_key", ["short", "invalid_garbage_key_12345", fake_key("sk")])
+def test_detect_garbage_and_ambiguous_keys_rejected(client, bad_key):
+    res = client.post("/api/llm/detect", headers={"X-LLM-Key": bad_key})
+    assert res.status_code == 400
+    detail = res.json()["detail"]
+    assert detail["code"] == "openrouter_key_required"
+    assert detail["error"] == "Only OpenRouter keys are supported."
+    assert bad_key not in res.text
+
+
+def test_detect_openrouter_key_scrubs_and_detects(client, http, caplog):
+    caplog.set_level(logging.DEBUG)
+    key = fake_key("openrouter")
+    model = "m-1"
+    http.add("GET", providers.OPENROUTER_KEY_URL, resp(200, {"data": {"is_free_tier": True}}))
+    http.add("GET", models_url("openrouter"), resp(200, {"data": [{"id": model, "name": "M1", "pricing": {"prompt": "0"}}]}))
+    res = client.post("/api/llm/detect", headers={"X-LLM-Key": key})
     assert res.status_code == 200
     data = res.json()
     assert data["valid"] is True
-    assert data["provider"] == name
+    assert data["provider"] == "openrouter"
     assert key not in res.text
     assert key not in caplog.text
-
 
 # ── Regenerate endpoint ──────────────────────────────────────────────────────
 
@@ -283,7 +295,7 @@ def test_compile_limit_reached(client, store):
 
 def test_compile_success(client, http, store, consumed, caplog):
     caplog.set_level(logging.DEBUG)
-    key = fake_key("groq")
+    key = fake_key("openrouter")
     model = "llama-3"
 
     # Response for batched compile
@@ -305,13 +317,13 @@ def test_compile_success(client, http, store, consumed, caplog):
             "source_text": "The average annual financial turnover during the last 3 years must be at least 100 Lakh.",
         }],
     })
-    http.add("POST", chat_url("groq"), openai_reply(atoms_reply))
+    http.add("POST", chat_url("openrouter"), openai_reply(atoms_reply))
 
     res = client.post("/api/compile", json={
         "title": "Sample Works Tender",
         "text": SAMPLE_ELIGIBILITY_TEXT,
         "model": model,
-    }, headers={"X-LLM-Key": key, "X-LLM-Provider": "groq"})
+    }, headers={"X-LLM-Key": key})
 
     assert res.status_code == 200
     data = res.json()
@@ -412,7 +424,7 @@ def test_chat_public_tender_grounded_answer(client, http, caplog):
 
 
 def test_chat_user_tender_grounded_answer(client, http, store):
-    key = fake_key("anthropic")
+    key = fake_key("openrouter")
     u_id = "U-12345678"
     store.put_item("test-user-001", f"TENDER#{u_id}", {
         "tender_id": u_id,
@@ -420,10 +432,10 @@ def test_chat_user_tender_grounded_answer(client, http, store):
         "findings": [{"finding_id": "F-1", "kind": "amount_mismatch", "detail": "mismatch"}],
         "clauses": [{"clause_id": "CL1", "text": "Clause 1"}],
     })
-    http.add("POST", chat_url("anthropic"), anthropic_reply("The tender has finding [F-1]."))
+    http.add("POST", chat_url("openrouter"), openai_reply("The tender has finding [F-1]."))
 
     res = client.post(f"/api/tenders/{u_id}/chat", json={
-        "model": "claude-3-haiku",
+        "model": "test-model",
         "messages": [{"role": "user", "content": "Summary?"}],
     }, headers={"X-LLM-Key": key})
 
@@ -471,8 +483,9 @@ def test_chat_fails_after_retries_with_forbidden_wording(client, http, caplog):
 
 
 def test_p1_1_detect_consumes_quota_and_enforces_limits(client, http, monkeypatch):
-    key = fake_key("groq")
-    http.add("GET", models_url("groq"), resp(200, {"data": [{"id": "llama-3"}]}))
+    key = fake_key("openrouter")
+    http.add("GET", providers.OPENROUTER_KEY_URL, resp(200, {"data": {"is_free_tier": True}}))
+    http.add("GET", models_url("openrouter"), resp(200, {"data": [{"id": "llama-3", "pricing": {"prompt": "0"}}]}))
     # Successful detect consumes "detect"
     res = client.post("/api/llm/detect", headers={"X-LLM-Key": key})
     assert res.status_code == 200
@@ -517,21 +530,14 @@ def test_routes_kill_switch_when_disabled(client, monkeypatch):
     assert res.status_code == 200
 
 
-def test_p3_4_detect_ambiguous_sk_key_requires_provider_hint(client, http):
+def test_p3_4_detect_ambiguous_sk_key_rejected(client):
     key = fake_key("sk")
-    # Without X-LLM-Provider: rejected with 400 and candidates
     res = client.post("/api/llm/detect", headers={"X-LLM-Key": key})
     assert res.status_code == 400
     detail = res.json()["detail"]
-    assert detail["code"] == "provider_hint_required"
-    assert detail["candidates"] == ["openai", "deepseek"]
-
-    # With X-LLM-Provider: accepted and routed
-    http.add("GET", models_url("deepseek"), resp(200, {"data": [{"id": "deepseek-chat"}]}))
-    res = client.post("/api/llm/detect", headers={"X-LLM-Key": key, "X-LLM-Provider": "deepseek"})
-    assert res.status_code == 200
-    assert res.json()["provider"] == "deepseek"
-
+    assert detail["code"] == "openrouter_key_required"
+    assert detail["error"] == "Only OpenRouter keys are supported."
+    assert key not in res.text
 
 def test_deadline_seconds_is_50_seconds():
     assert providers.DEADLINE_SECONDS == 50
@@ -563,12 +569,12 @@ def test_p3_5_compile_atomic_tender_cap(client, store):
     assert store.get_tender_count("test-user-001") == 20
 
     # Next compile fails with 409 tender_limit
-    key = fake_key("groq")
+    key = fake_key("openrouter")
     res = client.post("/api/compile", json={
         "title": "Tender 21",
         "text": SAMPLE_ELIGIBILITY_TEXT,
         "model": "llama-3",
-    }, headers={"X-LLM-Key": key, "X-LLM-Provider": "groq"})
+    }, headers={"X-LLM-Key": key})
     assert res.status_code == 409
     assert res.json()["detail"]["code"] == "tender_limit"
     assert store.get_tender_count("test-user-001") == 20
@@ -595,18 +601,17 @@ def test_get_llm_site_default(client):
     res = client.get("/api/llm/site")
     assert res.status_code == 200
     data = res.json()
-    assert data["available"] is True
+    assert data["available"] is False
     assert data["provider"] == "bedrock"
     assert data["model"] == "openai.gpt-oss-120b-1:0"
     assert data["month_spend_usd"] == 0.0
     assert data["cap_usd"] == 10.0
 
-
 def test_get_llm_site_disabled_and_spent(client, store, monkeypatch):
     # 1. Spent >= cap
+    monkeypatch.setenv("SITE_AI_ENABLED", "true")
     store.record_site_ai_spend(10_000_000)  # $10 in micro-dollars
     res = client.get("/api/llm/site")
-    assert res.status_code == 200
     assert res.json()["available"] is False
     assert res.json()["month_spend_usd"] == 10.0
 
@@ -618,6 +623,7 @@ def test_get_llm_site_disabled_and_spent(client, store, monkeypatch):
 
 
 def test_keyless_regenerate_site_ai_success_and_spend_tracked(client, store, monkeypatch):
+    monkeypatch.setenv("SITE_AI_ENABLED", "true")
     payload = json.dumps({
         "reasoning": "Finding [F-1] supported by [KB-012].",
         "recommended_actions": ["Review procurement procedure."],
@@ -643,9 +649,11 @@ def test_keyless_calls_blocked_when_site_ai_disabled(client, monkeypatch):
     res = client.post("/api/tenders/T-001/regenerate", json={"model": "openai.gpt-oss-120b-1:0"})
     assert res.status_code == 400
     assert res.json()["detail"]["code"] == "llm_key_required"
+    assert res.json()["detail"]["error"] == "Add your OpenRouter API key in Settings to use AI features."
 
 
 def test_keyless_calls_blocked_when_budget_exhausted(client, store, monkeypatch):
+    monkeypatch.setenv("SITE_AI_ENABLED", "true")
     store.record_site_ai_spend(10_000_000)  # $10 cap reached
     fake_bedrock = FakeBedrockApi("{}", in_tok=1000, out_tok=500)
     monkeypatch.setattr(providers, "bedrock_client_getter", lambda: fake_bedrock)
@@ -674,6 +682,7 @@ def test_byok_not_blocked_by_site_ai_budget(client, store, http):
 
 
 def test_keyless_chat_site_ai_success_and_spend_tracked(client, store, monkeypatch):
+    monkeypatch.setenv("SITE_AI_ENABLED", "true")
     fake_bedrock = FakeBedrockApi("Finding [F-1] indicates contradictory criteria.", in_tok=200, out_tok=100)
     monkeypatch.setattr(providers, "bedrock_client_getter", lambda: fake_bedrock)
 
@@ -688,6 +697,7 @@ def test_keyless_chat_site_ai_success_and_spend_tracked(client, store, monkeypat
 
 
 def test_keyless_compile_site_ai_success_and_spend_tracked(client, store, monkeypatch):
+    monkeypatch.setenv("SITE_AI_ENABLED", "true")
     atoms_reply = json.dumps({
         "CL1": [
             {
@@ -713,3 +723,79 @@ def test_keyless_compile_site_ai_success_and_spend_tracked(client, store, monkey
     # 500 * 0.18 + 200 * 0.71 = 90 + 142 = 232 micro-dollars
     assert store.get_site_ai_spend() == 232
     assert store.get_tender_count("test-user-001") == 1
+
+
+# ── BYOK OpenRouter Contract Gates Tests ────────────────────────────────────
+
+@pytest.mark.parametrize("endpoint,payload", [
+    ("/api/tenders/T-001/regenerate", {"model": "nvidia/nemotron-3-ultra-550b-a55b:free"}),
+    ("/api/compile", {"title": "Test Tender", "text": "1. The bidder must have turnover >= 50 cr.", "model": "nvidia/nemotron-3-ultra-550b-a55b:free"}),
+    ("/api/tenders/T-001/chat", {"model": "nvidia/nemotron-3-ultra-550b-a55b:free", "messages": [{"role": "user", "content": "What findings exist?"}]}),
+])
+def test_keyless_ai_endpoints_return_llm_key_required_bedrock_never_called(client, store, monkeypatch, endpoint, payload):
+    def bedrock_sentinel(*args, **kwargs):
+        pytest.fail("Bedrock client was called when no key was provided")
+
+    monkeypatch.setattr(providers, "bedrock_client_getter", bedrock_sentinel)
+    initial_spend = store.get_site_ai_spend()
+
+    res = client.post(endpoint, json=payload)
+    assert res.status_code == 400
+    detail = res.json()["detail"]
+    assert detail["code"] == "llm_key_required"
+    assert detail["error"] == "Add your OpenRouter API key in Settings to use AI features."
+    assert store.get_site_ai_spend() == initial_spend
+
+
+@pytest.mark.parametrize("bad_key", [
+    fake_key("anthropic"),
+    fake_key("google"),
+    fake_key("groq"),
+    fake_key("sk"),
+    "short_bad_key",
+    "garbage_key_string",
+])
+@pytest.mark.parametrize("endpoint,payload", [
+    ("/api/llm/detect", None),
+    ("/api/tenders/T-001/regenerate", {"model": "nvidia/nemotron-3-ultra-550b-a55b:free"}),
+    ("/api/compile", {"title": "T", "text": SAMPLE_ELIGIBILITY_TEXT, "model": "nvidia/nemotron-3-ultra-550b-a55b:free"}),
+    ("/api/tenders/T-001/chat", {"model": "nvidia/nemotron-3-ultra-550b-a55b:free", "messages": [{"role": "user", "content": "Q"}]}),
+])
+def test_non_openrouter_key_rejected_on_all_endpoints(client, store, monkeypatch, bad_key, endpoint, payload):
+    def bedrock_sentinel(*args, **kwargs):
+        pytest.fail("Bedrock client was called for non-OpenRouter key")
+
+    monkeypatch.setattr(providers, "bedrock_client_getter", bedrock_sentinel)
+    initial_spend = store.get_site_ai_spend()
+
+    headers = {"X-LLM-Key": bad_key}
+    if payload is None:
+        res = client.post(endpoint, headers=headers)
+    else:
+        res = client.post(endpoint, json=payload, headers=headers)
+
+    assert res.status_code == 400
+    detail = res.json()["detail"]
+    assert detail["code"] == "openrouter_key_required"
+    assert detail["error"] == "Only OpenRouter keys are supported."
+    assert bad_key not in res.text
+    assert store.get_site_ai_spend() == initial_spend
+
+
+def test_openrouter_key_uses_openrouter_provider_and_scrubs(client, http, caplog):
+    caplog.set_level(logging.DEBUG)
+    key = fake_key("openrouter")
+    model = "nvidia/nemotron-3-ultra-550b-a55b:free"
+    payload = json.dumps({
+        "reasoning": "Finding [F-1] supported by [KB-012].",
+        "recommended_actions": ["Review procurement procedure."],
+    })
+    http.add("POST", chat_url("openrouter"), openai_reply(payload))
+
+    res = client.post("/api/tenders/T-001/regenerate", json={"model": model}, headers={"X-LLM-Key": key})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["provider"] == "openrouter"
+    assert data["decision_source"] == "user_llm"
+    assert key not in res.text
+    assert key not in caplog.text

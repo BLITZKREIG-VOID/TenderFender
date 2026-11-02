@@ -57,7 +57,7 @@ Parameters:
     Description: Kill switch for BYOK LLM routes. Set to false to return 503 llm_disabled while keeping public demo online.
   SiteAiEnabled:
     Type: String
-    Default: "true"
+    Default: "false"
     AllowedValues: ["true", "false"]
     Description: Enable site AI on Amazon Bedrock when the user does not provide their own API key.
   SiteAiMonthlyCapUsd:

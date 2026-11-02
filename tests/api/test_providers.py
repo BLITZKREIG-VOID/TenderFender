@@ -74,6 +74,26 @@ def test_key_format_rejected_without_echo(bad):
     assert exc.value.code == "invalid_key_format" and bad not in json.dumps(exc.value.detail())
 
 
+def test_check_openrouter_key_valid():
+    key = fake_key("openrouter")
+    providers.check_openrouter_key(key)
+
+
+@pytest.mark.parametrize("bad", [
+    fake_key("anthropic"),
+    fake_key("google"),
+    fake_key("sk"),
+    "short",
+    "garbage_key_string",
+])
+def test_check_openrouter_key_non_openrouter_rejected(bad):
+    with pytest.raises(ProviderError) as exc:
+        providers.check_openrouter_key(bad)
+    assert exc.value.status == 400
+    assert exc.value.code == "openrouter_key_required"
+    assert exc.value.message == "Only OpenRouter keys are supported."
+    assert bad not in json.dumps(exc.value.detail())
+
 def test_all_urls_are_fixed_https():
     for p in providers.PROVIDERS.values():
         assert p.base_url.startswith("https://") and "{" not in p.base_url

@@ -16,12 +16,13 @@ browser ── https ──> Lambda Function URL (AuthType NONE)
 - **Keep-Warm Schedule:** An EventBridge rule (`AWS::Events::Rule`) with a `rate(5 minutes)` expression invokes the Lambda function periodically (`KeepWarm` parameter, default `true`), eliminating cold-start latency for demo use.
 - **Function URL AuthType:** `AuthType NONE`. Both `lambda:InvokeFunctionUrl` and `lambda:InvokeFunction` permissions are granted.
 - **Sizing:** 1024 MB RAM provides optimal CPU allocation under AWS Lambda's proportional CPU-to-memory scaling model. Timeout is set to 60 seconds (with a 50 s upstream LLM deadline) to enforce strict cost guardrails.
-- **Site AI on Amazon Bedrock:**
+- **Site AI on Amazon Bedrock (Disabled by Default):**
+  - **Default False:** `SITE_AI_ENABLED` defaults to `false` in `infra/template.yaml` (parameter `SiteAiEnabled`), `scripts/deploy_aws.sh`, and `api/llm_routes.py`. The app runs in BYOK OpenRouter mode.
   - **Execution Role Access:** Lambda execution role `ApiRole` includes `bedrock:InvokeModel` scoped strictly to `arn:aws:bedrock:${AWS::Region}::foundation-model/openai.gpt-oss-120b-1:0`.
-  - **Spend Guard ($10/month cap):** When a user calls AI routes without an `X-LLM-Key` header, the request runs via Bedrock. A hard spend cap of $10 (`SITE_AI_MONTHLY_CAP_USD`) is tracked in integer micro-dollars in DynamoDB (`pk="GLOBAL", sk="SPEND#YYYY-MM"`). If the cap is reached, requests return 503 `site_ai_budget_exhausted`.
+  - **Spend Guard ($10/month cap):** When explicitly enabled (`SITE_AI_ENABLED=true`), calls without an `X-LLM-Key` header run via Bedrock. A hard spend cap of $10 (`SITE_AI_MONTHLY_CAP_USD`) is tracked in integer micro-dollars in DynamoDB (`pk="GLOBAL", sk="SPEND#YYYY-MM"`). If the cap is reached, requests return 503 `site_ai_budget_exhausted`.
   - **Bedrock Budget & Automated Action:** An AWS Budget for Amazon Bedrock ($10/month) monitors Bedrock spend with email notifications at 50% and 100% when `BUDGET_EMAIL` is set. An `AWS::Budgets::BudgetsAction` automatically attaches a deny policy (`bedrock:InvokeModel*`) to the Lambda role at 100% actual spend as a backstop.
   - **Estimated Pricing:** Standard on-demand pricing for `openai.gpt-oss-120b-1:0` in `ap-south-1` is estimated at $0.18 per million input tokens (`BEDROCK_PRICE_IN_PER_MTOK`) and $0.71 per million output tokens (`BEDROCK_PRICE_OUT_PER_MTOK`), env-overridable. Marked as estimates.
-  - **Account Verification:** Note that live Bedrock calls currently return `AccessDeniedException: Your account is currently being verified`. All test suites use mocked Bedrock calls pending AWS support verification.
+  - **Account Verification:** Live Bedrock calls currently return `AccessDeniedException: Your account is currently being verified`. All test suites use mocked Bedrock calls; Site AI remains disabled by default until AWS account verification completes.
 ---
 
 ## Why CloudFront Was Removed & How to Add It Back Later

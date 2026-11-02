@@ -144,12 +144,21 @@ make ui
 
 ## 10. RAG & LLM Decision Layer
 
-- **Provider Switch & Models:** The LLM provider is selected via env `LLM_PROVIDER` (`bedrock` by default, or `openrouter`). When `LLM_PROVIDER=bedrock`, the pipeline and app use the Amazon Bedrock Converse API with model `openai.gpt-oss-120b-1:0` in region `ap-south-1` (`BEDROCK_REGION`, default `ap-south-1`). When `LLM_PROVIDER=openrouter`, it uses OpenRouter with model `nvidia/nemotron-3-ultra-550b-a55b:free` (`OPENROUTER_API_KEY`). Specific models can be overridden via `DECISION_MODEL` and `RULES_MODEL`.
-- **Clause-to-IR Compiler:** `rules/compile_llm.py` compiles clauses using Bedrock Converse (or OpenRouter when configured). In standard pipeline runs, compiled IR is read from committed `data/tenders/ir_*.json`. When cache is bypassed (`RULES_USE_CACHE=0`), live compilation runs against the active provider.
-- **Site AI & Spend Guard:** In the web application, requests without an `X-LLM-Key` header run on Bedrock via the Lambda execution role (Site AI). Site AI is gated by `SITE_AI_ENABLED` (default `true`) and a hard monthly budget cap of $10 (`SITE_AI_MONTHLY_CAP_USD`). Before each call, month-to-date spend is checked from DynamoDB (`pk="GLOBAL", sk="SPEND#YYYY-MM"`); if spend reaches or exceeds the cap, the API returns 503 `{"code": "site_ai_budget_exhausted"}`. Post-call costs are estimated from Converse token usage and atomically added in integer micro-dollars. Bring-your-own-key (BYOK) calls are neither blocked nor counted against the site AI budget.
-- **Price Estimates:** Standard on-demand pricing for `openai.gpt-oss-120b-1:0` in `ap-south-1` is estimated at $0.18 per million input tokens (`BEDROCK_PRICE_IN_PER_MTOK`) and $0.71 per million output tokens (`BEDROCK_PRICE_OUT_PER_MTOK`), overridable via environment variables. These values are marked as estimates.
-- **Account Verification Status:** Live Amazon Bedrock model invocations are currently pending AWS account verification (returning `AccessDeniedException: Your account is currently being verified`). All automated test suites mock Bedrock API responses; live verification remains pending AWS support completion.
+- **Provider Switch & Models:** The LLM provider defaults to `openrouter` (using model `nvidia/nemotron-3-ultra-550b-a55b:free` via `OPENROUTER_API_KEY`). Explicit `LLM_PROVIDER=bedrock` remains supported (using Amazon Bedrock Converse API with model `openai.gpt-oss-120b-1:0` in region `ap-south-1`). Specific models can be overridden via `DECISION_MODEL` and `RULES_MODEL`.
+- **Clause-to-IR Compiler:** `rules/compile_llm.py` defaults to compiling clauses with OpenRouter (or Bedrock Converse when explicitly configured). In standard pipeline runs, compiled IR is read from committed `data/tenders/ir_*.json`. When cache is bypassed (`RULES_USE_CACHE=0`), live compilation runs against the active provider.
+- **Site AI Disabled (BYOK Only):** In the web application, AI endpoints require an `X-LLM-Key` header with an OpenRouter API key. Site AI on Amazon Bedrock is disabled by default (`SITE_AI_ENABLED=false`) because AWS account verification is blocked. Calls without an `X-LLM-Key` return 400 `{"code": "llm_key_required"}` with message "Add your OpenRouter API key in Settings to use AI features." Non-OpenRouter keys return 400 `{"code": "openrouter_key_required"}` with message "Only OpenRouter keys are supported." The Bedrock execution code and spend guard remain present and can be toggled on with `SITE_AI_ENABLED=true`.
+- **Bedrock Status:** Amazon Bedrock Site AI is disabled. Live invocations remain blocked by AWS account verification (`AccessDeniedException: Your account is currently being verified`). Automated test suites mock Bedrock API responses when covering the Bedrock path.
 - **Caching & Validation:** Decisions are cached in `artifacts/decisions/` (committed for T-001 and T-002) and re-validated on load. In `auto` mode, saved decisions match cache hits based on the model recorded in each cache file, ensuring that changing the default provider/model does not invalidate human-reviewed decisions. The citation validator ensures 100% of referenced guidelines resolve to real `KB-*.md` files without placeholder text.
+
+### Using AI Features
+
+To use interactive AI features (reasoning re-generation, custom eligibility compilation, and grounded tender chat):
+1. Open [OpenRouter](https://openrouter.ai/) and sign in (or create a free account).
+2. Open [Keys](https://openrouter.ai/keys) and create a key.
+3. Copy the key and paste it into Settings → AI in TenderFender.
+
+Models ending in `:free` cost nothing but have rate limits.
+
 ---
 
 ## 11. Limitations & Future Work
@@ -159,7 +168,7 @@ Per Source of Truth §2 ("Out"):
 - Formalization atoms remain `unconfirmed` until explicitly verified by a human reviewer.
 - Covers five core fields and three check types; complex timeline traps and threshold splitting are excluded.
 - Guideline passages provide contextual interpretation rather than formal legal counsel.
-
+- Amazon Bedrock Site AI is disabled (pending AWS account verification); the application operates in BYOK OpenRouter mode.
 ---
 
 ## 12. Team Table
