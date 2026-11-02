@@ -211,6 +211,7 @@ export interface AuthConfig {
   client_id: string;
   domain: string;
   redirect_path: string;
+  google_enabled?: boolean;
 }
 
 export type Role =
