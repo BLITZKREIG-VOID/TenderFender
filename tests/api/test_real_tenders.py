@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 
 import api.loaders as loaders
 from api.main import app
+import api.auth as auth
 
 REPO = Path(__file__).resolve().parent.parent.parent
 EXAMPLES = REPO / "contracts" / "examples"
@@ -61,22 +62,84 @@ def root(tmp_path, monkeypatch):
 def client(root):
     return TestClient(app)
 
+@pytest.fixture
+def auth_client(root):
+    app.dependency_overrides[auth.optional_user] = lambda: {
+        "user_id": "test-user-1",
+        "email": "user@example.com",
+        "name": "Test User",
+        "username": "test-user-1",
+    }
+    yield TestClient(app)
+    app.dependency_overrides.pop(auth.optional_user, None)
 
-def test_list_includes_t_and_rt_with_source_tags(client):
+
+def test_anonymous_list_has_only_demo_tenders(client):
     items = {t["tender_id"]: t for t in client.get("/api/tenders").json()}
+    assert set(items) == {"T-001"}
+    assert items["T-001"]["source"] == "synthetic_demo"
+
+
+def test_signed_in_list_includes_t_and_rt_with_source_tags(auth_client):
+    items = {t["tender_id"]: t for t in auth_client.get("/api/tenders").json()}
     assert set(items) == {"T-001", "RT-001"}
     assert items["RT-001"]["source"] == "real"
     assert items["T-001"]["source"] == "synthetic_demo"
     assert items["RT-001"]["decision"] == "clear" and items["RT-001"]["risk_level"] == "low"
 
 
+def test_anonymous_rt_endpoints_return_401(client):
+    resp = client.get("/api/tenders/RT-001/analysis")
+    assert resp.status_code == 401
+    assert resp.json()["detail"]["code"] == "unauthenticated"
+    assert resp.headers["www-authenticate"] == "Bearer"
+
+    resp = client.get("/api/tenders/RT-001/graph")
+    assert resp.status_code == 401
+    assert resp.json()["detail"]["code"] == "unauthenticated"
+    assert resp.headers["www-authenticate"] == "Bearer"
+
+    resp = client.get("/api/tenders/RT-999/analysis")
+    assert resp.status_code == 401
+    assert resp.json()["detail"]["code"] == "unauthenticated"
+    assert resp.headers["www-authenticate"] == "Bearer"
+
+    resp = client.get("/api/tenders/RT-999/graph")
+    assert resp.status_code == 401
+    assert resp.json()["detail"]["code"] == "unauthenticated"
+    assert resp.headers["www-authenticate"] == "Bearer"
+
+
+def test_anonymous_demo_tender_stays_public(client):
+    resp = client.get("/api/tenders/T-001/analysis")
+    assert resp.status_code == 200
+    assert resp.json()["source"] == "synthetic_demo"
+    resp_graph = client.get("/api/tenders/T-001/graph")
+    assert resp_graph.status_code == 200
+
+
+def test_invalid_token_returns_401(client):
+    from tests.api.test_auth_users import make_verifier
+    app.dependency_overrides[auth.get_verifier] = make_verifier
+    try:
+        bad = {"Authorization": "Bearer bad-token"}
+        assert client.get("/api/tenders", headers=bad).status_code == 401
+        assert client.get("/api/tenders/T-001/analysis", headers=bad).status_code == 401
+        assert client.get("/api/tenders/RT-001/analysis", headers=bad).status_code == 401
+
+        # Non-Bearer scheme is 401
+        basic = {"Authorization": "Basic notbearer"}
+        assert client.get("/api/tenders", headers=basic).status_code == 401
+    finally:
+        app.dependency_overrides.pop(auth.get_verifier, None)
+
 def test_list_fused_ids_sorted_and_ignores_other_files(root):
     _write(root / "artifacts" / "fused" / "X-001.json", {})
     assert loaders.list_fused_ids() == ["RT-001", "T-001"]
 
 
-def test_rt_analysis_reads_rules_real_and_real_clauses_with_source(client):
-    data = client.get("/api/tenders/RT-001/analysis").json()
+def test_rt_analysis_reads_rules_real_and_real_clauses_with_source(auth_client):
+    data = auth_client.get("/api/tenders/RT-001/analysis").json()
     assert data["source"] == "real"
     assert data["fused"]["tender_id"] == "RT-001" and data["fused"]["network_check"] == NETWORK_NA
     assert data["rules"]["tender_id"] == "RT-001" and data["rules"]["vendor_check"]["status"] == "skipped"
@@ -95,9 +158,9 @@ def test_rt_analysis_reads_rules_real_and_real_clauses_with_source(client):
     assert data["atom_status"] == {"CL1.1": {"status": "undecided", "note": "", "at": None}}
 
 
-def test_rt_rules_are_not_read_from_synthetic_rules_dir(root, client):
+def test_rt_rules_are_not_read_from_synthetic_rules_dir(root, auth_client):
     _write(root / "artifacts" / "rules" / "RT-001.json", {"tender_id": "RT-001", "atoms": [], "findings": [{"x": 1}]})
-    assert client.get("/api/tenders/RT-001/analysis").json()["rules"]["atoms"][0]["id"] == "CL1.1"
+    assert auth_client.get("/api/tenders/RT-001/analysis").json()["rules"]["atoms"][0]["id"] == "CL1.1"
 
 
 def test_synthetic_analysis_unchanged_apart_from_source(client):
@@ -108,15 +171,15 @@ def test_synthetic_analysis_unchanged_apart_from_source(client):
     assert all("source_clause_no" not in c for c in data["clauses"])
 
 
-def test_rt_analysis_without_tender_file_still_serves(root, client):
+def test_rt_analysis_without_tender_file_still_serves(root, auth_client):
     (root / "data" / "real" / "tenders" / "RT-001.json").unlink()
-    data = client.get("/api/tenders/RT-001/analysis").json()
+    data = auth_client.get("/api/tenders/RT-001/analysis").json()
     assert data["source"] == "real" and "source_url" not in data
     assert [c["clause_id"] for c in data["clauses"]] == ["CL1"]  # falls back to atom source text
 
 
-def test_rt_graph_is_200_empty_with_network_not_applicable(client):
-    resp = client.get("/api/tenders/RT-001/graph")
+def test_rt_graph_is_200_empty_with_network_not_applicable(auth_client):
+    resp = auth_client.get("/api/tenders/RT-001/graph")
     assert resp.status_code == 200
     body = resp.json()
     assert body["graph"] == {"nodes": [], "edges": []}
@@ -124,27 +187,27 @@ def test_rt_graph_is_200_empty_with_network_not_applicable(client):
     assert body["network_check"] == NETWORK_NA
 
 
-def test_rt_graph_needs_no_graph_artifact(root, client):
+def test_rt_graph_needs_no_graph_artifact(root, client, auth_client):
     (root / "artifacts" / "graph" / "graph_output.json").unlink()
-    assert client.get("/api/tenders/RT-001/graph").status_code == 200
+    assert auth_client.get("/api/tenders/RT-001/graph").status_code == 200
     assert client.get("/api/tenders/T-001/graph").status_code == 404  # synthetic behaviour unchanged
 
 
-def test_unknown_rt_is_404(client):
-    assert client.get("/api/tenders/RT-999/analysis").status_code == 404
-    assert client.get("/api/tenders/RT-999/graph").status_code == 404
+def test_unknown_rt_is_404(auth_client):
+    assert auth_client.get("/api/tenders/RT-999/analysis").status_code == 404
+    assert auth_client.get("/api/tenders/RT-999/graph").status_code == 404
 
 
-def test_confirmations_work_for_rt_atoms(client, tmp_path):
-    resp = client.post("/api/tenders/RT-001/atoms/CL1.1/confirm")
+def test_confirmations_work_for_rt_atoms(auth_client, tmp_path):
+    resp = auth_client.post("/api/tenders/RT-001/atoms/CL1.1/confirm")
     assert resp.status_code == 200 and resp.json()["formalization_status"] == "confirmed"
-    data = client.get("/api/tenders/RT-001/analysis").json()
+    data = auth_client.get("/api/tenders/RT-001/analysis").json()
     assert data["rules"]["formalization_status"] == "confirmed"
     assert data["atom_status"]["CL1.1"]["status"] == "confirmed"
-    resp = client.post("/api/tenders/RT-001/atoms/CL1.1/reject", json={"note": "wrong op"})
+    resp = auth_client.post("/api/tenders/RT-001/atoms/CL1.1/reject", json={"note": "wrong op"})
     assert resp.status_code == 200 and resp.json()["status"] == "rejected"
-    assert client.get("/api/tenders/RT-001/analysis").json()["rules"]["formalization_status"] == "unconfirmed"
-    assert client.post("/api/tenders/RT-001/atoms/NOPE.1/confirm").status_code == 404
+    assert auth_client.get("/api/tenders/RT-001/analysis").json()["rules"]["formalization_status"] == "unconfirmed"
+    assert auth_client.post("/api/tenders/RT-001/atoms/NOPE.1/confirm").status_code == 404
     stored = json.loads(Path(os.environ["CONFIRMATIONS_PATH"]).read_text())
     assert "RT-001" in stored and "T-001" not in stored
 

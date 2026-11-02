@@ -350,7 +350,29 @@ def test_auth_config_is_public(monkeypatch):
         "client_id": CLIENT_ID,
         "domain": "tf-test.auth.ap-south-1.amazoncognito.com",
         "redirect_path": "/auth/callback",
+        "google_enabled": False,
     }
+
+
+def test_auth_config_exposes_google_enabled(monkeypatch):
+    monkeypatch.setenv("COGNITO_USER_POOL_ID", POOL_ID)
+    monkeypatch.setenv("COGNITO_CLIENT_ID", CLIENT_ID)
+    monkeypatch.setenv("COGNITO_DOMAIN", "tf-test.auth.ap-south-1.amazoncognito.com")
+
+    monkeypatch.setenv("GOOGLE_ENABLED", "true")
+    resp = TestClient(app).get("/api/auth/config")
+    assert resp.status_code == 200
+    assert resp.json()["google_enabled"] is True
+
+    monkeypatch.setenv("GOOGLE_ENABLED", "false")
+    resp = TestClient(app).get("/api/auth/config")
+    assert resp.status_code == 200
+    assert resp.json()["google_enabled"] is False
+
+    monkeypatch.delenv("GOOGLE_ENABLED", raising=False)
+    resp = TestClient(app).get("/api/auth/config")
+    assert resp.status_code == 200
+    assert resp.json()["google_enabled"] is False
 
 
 # ── Profile ──────────────────────────────────────────────────────────────────
