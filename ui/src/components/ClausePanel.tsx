@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { RulesData, Clause, Finding, AtomStatusEntry } from "../api/client";
 import { CheckCircle2, Circle, AlertTriangle, ShieldCheck, Scale, Check, EyeOff } from "lucide-react";
 import { XCircle } from "lucide-react";
@@ -15,6 +15,9 @@ interface Props {
 
 export default function ClausePanel({ rules, clauses, atomStatus, onConfirm, onReject, readOnly = false }: Props) {
   const [confirming, setConfirming] = useState<string | null>(null);
+  // Shown immediately on click; replaced when the reloaded status arrives, rolled back if the save fails.
+  const [optimistic, setOptimistic] = useState<Record<string, AtomStatusEntry>>({});
+  useEffect(() => setOptimistic({}), [atomStatus]);
   const [actionError, setActionError] = useState<string | null>(null);
 
   // Collect clause IDs that appear in findings (bad clauses)
@@ -25,24 +28,33 @@ export default function ClausePanel({ rules, clauses, atomStatus, onConfirm, onR
     }
   }
 
-  const run = async (atomId: string, action: () => Promise<void>) => {
+  const run = async (atomId: string, next: AtomStatusEntry, action: () => Promise<void>) => {
     setConfirming(atomId);
     setActionError(null);
+    setOptimistic((prev) => ({ ...prev, [atomId]: next }));
     try {
       await action();
     } catch (err) {
+      setOptimistic((prev) => {
+        const rest = { ...prev };
+        delete rest[atomId];
+        return rest;
+      });
       setActionError(err instanceof Error ? err.message : "Could not save the decision");
     } finally {
       setConfirming(null);
     }
   };
 
-  const handleConfirm = (atomId: string) => run(atomId, () => onConfirm(atomId));
+  const handleConfirm = (atomId: string) =>
+    run(atomId, { status: "confirmed", note: "", at: null }, () => onConfirm(atomId));
 
   const handleReject = (atomId: string) => {
     const note = window.prompt(`Why is the formalization of ${atomId} wrong? (short note)`, "");
     if (note === null) return; // cancelled
-    return run(atomId, () => onReject(atomId, note.trim()));
+    return run(atomId, { status: "rejected", note: note.trim(), at: null }, () =>
+      onReject(atomId, note.trim())
+    );
   };
 
   // Real tenders keep the source document's own clause numbers
@@ -138,7 +150,8 @@ export default function ClausePanel({ rules, clauses, atomStatus, onConfirm, onR
             {rules.atoms.map((atom) => {
               const isFlagged = flaggedClauseIds.has(atom.clause_id);
               const isThisConfirming = confirming === atom.id;
-              const state: AtomStatusEntry = atomStatus?.[atom.id] ?? { status: "undecided", note: "", at: null };
+              const state: AtomStatusEntry =
+                optimistic[atom.id] ?? atomStatus?.[atom.id] ?? { status: "undecided", note: "", at: null };
 
               return (
                 <div

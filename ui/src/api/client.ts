@@ -15,10 +15,27 @@ client.interceptors.request.use((config) => {
   return config;
 });
 
+// Session cache for tender analysis/graph: revisiting a tender is instant. Entries are dropped when
+// server state changes (confirm/reject), on manual refresh, and whenever the session ends, so real
+// tenders fetched while signed in never outlive the session.
+const payloadCache = new Map<string, unknown>();
+
+export function clearApiCache(): void {
+  payloadCache.clear();
+}
+
+async function cachedGet<T>(key: string, url: string): Promise<{ data: T }> {
+  if (payloadCache.has(key)) return { data: payloadCache.get(key) as T };
+  const { data } = await client.get<T>(url);
+  payloadCache.set(key, data);
+  return { data };
+}
+
 // A 401 means the token is expired or revoked: drop it so the UI falls back to signed-out prompts.
 client.interceptors.response.use(undefined, (err) => {
   if (err?.response?.status === 401 && getIdToken()) {
     clearTokens();
+    clearApiCache();
     window.dispatchEvent(new Event("tf-auth-changed"));
   }
   return Promise.reject(err);
@@ -446,21 +463,30 @@ export const api = {
   getTenders: () => client.get<TenderSummary[]>("/tenders"),
 
   getAnalysis: (id: string) =>
-    client.get<AnalysisResponse>(`/tenders/${id}/analysis`),
+    cachedGet<AnalysisResponse>(`analysis-${id}`, `/tenders/${id}/analysis`),
 
-  getGraph: (id: string) =>
-    client.get<GraphResponse>(`/tenders/${id}/graph`),
+  getGraph: (id: string) => cachedGet<GraphResponse>(`graph-${id}`, `/tenders/${id}/graph`),
 
-  confirmAtom: (tenderId: string, atomId: string) =>
-    client.post<ConfirmResponse>(
-      `/tenders/${tenderId}/atoms/${atomId}/confirm`
-    ),
+  // Manual refresh bypasses the session cache.
+  invalidateTender: (id: string) => {
+    payloadCache.delete(`analysis-${id}`);
+    payloadCache.delete(`graph-${id}`);
+  },
 
-  rejectAtom: (tenderId: string, atomId: string, note: string) =>
-    client.post<ConfirmResponse>(
-      `/tenders/${tenderId}/atoms/${atomId}/reject`,
-      { note }
-    ),
+  // Confirm/reject change the tender's rules state, so its cached analysis is stale.
+  confirmAtom: async (tenderId: string, atomId: string) => {
+    const r = await client.post<ConfirmResponse>(`/tenders/${tenderId}/atoms/${atomId}/confirm`);
+    payloadCache.delete(`analysis-${tenderId}`);
+    return r;
+  },
+
+  rejectAtom: async (tenderId: string, atomId: string, note: string) => {
+    const r = await client.post<ConfirmResponse>(`/tenders/${tenderId}/atoms/${atomId}/reject`, {
+      note,
+    });
+    payloadCache.delete(`analysis-${tenderId}`);
+    return r;
+  },
 
   getAuthConfig: () => client.get<AuthConfig>("/auth/config"),
 

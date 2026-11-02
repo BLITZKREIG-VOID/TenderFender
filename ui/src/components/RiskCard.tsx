@@ -8,18 +8,20 @@ interface Props {
 export default function RiskCard({ fused }: Props) {
   const riskLevel = fused.risk_level?.toLowerCase();
   const decision = fused.decision?.toLowerCase();
+  // Red is reserved for high risk / escalate; everything else uses amber accents.
+  const isDanger = riskLevel === "high" || decision === "escalate";
 
   // High contrast color mappings for projector readability:
-  // Low: Green, Medium: Orange, High: Red
+  // Low: Green, Medium: Amber, High: Red
   const riskBadgeStyles: Record<string, string> = {
     high: "bg-red-700 text-white border-2 border-red-900 shadow-sm",
-    medium: "bg-orange-600 text-white border-2 border-orange-800 shadow-sm",
+    medium: "bg-amber-600 text-white border-2 border-amber-800 shadow-sm",
     low: "bg-green-700 text-white border-2 border-green-900 shadow-sm",
   };
 
   const decisionBadgeStyles: Record<string, string> = {
     escalate: "bg-red-700 text-white border-2 border-red-900 shadow-sm",
-    review: "bg-orange-600 text-white border-2 border-orange-800 shadow-sm",
+    review: "bg-amber-600 text-white border-2 border-amber-800 shadow-sm",
     clear: "bg-green-700 text-white border-2 border-green-900 shadow-sm",
   };
 
@@ -30,9 +32,9 @@ export default function RiskCard({ fused }: Props) {
       text: "text-red-950",
     },
     medium: {
-      border: "border-orange-500",
-      headerBg: "bg-orange-50",
-      text: "text-orange-950",
+      border: "border-amber-500",
+      headerBg: "bg-amber-50",
+      text: "text-amber-950",
     },
     low: {
       border: "border-green-600",
@@ -55,7 +57,7 @@ export default function RiskCard({ fused }: Props) {
           {riskLevel === "high" ? (
             <ShieldAlert size={34} className="text-red-700 shrink-0" />
           ) : riskLevel === "medium" ? (
-            <AlertTriangle size={34} className="text-orange-600 shrink-0" />
+            <AlertTriangle size={34} className="text-amber-600 shrink-0" />
           ) : (
             <CheckCircle2 size={34} className="text-green-700 shrink-0" />
           )}
@@ -102,9 +104,9 @@ export default function RiskCard({ fused }: Props) {
 
         {/* Linked Vendors Section */}
         {fused.linked_vendors && fused.linked_vendors.length > 0 && (
-          <div className="border-2 border-black rounded-lg p-4 bg-yellow-50/70">
+          <div className="border-2 border-black rounded-lg p-4 bg-amber-50/70">
             <h3 className="text-xs font-black uppercase tracking-wider text-black mb-2 flex items-center gap-1.5">
-              <AlertOctagon size={16} className="text-red-700 shrink-0" />
+              <AlertOctagon size={16} className={`${isDanger ? "text-red-700" : "text-amber-600"} shrink-0`} />
               Flagged & Linked Vendors ({fused.linked_vendors.length})
             </h3>
             <div className="divide-y divide-gray-300">
@@ -118,14 +120,18 @@ export default function RiskCard({ fused }: Props) {
                       {vendor.vendor_id}
                     </span>
                     {vendor.ring_id && (
-                      <span className="font-mono text-xs font-bold px-2 py-0.5 bg-red-800 text-white rounded">
+                      <span
+                        className={`font-mono text-xs font-bold px-2 py-0.5 rounded text-white ${
+                          isDanger ? "bg-red-800" : "bg-amber-700"
+                        }`}
+                      >
                         Ring: {vendor.ring_id}
                       </span>
                     )}
                   </div>
                   <div className="text-sm font-semibold text-gray-900 bg-white px-3 py-1 rounded border border-gray-300 shadow-2xs">
                     <span className="text-gray-600 font-normal">Reason: </span>
-                    <span className="font-bold text-red-950">
+                    <span className={`font-bold ${isDanger ? "text-red-950" : "text-amber-950"}`}>
                       {vendor.reason.replace(/_/g, " ")}
                     </span>
                   </div>
@@ -135,13 +141,14 @@ export default function RiskCard({ fused }: Props) {
           </div>
         )}
 
-        {/* CRITICAL Mandatory Disclaimer */}
+        {/* Mandatory Disclaimer: verbatim from the fused record (SoT 8.4), same text as fallback */}
         <div className="mt-4 p-4 bg-gray-900 text-white rounded-lg border-2 border-black shadow-inner">
           <p className="text-xs font-bold uppercase tracking-wider text-amber-300 mb-0.5">
             Mandatory Disclaimer
           </p>
           <p className="text-sm font-bold text-white tracking-wide">
-            Risk indicators only; not a finding of wrongdoing. Recommendation requires human review.
+            {fused.disclaimer ||
+              "Risk indicators only; not a finding of wrongdoing. Recommendation requires human review."}
           </p>
         </div>
       </div>

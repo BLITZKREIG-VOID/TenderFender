@@ -25,7 +25,8 @@ interface CitationDetails {
 }
 
 // Display metadata for a citation; guideline titles/links come from the passages the API read from kb/passages.
-export function getCitationDetails(cite: Citation, passages: Passage[]): CitationDetails {
+// Red is reserved for high-risk / escalate tenders; with isDanger=false finding tags are amber.
+export function getCitationDetails(cite: Citation, passages: Passage[], isDanger = true): CitationDetails {
   if (cite.kind === "guideline") {
     const passage = passages.find((p) => p.passage_id === cite.ref);
     const title = cite.source_title ?? (!passage?.missing ? passage?.source_title : undefined);
@@ -50,7 +51,7 @@ export function getCitationDetails(cite: Citation, passages: Passage[]): Citatio
     return {
       title: `Rule Formalization Finding ${cite.ref} (Z3 Solver Core Constraint)`,
       tag: "Rule Finding",
-      tagColor: "bg-red-700 text-white",
+      tagColor: isDanger ? "bg-red-700 text-white" : "bg-amber-600 text-white",
     };
   }
 
@@ -70,6 +71,8 @@ export function getCitationDetails(cite: Citation, passages: Passage[]): Citatio
 }
 
 export default function DecisionPanel({ fused, passages }: Props) {
+  const isDanger =
+    fused.decision?.toLowerCase() === "escalate" || fused.risk_level?.toLowerCase() === "high";
   return (
     <div className="bg-white rounded-xl shadow-md border-4 border-gray-900 p-6 text-black">
       <div className="flex items-center justify-between border-b-2 border-gray-300 pb-3 mb-6">
@@ -105,7 +108,7 @@ export default function DecisionPanel({ fused, passages }: Props) {
         {fused.citations && fused.citations.length > 0 ? (
           <div className="bg-gray-50 border-2 border-gray-300 rounded-lg overflow-hidden divide-y divide-gray-300">
             {fused.citations.map((cite, i) => {
-              const details = getCitationDetails(cite, passages ?? []);
+              const details = getCitationDetails(cite, passages ?? [], isDanger);
               const isExternal = Boolean(details.link && details.link.startsWith("http"));
 
               return (
