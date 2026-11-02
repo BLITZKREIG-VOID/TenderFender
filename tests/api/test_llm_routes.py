@@ -7,13 +7,17 @@ from __future__ import annotations
 
 import json
 import logging
+import shutil
 import urllib.request
+from pathlib import Path
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 
-from api import auth, llm_routes, providers, users
+from api import auth, llm_routes, loaders, providers, users
+from rules import run as rules_run
+from fusion import run as fusion_run
 from api.auth import require_user
 from api.main import app
 from api.users import ItemTooLarge, MAX_USER_TENDERS, UsersStore, users_store
@@ -31,6 +35,7 @@ from tests.api.byok_fakes import (
 
 ALL_PROVIDERS = ("openrouter", "anthropic", "google", "groq", "xai", "openai", "deepseek", "mistral")
 TEST_USER = {"user_id": "test-user-001", "email": "auditor@example.gov.in"}
+REPO = Path(__file__).resolve().parents[2]
 
 
 @pytest.fixture
@@ -46,6 +51,37 @@ def store(table):
 @pytest.fixture(autouse=True)
 def disable_mock_mode(monkeypatch):
     monkeypatch.setenv("MOCK", "0")
+
+
+@pytest.fixture(scope="module")
+def _demo_artifacts(tmp_path_factory):
+    """Demo artifacts built once from committed inputs (cached IR in data/tenders, synthetic data, mock graph),
+    so these tests never read the gitignored ``artifacts/`` of the checkout (fresh clones have none)."""
+    root = tmp_path_factory.mktemp("artifacts_root")
+    art = root / "artifacts"
+    mp = pytest.MonkeyPatch()
+    mp.setenv("RULES_USE_CACHE", "1")
+    try:
+        assert rules_run.main(["--data-dir", str(REPO / "data"), "--out-dir", str(art / "rules")]) == 0
+    finally:
+        mp.undo()
+    assert fusion_run.main(["--rules-dir", str(art / "rules"),
+                            "--graph", str(REPO / "mocks" / "graph" / "graph_output.json"),
+                            "--data-dir", str(REPO / "data"),
+                            "--out-dir", str(art / "fusion")]) == 0
+    (art / "fused").mkdir()
+    for tid in ("T-001", "T-002", "T-003"):
+        shutil.copy(REPO / "contracts" / "examples" / f"fused_{tid}.json", art / "fused" / f"{tid}.json")
+    # committed decision cache: regenerate reuses its saved retrieval when the input hash still matches
+    shutil.copytree(REPO / "artifacts" / "decisions", art / "decisions")
+    return root
+
+
+@pytest.fixture(autouse=True)
+def artifacts_root(_demo_artifacts, monkeypatch):
+    monkeypatch.setattr(loaders, "_project_root", lambda: _demo_artifacts)
+    return _demo_artifacts
+
 
 @pytest.fixture
 def http(monkeypatch):
