@@ -1,0 +1,93 @@
+[
+  {
+    "id": "CL1.1",
+    "clause_id": "CL1",
+    "field": "estimated_cost_lakh",
+    "op": "==",
+    "value": 3547,
+    "source_text": "Rs. 3547 Lakhs"
+  },
+  {
+    "id": "CL6.1",
+    "clause_id": "CL6",
+    "field": "emd_amount_lakh",
+    "op": "==",
+    "value": 45.47,
+    "source_text": "Rs. 45,47,000/-"
+  },
+  {
+    "id": "CL7.1",
+    "clause_id": "CL7",
+    "field": "similar_works",
+    "op": "==",
+    "value": {
+      "years": 7,
+      "alternatives": [
+        {
+          "count": 3,
+          "pct": 40,
+          "amount_lakh": 1418.8
+        },
+        {
+          "count": 2,
+          "pct": 60,
+          "amount_lakh": 2128.2
+        },
+        {
+          "count": 1,
+          "pct": 80,
+          "amount_lakh": 2837.6
+        }
+      ]
+    },
+    "source_text": "a (1) have satisfactorily completed the works as mentioned below during the last 7 years ending previous day of last date of submission of bids 1. Three similar works each costing not less than 40% of the estimated cost. i.e. (or) 2. Two similar works each costing not less than 60% of the estimated cost i.e. Rs.2128.20 Lakhs (or) 3. One similar work costing not less than 80% of the estimated cost i.e. Rs. 2837.60 Lakhs Documentary proof: 1. copy of Work orders and completion certificates issued by the authority concerned to establish work experience. 2. Completion certificates for works issued by Private parties shall be supported by TDS (Tax Deducted at Source) certificates. 3. List of completed works to be indicated in Format 2 of tender document."
+  },
+  {
+    "id": "CL9.1",
+    "clause_id": "CL9",
+    "field": "turnover_pct",
+    "op": ">=",
+    "value": 30,
+    "source_text": "not less than 30% of the estimated cost"
+  },
+  {
+    "id": "CL9.2",
+    "clause_id": "CL9",
+    "field": "turnover_lakh",
+    "op": ">=",
+    "value": 1064.1,
+    "source_text": "Rs. 1064.10"
+  },
+  {
+    "id": "CL9.3",
+    "clause_id": "CL9",
+    "field": "turnover_period_years",
+    "op": "==",
+    "value": 3,
+    "source_text": "during the last three years ending 31st March of preceding year (i.e. 31/03/2025)."
+  },
+  {
+    "id": "CL10.1",
+    "clause_id": "CL10",
+    "field": "max_loss_years",
+    "op": "<=",
+    "value": 2,
+    "source_text": "Should not have incurred any loss in more than two years during the last five years ending 31/03/2025"
+  },
+  {
+    "id": "CL11.1",
+    "clause_id": "CL11",
+    "field": "solvency_pct",
+    "op": ">=",
+    "value": 40,
+    "source_text": "Should have a solvency of 40% of the Estimated cost of the work."
+  },
+  {
+    "id": "CL11.2",
+    "clause_id": "CL11",
+    "field": "solvency_lakh",
+    "op": ">=",
+    "value": 1418.8,
+    "source_text": "Not less than Rs. 1418.80 Lakhs"
+  }
+]

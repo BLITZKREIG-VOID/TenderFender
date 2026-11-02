@@ -1,0 +1,91 @@
+[
+  {
+    "id": "CL1.1",
+    "clause_id": "CL1",
+    "field": "estimated_cost_lakh",
+    "op": "==",
+    "value": 74,
+    "source_text": "Rs. 74 Lakhs"
+  },
+  {
+    "id": "CL6.1",
+    "clause_id": "CL6",
+    "field": "emd_amount_lakh",
+    "op": "==",
+    "value": 1.48,
+    "source_text": "Rs. 1,48,000/-"
+  },
+  {
+    "id": "CL7.1",
+    "clause_id": "CL7",
+    "field": "similar_works",
+    "op": "==",
+    "value": {
+      "years": 7,
+      "alternatives": [
+        {
+          "count": 1,
+          "pct": 40
+        },
+        {
+          "count": 2,
+          "pct": 60
+        },
+        {
+          "count": 1,
+          "pct": 80,
+          "amount_lakh": 59.2
+        }
+      ]
+    },
+    "source_text": "Should have satisfactorily completed the works as mentioned below during the last 7 years ending previous day of last date of submission of bids i. similar works each costing not less than 40% of the (or) ii. Two similar works each costing not less than 60% of the (or) iii. One similar work costing not less than 80% of the estimated cost i.e. Rs. 59.20 Lakhs"
+  },
+  {
+    "id": "CL9.1",
+    "clause_id": "CL9",
+    "field": "turnover_pct",
+    "op": ">=",
+    "value": 30,
+    "source_text": "average annual financial turnover not less than 30% of the estimated cost"
+  },
+  {
+    "id": "CL9.2",
+    "clause_id": "CL9",
+    "field": "turnover_lakh",
+    "op": ">=",
+    "value": 22.2,
+    "source_text": "i.e. Rs. 22.20 Lakhs"
+  },
+  {
+    "id": "CL9.3",
+    "clause_id": "CL9",
+    "field": "turnover_period_years",
+    "op": "==",
+    "value": 3,
+    "source_text": "during the last three years ending 31st March of preceding year (i.e. 31/03/2025)"
+  },
+  {
+    "id": "CL10.1",
+    "clause_id": "CL10",
+    "field": "max_loss_years",
+    "op": "<=",
+    "value": 2,
+    "source_text": "Should not have incurred any loss in more than two years during the last five years ending 31/03/2025"
+  },
+  {
+    "id": "CL11.1",
+    "clause_id": "CL11",
+    "field": "solvency_pct",
+    "op": ">=",
+    "value": 40,
+    "source_text": "Should have a solvency of 40% of the Estimated cost of the work."
+  },
+  {
+    "id": "CL11.2",
+    "clause_id": "CL11",
+    "field": "solvency_lakh",
+    "op": ">=",
+    "value": 29.6,
+    "source_text": "(Not less than Rs. 29.60 Lakhs)"
+  }
+]

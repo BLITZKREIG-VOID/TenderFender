@@ -1,0 +1,43 @@
+{
+  "atoms": {
+    "CL1.1": {
+      "at": "2026-11-02T10:40:06+00:00",
+      "note": "Confirmed by the user at STOP 2 (2026-11-02) against the verbatim clause text; RT-002 CL5 EMD corrected 5.794 -> 0.5794 lakh before confirmation.",
+      "status": "confirmed"
+    },
+    "CL10.1": {
+      "at": "2026-11-02T10:40:06+00:00",
+      "note": "Confirmed by the user at STOP 2 (2026-11-02) against the verbatim clause text; RT-002 CL5 EMD corrected 5.794 -> 0.5794 lakh before confirmation.",
+      "status": "confirmed"
+    },
+    "CL6.1": {
+      "at": "2026-11-02T10:40:06+00:00",
+      "note": "Confirmed by the user at STOP 2 (2026-11-02) against the verbatim clause text; RT-002 CL5 EMD corrected 5.794 -> 0.5794 lakh before confirmation.",
+      "status": "confirmed"
+    },
+    "CL7.1": {
+      "at": "2026-11-02T10:40:06+00:00",
+      "note": "Confirmed by the user at STOP 2 (2026-11-02) against the verbatim clause text; RT-002 CL5 EMD corrected 5.794 -> 0.5794 lakh before confirmation.",
+      "status": "confirmed"
+    },
+    "CL8.1": {
+      "at": "2026-11-02T10:40:06+00:00",
+      "note": "Confirmed by the user at STOP 2 (2026-11-02) against the verbatim clause text; RT-002 CL5 EMD corrected 5.794 -> 0.5794 lakh before confirmation.",
+      "status": "confirmed"
+    },
+    "CL8.2": {
+      "at": "2026-11-02T10:40:06+00:00",
+      "note": "Confirmed by the user at STOP 2 (2026-11-02) against the verbatim clause text; RT-002 CL5 EMD corrected 5.794 -> 0.5794 lakh before confirmation.",
+      "status": "confirmed"
+    },
+    "CL9.1": {
+      "at": "2026-11-02T10:40:06+00:00",
+      "note": "Confirmed by the user at STOP 2 (2026-11-02) against the verbatim clause text; RT-002 CL5 EMD corrected 5.794 -> 0.5794 lakh before confirmation.",
+      "status": "confirmed"
+    }
+  },
+  "confirmed": true,
+  "confirmed_at": "2026-11-02T10:40:06+00:00",
+  "source_ir_sha256": "05ff9d89bea031f012ad840b41ada685f4e30a68dc1a862d65193260de60e78e",
+  "tender_id": "RT-006"
+}

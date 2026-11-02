@@ -48,6 +48,15 @@ def test_template_with_no_findings_or_rings_invents_nothing():
     assert out["recommended_actions"] == ["No action required beyond standard procurement review."]
 
 
+def test_template_for_real_tender_does_not_claim_rings_were_checked():
+    f = make_empty_fusion()
+    f["network_check"] = {"status": "not_applicable", "reason": "needs bid data (post-award)"}
+    out = write.write_template(f, {})
+    assert "no flagged rings" not in out["reasoning"]
+    assert "network check was not run (needs bid data (post-award))" in out["reasoning"]
+    assert validate_decision(out, set(), set()) == []
+
+
 def test_template_reasoning_starts_with_template_note(kb_dir):
     f = make_fusion()
     r = retrieved_for(f, kb_dir)

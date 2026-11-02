@@ -1,0 +1,93 @@
+[
+  {
+    "id": "CL1.1",
+    "clause_id": "CL1",
+    "field": "estimated_cost_lakh",
+    "op": "==",
+    "value": 235.23,
+    "source_text": "3 | Estimated cost put to tender | ₹ 235.23 / Lakhs"
+  },
+  {
+    "id": "CL6.1",
+    "clause_id": "CL6",
+    "field": "emd_amount_lakh",
+    "op": "==",
+    "value": 4.7046,
+    "source_text": "9 | Earnest money deposit (EMD) | ₹ 4,70,460.00"
+  },
+  {
+    "id": "CL7.1",
+    "clause_id": "CL7",
+    "field": "similar_works",
+    "op": "==",
+    "value": {
+      "years": 7,
+      "alternatives": [
+        {
+          "count": 3,
+          "pct": 40,
+          "amount_lakh": 94.09
+        },
+        {
+          "count": 2,
+          "pct": 60,
+          "amount_lakh": 141.14
+        },
+        {
+          "count": 1,
+          "pct": 80,
+          "amount_lakh": 188.18
+        }
+      ]
+    },
+    "source_text": "a. Should have satisfactorily completed the works as mentioned below during the last Seven years ending previous day of last date of submision of bids. Documentary proof: i. Certified copy of work orders and completion certificates issued by the authority concerned to establish work experience. ii. Completion certificates for works issued by Private parties shall be supported by TDS (Tax Deducted at Source) certificates. i.Three similar works each costing not less than 40% of the estimated cost i.e.: Amount: ₹ 94.09 Lakhs (or) ii.Two similar works each costing not less than 60% of the estimated cost i.e.: Amount: ₹ 141.14 Lakhs (or) iii. One similar work costing not less than 80% of the estimated cost. i.e.: Amount: ₹ 188.18 Lakhs i. Note: Similar Works means Electrical Works : Internal electrification (or) Electrical works for Construction of building\" ii. The value of executed works shall be brought to current costing level by enhancing the actual value of work at simple rate of 7% per annum, calculated from the date of completion to last date of submission of bids iii. Work executed as sub-contract or joint venture will not merit for eligibility / evaluation."
+  },
+  {
+    "id": "CL9.1",
+    "clause_id": "CL9",
+    "field": "turnover_pct",
+    "op": ">=",
+    "value": 30,
+    "source_text": "c. Should have had average annual financial turnover not less than 30% of the estimated cost of the work during the last three years ending 31st March of preceeding year. Amount: ₹ 70.57 Lakhs"
+  },
+  {
+    "id": "CL9.2",
+    "clause_id": "CL9",
+    "field": "turnover_lakh",
+    "op": ">=",
+    "value": 70.57,
+    "source_text": "c. Should have had average annual financial turnover not less than 30% of the estimated cost of the work during the last three years ending 31st March of preceeding year. Amount: ₹ 70.57 Lakhs"
+  },
+  {
+    "id": "CL9.3",
+    "clause_id": "CL9",
+    "field": "turnover_period_years",
+    "op": "==",
+    "value": 3,
+    "source_text": "c. Should have had average annual financial turnover not less than 30% of the estimated cost of the work during the last three years ending 31st March of preceeding year. Amount: ₹ 70.57 Lakhs"
+  },
+  {
+    "id": "CL10.1",
+    "clause_id": "CL10",
+    "field": "max_loss_years",
+    "op": "<=",
+    "value": 2,
+    "source_text": "d. Should not have incurred any loss in more than two years during the last five years ending 31st March 2026. Documentary proof: Certified copy from charted Accountant for the Annual financial turnover and balance sheet showing Profit & Loss"
+  },
+  {
+    "id": "CL11.1",
+    "clause_id": "CL11",
+    "field": "solvency_pct",
+    "op": ">=",
+    "value": 40,
+    "source_text": "e. Should have a solvency of 40% of the estimated cost of the work. (i.e.₹ 94.09 Lakhs) Documentary proof: Solvency certificate furnished by the tenderers shall be latest, but in any case shall not be older than six months from the last date of submission of bids, issued by any scheduled bank. f. The bidding capacity of the contractor should be more than the estimated cost of the work put to tender. The bidding capacity shall be worked out and declared by the tenderer and enclosed with the request for tender document based on the formula: (AxNx2)-B, where, A- Maximum value of work executed in one year during last 5 years at current price level taking into account the work completed as well as work in progress. B- Value of existing commitments and ongoing work to be completed during the next ‘N’ years at current price level. N- Number of years prescribed for completion of the subject contract for which bids are invited Documentary proof: i. Statement showing the value of existing commitment and ongoing works as well as the stipulated period of completion remaining for each of the works listed to be furnished. ii. Current costing level for value of work may be worked out as mentioned in the note (ii) above."
+  },
+  {
+    "id": "CL11.2",
+    "clause_id": "CL11",
+    "field": "solvency_lakh",
+    "op": ">=",
+    "value": 94.09,
+    "source_text": "e. Should have a solvency of 40% of the estimated cost of the work. (i.e.₹ 94.09 Lakhs) Documentary proof: Solvency certificate furnished by the tenderers shall be latest, but in any case shall not be older than six months from the last date of submission of bids, issued by any scheduled bank. f. The bidding capacity of the contractor should be more than the estimated cost of the work put to tender. The bidding capacity shall be worked out and declared by the tenderer and enclosed with the request for tender document based on the formula: (AxNx2)-B, where, A- Maximum value of work executed in one year during last 5 years at current price level taking into account the work completed as well as work in progress. B- Value of existing commitments and ongoing work to be completed during the next ‘N’ years at current price level. N- Number of years prescribed for completion of the subject contract for which bids are invited Documentary proof: i. Statement showing the value of existing commitment and ongoing works as well as the stipulated period of completion remaining for each of the works listed to be furnished. ii. Current costing level for value of work may be worked out as mentioned in the note (ii) above."
+  }
+]
