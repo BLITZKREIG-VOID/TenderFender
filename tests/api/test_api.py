@@ -11,9 +11,25 @@ from fastapi.testclient import TestClient
 # Ensure mock mode is set before importing the app
 os.environ["MOCK"] = "1"
 
+from api.auth import optional_user  # noqa: E402
 from api.main import app  # noqa: E402
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def _signed_in():
+    """Confirm/reject require sign-in; these tests act as a signed-in auditor."""
+    app.dependency_overrides[optional_user] = lambda: {"user_id": "test-auditor"}
+    yield
+    app.dependency_overrides.pop(optional_user, None)
+
+
+def test_confirm_and_reject_require_sign_in():
+    app.dependency_overrides.pop(optional_user, None)
+    for verb in ("confirm", "reject"):
+        resp = client.post(f"/api/tenders/T-001/atoms/CL2.1/{verb}")
+        assert resp.status_code == 401 and resp.json()["detail"]["code"] == "unauthenticated"
 
 
 # ── Health ───────────────────────────────────────────────────────────────────

@@ -135,6 +135,7 @@ export default function DemoDetail() {
           atomStatus={analysis.atom_status}
           onConfirm={async () => {}}
           onReject={async () => {}}
+          readOnly
         />
 
         {analysis.fused.network_check?.status === "not_applicable" ? (

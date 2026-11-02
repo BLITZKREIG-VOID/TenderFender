@@ -262,11 +262,13 @@ def _decide(tender_id: str, atom_id: str, status: str, note: str = "") -> dict[s
 
 
 @app.post("/api/tenders/{tender_id}/atoms/{atom_id}/confirm", response_model=ConfirmResponse)
-def confirm_atom(tender_id: str, atom_id: str):
+def confirm_atom(tender_id: str, atom_id: str, user: dict[str, Any] | None = Depends(optional_user)):
     """
     Persist an auditor's confirmation of one atom's formalization.
     `formalization_status` in the response is the tender-level status (confirmed only when every atom is).
     """
+    if user is None:
+        raise _unauthenticated("Sign-in required")
     result = _decide(tender_id, atom_id, "confirmed")
     return ConfirmResponse(
         tender_id=tender_id,
@@ -276,8 +278,11 @@ def confirm_atom(tender_id: str, atom_id: str):
 
 
 @app.post("/api/tenders/{tender_id}/atoms/{atom_id}/reject", response_model=RejectResponse)
-def reject_atom(tender_id: str, atom_id: str, body: RejectBody | None = None):
+def reject_atom(tender_id: str, atom_id: str, body: RejectBody | None = None,
+                user: dict[str, Any] | None = Depends(optional_user)):
     """Persist an auditor's rejection of one atom's formalization, with an optional note."""
+    if user is None:
+        raise _unauthenticated("Sign-in required")
     result = _decide(tender_id, atom_id, "rejected", body.note if body else "")
     return RejectResponse(
         tender_id=tender_id,

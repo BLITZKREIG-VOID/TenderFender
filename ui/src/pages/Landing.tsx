@@ -16,11 +16,11 @@ export default function Landing() {
       <section className="text-center max-w-4xl mx-auto space-y-6 pt-4 sm:pt-8">
         <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-100 border border-blue-300 text-blue-900 text-xs font-black uppercase tracking-wider">
           <ShieldCheck size={16} className="text-blue-700" />
-          Procurement Integrity & Risk Analysis Platform
+          For procurement reviewers and auditors
         </div>
 
         <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black text-gray-950 tracking-tight leading-tight">
-          Public Tender Verification Powered by Rule Solvers & Cited Guidelines
+          Spot risk indicators in public tenders before they become problems
         </h1>
 
         <p className="text-lg sm:text-xl font-medium text-gray-700 max-w-3xl mx-auto leading-relaxed">

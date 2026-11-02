@@ -50,11 +50,11 @@ function HeaderNav() {
             <ShieldCheck size={26} className="text-white" />
           </div>
           <div className="flex flex-col">
-            <span className="text-lg sm:text-2xl font-black tracking-tight text-white uppercase group-hover:text-blue-300 transition-colors">
-              Tender Integrity Suite
+            <span className="text-xl sm:text-2xl font-black tracking-tight text-white group-hover:text-blue-300 transition-colors">
+              TenderFender
             </span>
-            <span className="text-[10px] sm:text-xs font-bold text-gray-300 tracking-wider uppercase -mt-0.5">
-              Procurement Integrity & Collusion Detection MVP
+            <span className="hidden sm:block text-xs font-bold text-gray-300 tracking-wider uppercase -mt-0.5">
+              Risk indicators in public tenders
             </span>
           </div>
         </Link>
@@ -154,13 +154,13 @@ function HeaderNav() {
             <div className="flex items-center gap-2">
               <Link
                 to="/login"
-                className="min-h-[44px] inline-flex items-center px-3 py-2 rounded bg-gray-900 text-xs font-black uppercase tracking-wider text-gray-200 border border-gray-700"
+                className="min-h-[44px] inline-flex items-center whitespace-nowrap px-3 py-2 rounded bg-gray-900 text-xs font-black uppercase tracking-wider text-gray-200 border border-gray-700"
               >
                 Sign in
               </Link>
               <Link
                 to="/signup"
-                className="min-h-[44px] inline-flex items-center px-3 py-2 rounded bg-blue-600 text-xs font-black uppercase tracking-wider text-white border border-blue-400"
+                className="min-h-[44px] inline-flex items-center whitespace-nowrap px-3 py-2 rounded bg-blue-600 text-xs font-black uppercase tracking-wider text-white border border-blue-400"
               >
                 Join
               </Link>
@@ -332,7 +332,7 @@ function App() {
 
           <footer className="bg-white border-t-2 border-gray-300 py-4 mt-auto">
             <div className="max-w-7xl mx-auto px-6 text-center text-xs font-bold text-gray-700">
-              Tender Integrity Verification Platform • High-Contrast Projector Display Mode Enabled
+              TenderFender · Automated checks for human review; risk indicators, not findings of wrongdoing.
             </div>
           </footer>
         </div>
