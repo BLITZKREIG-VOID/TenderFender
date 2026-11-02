@@ -1,0 +1,7 @@
+# Vercel only builds and hosts the UI; /api/* is proxied to the AWS Lambda (see vercel.json).
+# Allowlist so the Python backend (api/*.py) is never picked up as Vercel functions.
+/*
+!/ui
+!/vercel.json
+ui/node_modules
+ui/dist

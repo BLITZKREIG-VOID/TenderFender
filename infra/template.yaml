@@ -31,6 +31,13 @@ Parameters:
       This stack's Function URL (with trailing slash), passed back in by deploy_aws.sh to register the Cognito
       callback/logout URLs. Empty on the first deploy: the Function URL does not exist yet, and referencing it
       directly would be a circular dependency (Lambda env -> app client -> Function URL -> Lambda).
+  VercelUrl:
+    Type: String
+    Default: "https://tenderfender.vercel.app/"
+    AllowedPattern: "^$|^https://[a-z0-9.-]+/$"
+    Description: >-
+      Optional stable Vercel URL (with trailing slash) that hosts the UI and proxies /api/* to this Function URL
+      (see vercel.json). Registered as an extra Cognito callback/logout URL. Empty = not registered.
   GoogleClientId:
     Type: String
     Default: ""
@@ -83,6 +90,7 @@ Conditions:
   HasSiteUrl: !Not [!Equals [!Ref SiteUrl, ""]]
   HasGoogle: !Not [!Equals [!Ref GoogleClientId, ""]]
   HasDevCallbackUrl: !Not [!Equals [!Ref DevCallbackUrl, ""]]
+  HasVercelUrl: !Not [!Equals [!Ref VercelUrl, ""]]
 
 Rules:
   GoogleSecretWithClientId:
@@ -314,11 +322,15 @@ Resources:
               - HasSiteUrl
               - - !Sub "${SiteUrl}auth/callback"
                 - !Ref DevCallbackUrl
+                - !If [HasVercelUrl, !Sub "${VercelUrl}auth/callback", !Ref AWS::NoValue]
               - - !Ref DevCallbackUrl
+                - !If [HasVercelUrl, !Sub "${VercelUrl}auth/callback", !Ref AWS::NoValue]
           - !If
               - HasSiteUrl
               - - !Sub "${SiteUrl}auth/callback"
+                - !If [HasVercelUrl, !Sub "${VercelUrl}auth/callback", !Ref AWS::NoValue]
               - - "https://localhost/auth/callback"
+                - !If [HasVercelUrl, !Sub "${VercelUrl}auth/callback", !Ref AWS::NoValue]
       LogoutURLs:
         !If
           - HasDevCallbackUrl
@@ -326,11 +338,15 @@ Resources:
               - HasSiteUrl
               - - !Ref SiteUrl
                 - "http://localhost:5173/"
+                - !If [HasVercelUrl, !Ref VercelUrl, !Ref AWS::NoValue]
               - - "http://localhost:5173/"
+                - !If [HasVercelUrl, !Ref VercelUrl, !Ref AWS::NoValue]
           - !If
               - HasSiteUrl
               - - !Ref SiteUrl
+                - !If [HasVercelUrl, !Ref VercelUrl, !Ref AWS::NoValue]
               - - "https://localhost/"
+                - !If [HasVercelUrl, !Ref VercelUrl, !Ref AWS::NoValue]
   # ── DynamoDB Users Table ──────────────────────────────────────────────────
   UsersTable:
     Type: AWS::DynamoDB::Table

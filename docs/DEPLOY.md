@@ -25,6 +25,14 @@ browser ── https ──> Lambda Function URL (AuthType NONE)
   - **Account Verification:** Live Bedrock calls currently return `AccessDeniedException: Your account is currently being verified`. All test suites use mocked Bedrock calls; Site AI remains disabled by default until AWS account verification completes.
 ---
 
+## Stable Vercel URL
+
+`https://tenderfender.vercel.app/` is a fixed public URL in front of the Lambda. Vercel builds and serves `ui/dist` and rewrites `/api/*` to the Function URL (`vercel.json`). No backend runs on Vercel (`.vercelignore` allowlists only `ui/` and `vercel.json`).
+
+- **Auth:** the stack parameter `VercelUrl` (default `https://tenderfender.vercel.app/`, `VERCEL_URL` in `deploy_aws.sh`, empty to disable) registers `<VercelUrl>auth/callback` and `<VercelUrl>` as extra Cognito callback/logout URLs.
+- **Deploy:** `vercel deploy --prod` from the repo root (project `field-yield/tenderfender`).
+- **If the Function URL changes** (stack recreated): update the `/api/:path*` destination in `vercel.json`, then `vercel deploy --prod`. The public link stays the same.
+
 ## Why CloudFront Was Removed & How to Add It Back Later
 
 ### Why CloudFront Was Removed

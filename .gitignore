@@ -22,3 +22,4 @@ data/real/raw/*
 kb/sources/*
 !kb/sources/README.md
 !kb/sources/index.json
+.vercel
