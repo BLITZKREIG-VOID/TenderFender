@@ -474,10 +474,7 @@ export default function SettingsAi() {
                   <p className="font-black uppercase tracking-wider flex items-center gap-1">
                     <AlertTriangle size={14} className="text-blue-700" /> Free Tier Rate Limits Apply
                   </p>
-                  <p>
-                    Models ending in :free cost nothing but have rate limits (up to 50 requests/day on zero-credit accounts).
-                    Responses may be slower during peak hours.
-                  </p>
+                  <p>Models ending in :free cost nothing but have rate limits.</p>
                   {detectResult.key_info?.free_model_daily_requests && (
                     <p className="font-mono mt-1">
                       Today: {detectResult.key_info.free_model_daily_requests.used} used /{" "}
