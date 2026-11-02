@@ -17,12 +17,12 @@ interface Props {
 
 // "Re-generate with AI": site AI or the user's key rewrites reasoning/actions/citations; risk level and decision stay fixed.
 export default function RegeneratePanel({ tenderId, result, showing, onResult, onShow }: Props) {
-  const { refreshMe, refreshSite } = useAuth();
+  const { refreshMe } = useAuth();
   const gate = useLlmGate("regen");
   const [model, setModel] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const chosen = (gate.mode === "own" ? model : null) ?? gate.model;
+  const chosen = model ?? gate.model;
 
   const run = async () => {
     if (gate.status !== "ready" || !chosen) return;
@@ -37,7 +37,6 @@ export default function RegeneratePanel({ tenderId, result, showing, onResult, o
     } finally {
       setBusy(false);
       void refreshMe();
-      if (gate.mode === "site") void refreshSite();
     }
   };
 

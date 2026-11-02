@@ -16,7 +16,7 @@ interface Turn extends ChatMessage {
 }
 
 export default function ChatPanel({ tenderId, passages }: { tenderId: string; passages: Passage[] }) {
-  const { refreshMe, refreshSite } = useAuth();
+  const { refreshMe } = useAuth();
   const gate = useLlmGate("chat");
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState("");
@@ -43,7 +43,6 @@ export default function ChatPanel({ tenderId, passages }: { tenderId: string; pa
     } finally {
       setBusy(false);
       void refreshMe();
-      if (gate.mode === "site") void refreshSite();
     }
   };
 
