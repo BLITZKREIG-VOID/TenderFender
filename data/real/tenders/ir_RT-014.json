@@ -1,0 +1,74 @@
+[
+  {
+    "id": "CL1.1",
+    "clause_id": "CL1",
+    "field": "estimated_cost_lakh",
+    "op": "==",
+    "value": 121.0,
+    "source_text": "Amount put to tender | Rs. 121.00 Lakhs"
+  },
+  {
+    "id": "CL1.2",
+    "clause_id": "CL1",
+    "field": "emd_amount_lakh",
+    "op": "==",
+    "value": 2.42,
+    "source_text": "Earnest money deposit (EMD) | Rs. 2,42,000/-"
+  },
+  {
+    "id": "CL1.3",
+    "clause_id": "CL1",
+    "field": "similar_works",
+    "op": "==",
+    "value": {
+      "years": 7,
+      "alternatives": [
+        {
+          "count": 3,
+          "amount_lakh": 48.4
+        },
+        {
+          "count": 2,
+          "amount_lakh": 72.6
+        },
+        {
+          "count": 1,
+          "amount_lakh": 96.8
+        }
+      ]
+    },
+    "source_text": "Should have satisfactorily completed the similar work(s) as mentioned below during the last 7 years ending previous day of last date of submission of bids (i) Three similar works each costing not less than Rs. 48.40 lakhs (or) (ii) Two similar works each costing not less than Rs. 72.60 lakhs (or) (iii) One similar work costing not less than Rs. 96.80 lakhs"
+  },
+  {
+    "id": "CL2.1",
+    "clause_id": "CL2",
+    "field": "turnover_lakh",
+    "op": ">=",
+    "value": 36.3,
+    "source_text": "Should have had average annual financial turnover not less than Rs. 36.30 Lakhs during the last three years ending 31st March of preceding year (31/03/2024)."
+  },
+  {
+    "id": "CL2.2",
+    "clause_id": "CL2",
+    "field": "turnover_period_years",
+    "op": "==",
+    "value": 3,
+    "source_text": "Should have had average annual financial turnover not less than Rs. 36.30 Lakhs during the last three years ending 31st March of preceding year (31/03/2024)."
+  },
+  {
+    "id": "CL3.1",
+    "clause_id": "CL3",
+    "field": "max_loss_years",
+    "op": "<=",
+    "value": 2,
+    "source_text": "Should not have incurred any loss in more than two years during the last five years ending 31st March 2024."
+  },
+  {
+    "id": "CL4.1",
+    "clause_id": "CL4",
+    "field": "solvency_lakh",
+    "op": ">=",
+    "value": 48.4,
+    "source_text": "Should have a solvency of not less than Rs. 48.40 Lakhs."
+  }
+]

@@ -234,8 +234,10 @@ reference work is within the sources' terms (section 2).
 | RT-010 | SDSC SHAR, Kulasekarapattinam / Thoothukudi | 12 | 6 (CL1, CL6, CL7, CL9, CL10, CL11) | 6 (CL2: completion period, CL3: request period, CL4: download period, CL5: receipt date, CL8: definition text, CL12: bidding capacity formula) | 10 | 0 (printed figures match computed percentages within 0.000L) |
 | RT-011 | SDSC SHAR, Sriharikota | 12 | 6 (CL1, CL6, CL7, CL9, CL10, CL11) | 6 (CL2: completion period, CL3: request period, CL4: download period, CL5: receipt date, CL8: definition text, CL12: bidding capacity formula) | 10 | 0 (printed figures match computed percentages within 0.000L) |
 | RT-012 | SDSC SHAR, Sriharikota | 11 | 6 (CL1, CL6, CL7, CL9, CL10, CL11) | 5 (CL2: completion period, CL3: request period, CL4: download period, CL5: receipt date, CL8: electrical license requirement) | 7 | 0 (printed figures match computed percentages within 0.001L) |
-| RT-013 | SDSC SHAR, Kulasekarapattinam / Thoothukudi | 5 | 5 (CL1, CL2, CL3, CL4, CL5) | 0 (all clauses expressible) | 4 | 0 (amounts match percentage thresholds within 0.000L) |
+| RT-013 | SDSC SHAR, Kulasekarapattinam / Thoothukudi | 5 | 4 (CL1, CL3, CL4, CL5) | 1 (CL2: not expressible in the IR) | 4 | 0 (amounts match percentage thresholds within 0.000L) |
 | RT-014 | SDSC SHAR, Sriharikota | 4 | 4 (CL1, CL2, CL3, CL4) | 0 (all clauses expressible) | 2 | 0 (amounts match percentage thresholds within 0.000L) |
+
+Verified against the live batched compile of 2026-11-02 (`RULES_USE_CACHE=0 RULES_MAX_TOKENS=12000 python -m rules.run --data-dir data/real --batch --write-cache`, model `nvidia/nemotron-3-ultra-550b-a55b:free`): all 14 tenders compiled, compiled + not-checked clauses equal the clause count for every tender, 0 findings each, vendor check `skipped` (no vendor data for real tenders). RT-003 and RT-008 needed `RULES_MAX_TOKENS=12000`; at the default 4096 the model output was truncated.
 
 ### Amount Mismatch Analysis
 

@@ -1,0 +1,74 @@
+[
+  {
+    "id": "CL1.1",
+    "clause_id": "CL1",
+    "field": "estimated_cost_lakh",
+    "op": "==",
+    "value": 230.16,
+    "source_text": "230.16 Lakh"
+  },
+  {
+    "id": "CL6.1",
+    "clause_id": "CL6",
+    "field": "emd_amount_lakh",
+    "op": "==",
+    "value": 4.6032,
+    "source_text": "4,60,320/- (Rupees Four lakh sixty thousand three hundred twenty)"
+  },
+  {
+    "id": "CL7.1",
+    "clause_id": "CL7",
+    "field": "similar_works",
+    "op": "==",
+    "value": {
+      "years": 7,
+      "alternatives": [
+        {
+          "count": 3,
+          "amount_lakh": 92.06
+        },
+        {
+          "count": 2,
+          "amount_lakh": 138.1
+        },
+        {
+          "count": 1,
+          "amount_lakh": 184.13
+        }
+      ]
+    },
+    "source_text": "Should have satisfactorily completed the works as mentioned below during the last Seven years ending previous day of last date of submission of bids. i. Three similar works each costing not less than 92.06 Lakh. (or) ii. Two similar works each costing not less than 138.10 Lakh (or) iii. One similar work costing not less than 184.13 Lakh."
+  },
+  {
+    "id": "CL8.1",
+    "clause_id": "CL8",
+    "field": "turnover_lakh",
+    "op": ">=",
+    "value": 69.05,
+    "source_text": "average annual financial turnover not less than 69.05 Lakh of the work during the last three years ending 31st March of preceding year (i.e. 31/03/2025)."
+  },
+  {
+    "id": "CL8.2",
+    "clause_id": "CL8",
+    "field": "turnover_period_years",
+    "op": "==",
+    "value": 3,
+    "source_text": "during the last three years ending 31st March of preceding year (i.e. 31/03/2025)."
+  },
+  {
+    "id": "CL9.1",
+    "clause_id": "CL9",
+    "field": "max_loss_years",
+    "op": "<=",
+    "value": 2,
+    "source_text": "Should not have incurred any loss in more than two years during the last five years ending 31/03/2025."
+  },
+  {
+    "id": "CL10.1",
+    "clause_id": "CL10",
+    "field": "solvency_lakh",
+    "op": ">=",
+    "value": 92.06,
+    "source_text": "Should have a solvency of not less than 92.06 Lakh"
+  }
+]
