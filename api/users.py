@@ -171,24 +171,25 @@ class UsersStore:
             "updated_at": datetime.now(UTC).isoformat(timespec="seconds"),
         }
         now = int(datetime.now(UTC).timestamp())
+        transact_items = [
+            {
+                "ConditionCheck": {
+                    "TableName": self.table_name,
+                    "Key": {"pk": _pk(user_id), "sk": "DELETED"},
+                    "ConditionExpression": "attribute_not_exists(pk) OR expires_at < :now",
+                    "ExpressionAttributeValues": {":now": now},
+                }
+            },
+            {
+                "Put": {
+                    "TableName": self.table_name,
+                    "Item": raw_item,
+                }
+            },
+        ]
         if hasattr(self.table, "transact_write_items"):
             try:
-                self.table.transact_write_items(TransactItems=[
-                    {
-                        "ConditionCheck": {
-                            "TableName": self.table_name,
-                            "Key": {"pk": _pk(user_id), "sk": "DELETED"},
-                            "ConditionExpression": "attribute_not_exists(pk) OR expires_at < :now",
-                            "ExpressionAttributeValues": {":now": now},
-                        }
-                    },
-                    {
-                        "Put": {
-                            "TableName": self.table_name,
-                            "Item": raw_item,
-                        }
-                    },
-                ])
+                self.table.transact_write_items(TransactItems=transact_items)
             except Exception as exc:
                 if _is_transaction_canceled(exc) or _is_conditional_failure(exc):
                     raise UserDeletedError(f"User {user_id} has been deleted") from exc
@@ -197,22 +198,7 @@ class UsersStore:
             client = getattr(getattr(self.table, "meta", None), "client", None)
             if client is not None and hasattr(client, "transact_write_items"):
                 try:
-                    client.transact_write_items(TransactItems=[
-                        {
-                            "ConditionCheck": {
-                                "TableName": self.table_name,
-                                "Key": {"pk": {"S": _pk(user_id)}, "sk": {"S": "DELETED"}},
-                                "ConditionExpression": "attribute_not_exists(pk) OR expires_at < :now",
-                                "ExpressionAttributeValues": {":now": {"N": str(now)}},
-                            }
-                        },
-                        {
-                            "Put": {
-                                "TableName": self.table_name,
-                                "Item": _serialize_map(raw_item),
-                            }
-                        },
-                    ])
+                    client.transact_write_items(TransactItems=transact_items)
                 except Exception as exc:
                     if _is_transaction_canceled(exc) or _is_conditional_failure(exc):
                         raise UserDeletedError(f"User {user_id} has been deleted") from exc
