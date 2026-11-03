@@ -2,10 +2,14 @@
 
 TenderFender is an automated tender integrity and risk-screening platform designed to analyze public procurement documents, detect contradiction and tailored eligibility risks using formal methods (Z3) and LLMs, screen vendor networks for collusive bidding rings (using deterministic baseline screens and GraphSAGE), fuse findings, and generate evidence-backed RAG decisions for human review.
 
+**Links:** [Live app](https://tenderfender.vercel.app/) · [Demo preview, no sign-up](https://tenderfender.vercel.app/demo) · [Quickstart](#5-quickstart-guide) · [Documentation index](#documentation) · [Deploy guide](docs/DEPLOY.md) · [Design spec (Source of Truth)](SOURCE_OF_TRUTH.md)
+
+**New here?** Open the [demo preview](https://tenderfender.vercel.app/demo) and pick **T-002** to see a full escalation: a tailored eligibility clause, a collusive vendor ring, and a cited decision. Then read [How it works](#2-architecture--workflow) and run it locally with the [Quickstart](#5-quickstart-guide).
+
 ## 1. Overview & Live Demo
 
 - **Pitch:** Public tenders can be drafted with contradictory criteria or tailored so that only one preferred supplier qualifies. TenderFender automates the detection of these risk indicators, matching them against authoritative procurement guidelines to provide cited recommendations for human reviewers.
-- **Live Demo URL:** [https://tenderfender.vercel.app/](https://tenderfender.vercel.app/) (stable; proxies `/api/*` to the AWS Lambda, see [docs/DEPLOY.md](docs/DEPLOY.md#stable-vercel-url))
+- **Live Demo URL:** [https://tenderfender.vercel.app/](https://tenderfender.vercel.app/) (stable; proxies `/api/*` to the AWS Lambda, see [docs/DEPLOY.md](docs/DEPLOY.md#stable-vercel-url)). The three synthetic demo tenders are public at [/demo](https://tenderfender.vercel.app/demo); create an account to upload your own.
 - **AWS Function URL:** [https://cl5srhq2lbhpd775etjbpso6sy0fwrtt.lambda-url.ap-south-1.on.aws/](https://cl5srhq2lbhpd775etjbpso6sy0fwrtt.lambda-url.ap-south-1.on.aws/) (changes if the stack is recreated)
 - **Disclaimer:** All risk indicators, scores, and recommendations are strictly for human review and do not constitute legal findings of wrongdoing, guilt, or corruption.
 
@@ -62,10 +66,16 @@ The UI includes detailed risk cards, clause formalization confirmations, interac
 
 ## 5. Quickstart Guide
 
-Prerequisites: Python 3.14 (dependencies in `requirements.txt` are pinned and were exercised on 3.14), `uv` (optional), Node.js, npm, and `make`.
+Prerequisites: [Python 3.14](https://www.python.org/downloads/) (dependencies in `requirements.txt` are pinned and were exercised on 3.14), [`uv`](https://docs.astral.sh/uv/) (optional, faster installs), [Node.js](https://nodejs.org/) with npm, and `make`. No AWS account or API key is needed to run locally.
+
+**Windows:** run the commands in [Git Bash](https://git-scm.com/downloads), not WSL. The `bash` on `PATH` is often WSL's, so call Git Bash directly, e.g. `& "C:\Program Files\Git\bin\bash.exe" scripts/deploy_aws.sh`. The Makefile picks `.venv/Scripts/python.exe` automatically on Windows.
 
 ```bash
-# 1. Setup python environment and cache embedding model offline
+# 0. Get the code
+git clone https://github.com/BLITZKREIG-VOID/TenderFender.git
+cd TenderFender
+
+# 1. Setup python environment and cache embedding model offline (downloads CPU-only PyTorch; takes a few minutes)
 make setup
 
 # 2. Run the end-to-end processing pipeline
@@ -73,7 +83,10 @@ make pipeline
 
 # 3. Start API backend and React UI (or use MOCK=1)
 make api &
-make ui
+make ui          # then open http://localhost:5173/demo
+
+# 4. Check everything still passes
+make test && make acceptance
 ```
 
 - **Decision mode:** `make pipeline` defaults to `DECISION_MODE=auto`: the saved AI-written decision in `artifacts/decisions/` is used when its `input_hash` matches, and tenders with no evidence (T-003) always use the deterministic template. No API key or network is needed for this; if a cache entry is stale and `OPENROUTER_API_KEY` is unset, the run fails loudly. Use `DECISION_MODE=template` explicitly to opt in to the template writer, or `DECISION_MODE=llm` (with `OPENROUTER_API_KEY`) to regenerate.
@@ -120,8 +133,12 @@ make ui
 |---|---|---|
 | `rules/`, `kb/passages/`, `slides/` | P1 (Arnav) | Clause compilation, Z3 rules, guideline passages, demo scripts, slides. |
 | `synth/`, `graph/`, `data/` | P2 (Anirudh) | Synthetic data generator, vendor graph analysis, baseline screens, GraphSAGE. |
-| `decision/`, `contracts/`, `schemas/` | P3 (Hardhik - Lead) | Fusion logic, RAG decision engine, JSON schemas, contracts. |
+| `fusion/`, `decision/`, `contracts/` (incl. `contracts/schemas/`) | P3 (Hardhik - Lead) | Fusion logic, RAG decision engine, JSON schemas, contracts. |
 | `api/`, `ui/`, `mocks/`, `infra/`, `scripts/` | P4 (Harsh) | FastAPI backend, React TypeScript UI, mock files, AWS CloudFormation, helper scripts. |
+| `artifacts/` | Generated | Pipeline outputs (rules, graph, fusion, fused decisions, saved LLM decisions). Committed so the demo runs without regenerating. |
+| `tests/`, `docs/` | Shared | pytest suite; project documentation (see [Documentation](#documentation)). |
+
+**Where to start reading the code:** [`api/main.py`](api/main.py) (HTTP routes) → [`fusion/fuse.py`](fusion/fuse.py) (how findings combine) → [`rules/checks.py`](rules/checks.py) and [`rules/to_z3.py`](rules/to_z3.py) (clause checks) → [`graph/screens.py`](graph/screens.py) (collusion screens) → [`decision/write.py`](decision/write.py) (cited decision writer).
 
 ---
 
@@ -138,8 +155,9 @@ make ui
 
 - **Architecture:** Hosted on AWS Lambda (ap-south-1) using a single Lambda Function URL (`AuthType NONE`) that serves both the FastAPI API (`/api/*`) and built React static files (`ui_dist/`).
 - **CloudFront Removal:** New AWS account restrictions on CloudFront distribution creation led to direct Lambda Function URL hosting. A Lambda EventBridge keep-warm rule (`rate(5 minutes)`) prevents cold starts.
-- **Commands:** Managed via `make package-lambda`, `make deploy`, and `make destroy`. Designed to stay within AWS Free Tier limits (cost math in `docs/DEPLOY.md`).
-- **Documentation:** Full details in `docs/DEPLOY.md`.
+- **Commands:** Managed via `make package-lambda`, `make deploy`, and `make destroy`. Designed to stay within AWS Free Tier limits (cost math in [docs/DEPLOY.md](docs/DEPLOY.md)).
+- **One-command deploy:** with AWS credentials configured (`aws sts get-caller-identity` works), run `bash scripts/deploy_aws.sh`. It runs the acceptance gates, builds the UI, packages the Lambda, updates the CloudFormation stack and smoke-tests six endpoints. Re-running it is safe. Env vars are documented at the top of [`scripts/deploy_aws.sh`](scripts/deploy_aws.sh).
+- **Documentation:** Full details in [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ---
 
@@ -180,18 +198,18 @@ TenderFender uses an account-first application flow designed to safeguard real t
 
 Google sign-in ("Continue with Google") uses AWS Cognito's Google Identity Provider with PKCE code grant.
 
-1. **Configure Google Credentials:**
-   Run the helper script on the deployment workstation:
-   ```bash
-   bash ~/tenderfender_google_oauth.sh
-   ```
-   The script queries the active CloudFormation stack for the Cognito domain and prints the exact values required by the Google Cloud Console:
+1. **Create Google credentials:** in [Google Cloud Console → APIs & Services → Credentials](https://console.cloud.google.com/apis/credentials), create an OAuth client ID of type *Web application*. Find your Cognito domain with `curl <site>/api/auth/config` (the `domain` field), then set:
    - **Authorized JavaScript origins:** `https://<CognitoDomain>`
    - **Authorized redirect URIs:** `https://<CognitoDomain>/oauth2/idpresponse`
-   
-   Enter your Google OAuth Client ID (must end in `.apps.googleusercontent.com`) and Client Secret when prompted. Credentials are saved locally with secure permissions (`0600`) to `$XDG_CONFIG_HOME/tenderfender/google-oauth.env`.
-2. **Deploy with Google Sign-in:**
-   Run `bash ~/tenderfender_deploy.sh`. The CloudFormation template sets `GOOGLE_ENABLED` (`!If [HasGoogle, "true", "false"]`), enabling the Google button across sign-in forms. To remove Google credentials, run `bash ~/tenderfender_google_oauth.sh --remove` and redeploy.
+2. **Deploy with Google sign-in:**
+   ```bash
+   GOOGLE_CLIENT_ID="<id>.apps.googleusercontent.com" \
+   GOOGLE_CLIENT_SECRET="<secret>" \
+   bash scripts/deploy_aws.sh
+   ```
+   The CloudFormation template sets `GOOGLE_ENABLED` (`!If [HasGoogle, "true", "false"]`), enabling the Google button across sign-in forms. Later deploys without these variables keep the stack's current Google settings. Verify with `curl <site>/api/auth/config`, which should show `"google_enabled": true`.
+
+Step-by-step details: [docs/DEPLOY.md → Google OAuth Setup Steps](docs/DEPLOY.md#google-oauth-setup-steps).
 
 ---
 
@@ -203,6 +221,28 @@ Per Source of Truth §2 ("Out"):
 - Covers five core fields and three check types; complex timeline traps and threshold splitting are excluded.
 - Guideline passages provide contextual interpretation rather than formal legal counsel.
 - Amazon Bedrock Site AI is disabled (pending AWS account verification); the application operates in BYOK OpenRouter mode.
+---
+
+## Documentation
+
+| Document | What it covers |
+|---|---|
+| [SOURCE_OF_TRUTH.md](SOURCE_OF_TRUTH.md) | The full design spec: scope, data contracts, decision rules, and the decisions log (D-numbers cited in code). |
+| [docs/DEPLOY.md](docs/DEPLOY.md) | AWS deployment, Vercel proxy, Cognito/Google OAuth, Free Tier cost math. |
+| [docs/STATUS.md](docs/STATUS.md) | Final project status and what is done. |
+| [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) | The 3-minute demo walkthrough. |
+| [docs/REHEARSAL.md](docs/REHEARSAL.md) | Rehearsal and Definition-of-Done audit. |
+| [contracts/README.md](contracts/README.md) | JSON schemas and example payloads exchanged between pipeline stages. |
+| [docs/CONTRACT_CHANGES.md](docs/CONTRACT_CHANGES.md) | History of contract/schema changes. |
+| [graph/README.md](graph/README.md) | Vendor graph engine: screens, GraphSAGE, evaluation. |
+| [docs/REVIEW_ATOMS.md](docs/REVIEW_ATOMS.md) | How a human confirms formalized clauses for real tenders. |
+| [docs/REAL_DATA_PLAN.md](docs/REAL_DATA_PLAN.md) | Plan for running on real procurement data. |
+| [docs/DECISION_REVIEW.md](docs/DECISION_REVIEW.md) | Review sheet for the LLM-written decisions. |
+| [docs/RETRIEVAL_TUNING.md](docs/RETRIEVAL_TUNING.md) | How guideline-passage retrieval was tuned. |
+| [docs/PASSAGE_TOPICS.md](docs/PASSAGE_TOPICS.md) | Citation topics for real eligibility findings. |
+| [slides/OUTLINE.md](slides/OUTLINE.md) | Presentation outline. |
+| [docs/screenshots/](docs/screenshots/) | UI screenshots of every main screen. |
+
 ---
 
 ## 13. Team Table
