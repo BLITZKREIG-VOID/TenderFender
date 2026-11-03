@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { api, clearApiCache, type AuthConfig, type Me } from "../api/client";
+import { api, clearApiCache, ACCOUNT_DELETED_EVENT, type AuthConfig, type Me } from "../api/client";
 import { getIdToken, clearTokens, saveTokens } from "./tokens";
 import { authConfigured, buildLoginUrl, buildGoogleLoginUrl, logoutUrl } from "./pkce";
 import {
@@ -191,6 +191,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearLlmSettings();
     dropSession();
   }, [dropSession]);
+
+  useEffect(() => {
+    const onAccountDeleted = () => {
+      cognitoSignOut(config);
+      forgetAccountLocally();
+    };
+    window.addEventListener(ACCOUNT_DELETED_EVENT, onAccountDeleted);
+    return () => window.removeEventListener(ACCOUNT_DELETED_EVENT, onAccountDeleted);
+  }, [config, forgetAccountLocally]);
 
   const setLlm = useCallback((s: LlmSettings | null) => {
     if (s) saveLlmSettings(s);

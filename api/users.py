@@ -153,7 +153,7 @@ class UsersStore:
 
     def is_deleted(self, user_id: str) -> bool:
         item = self.table.get_item(Key={"pk": _pk(user_id), "sk": "DELETED"}).get("Item")
-        return item is not None
+        return item is not None and float(item.get("expires_at") or 0) > datetime.now(UTC).timestamp()
 
     # ── JSON payload items (PROFILE, TENDER#, REGEN#) ────────────────────────
     def get_item(self, user_id: str, sk: str) -> dict[str, Any] | None:
@@ -170,6 +170,7 @@ class UsersStore:
             "data": body,
             "updated_at": datetime.now(UTC).isoformat(timespec="seconds"),
         }
+        now = int(datetime.now(UTC).timestamp())
         if hasattr(self.table, "transact_write_items"):
             try:
                 self.table.transact_write_items(TransactItems=[
@@ -177,7 +178,8 @@ class UsersStore:
                         "ConditionCheck": {
                             "TableName": self.table_name,
                             "Key": {"pk": _pk(user_id), "sk": "DELETED"},
-                            "ConditionExpression": "attribute_not_exists(pk)",
+                            "ConditionExpression": "attribute_not_exists(pk) OR expires_at < :now",
+                            "ExpressionAttributeValues": {":now": now},
                         }
                     },
                     {
@@ -200,7 +202,8 @@ class UsersStore:
                             "ConditionCheck": {
                                 "TableName": self.table_name,
                                 "Key": {"pk": {"S": _pk(user_id)}, "sk": {"S": "DELETED"}},
-                                "ConditionExpression": "attribute_not_exists(pk)",
+                                "ConditionExpression": "attribute_not_exists(pk) OR expires_at < :now",
+                                "ExpressionAttributeValues": {":now": {"N": str(now)}},
                             }
                         },
                         {
@@ -218,6 +221,7 @@ class UsersStore:
                 if self.is_deleted(user_id):
                     raise UserDeletedError(f"User {user_id} has been deleted")
                 self.table.put_item(Item=raw_item)
+
     def delete_item(self, user_id: str, sk: str) -> bool:
         resp = self.table.delete_item(Key={"pk": _pk(user_id), "sk": sk}, ReturnValues="ALL_OLD")
         return bool(resp.get("Attributes"))

@@ -183,9 +183,24 @@ class FakeTable:
                 cc = item["ConditionCheck"]
                 key = _get_k(cc["Key"])
                 expr = cc.get("ConditionExpression", "")
-                if "attribute_not_exists" in expr and key in self.items:
-                    raise FakeClientError("TransactionCanceledException")
+                if key in self.items:
+                    passed = False
+                    if "expires_at < :now" in expr:
+                        values = cc.get("ExpressionAttributeValues", {})
+                        now_val = values.get(":now")
+                        if isinstance(now_val, dict) and "N" in now_val:
+                            now_num = float(now_val["N"])
+                        elif now_val is not None:
+                            now_num = float(now_val)
+                        else:
+                            now_num = None
 
+                        stored_exp = self.items[key].get("expires_at")
+                        if now_num is not None and stored_exp is not None:
+                            if float(stored_exp) < now_num:
+                                passed = True
+                    if not passed:
+                        raise FakeClientError("TransactionCanceledException")
         for item in TransactItems:
             if "Put" in item:
                 put = item["Put"]
@@ -691,3 +706,174 @@ def test_p2_2_tender_summaries_and_count_storage(env):
     assert store.delete_tender("u", "T-000") is True
     assert store.get_tender_count("u") == 19
     assert len(store.list_tender_summaries("u")) == 19
+
+
+def test_is_deleted_active_vs_expired(env):
+    table = env["table"]
+    store = users.UsersStore(table)
+
+    store.write_tombstone("u-active", ttl_seconds=3600)
+    assert store.is_deleted("u-active") is True
+
+    table.items[("USER#u-expired", "DELETED")] = {
+        "pk": "USER#u-expired",
+        "sk": "DELETED",
+        "expires_at": Decimal(int(time.time()) - 60),
+    }
+    assert store.is_deleted("u-expired") is False
+
+    assert store.is_deleted("u-none") is False
+
+
+def test_put_item_resource_path_tombstone_ttl(env):
+    table = env["table"]
+    store = users.UsersStore(table)
+
+    store.write_tombstone("u1", ttl_seconds=3600)
+    with pytest.raises(users.UserDeletedError):
+        store.put_item("u1", "PROFILE", VALID_PROFILE)
+
+    table.items[("USER#u2", "DELETED")] = {
+        "pk": "USER#u2",
+        "sk": "DELETED",
+        "expires_at": Decimal(int(time.time()) - 60),
+    }
+    store.put_item("u2", "PROFILE", VALID_PROFILE)
+    assert store.get_item("u2", "PROFILE") == VALID_PROFILE
+
+
+def test_put_item_client_path_tombstone_ttl():
+    class FakeDynamoClient:
+        def __init__(self, items):
+            self.items = items
+            self.last_calls = []
+
+        def transact_write_items(self, TransactItems):
+            self.last_calls.append(TransactItems)
+            for item in TransactItems:
+                if "ConditionCheck" in item:
+                    cc = item["ConditionCheck"]
+                    pk = cc["Key"]["pk"]["S"]
+                    sk = cc["Key"]["sk"]["S"]
+                    key = (pk, sk)
+                    expr = cc.get("ConditionExpression", "")
+                    if key in self.items:
+                        passed = False
+                        if "expires_at < :now" in expr:
+                            val = cc.get("ExpressionAttributeValues", {}).get(":now")
+                            if isinstance(val, dict) and "N" in val:
+                                now_num = float(val["N"])
+                            elif val is not None:
+                                now_num = float(val)
+                            else:
+                                now_num = None
+                            stored_exp = self.items[key].get("expires_at")
+                            if now_num is not None and stored_exp is not None:
+                                if float(stored_exp) < now_num:
+                                    passed = True
+                        if not passed:
+                            raise FakeClientError("TransactionCanceledException")
+            for item in TransactItems:
+                if "Put" in item:
+                    raw = item["Put"]["Item"]
+                    pk = raw["pk"]["S"]
+                    sk = raw["sk"]["S"]
+                    self.items[(pk, sk)] = {k: v.get("S", v.get("N", v.get("BOOL"))) for k, v in raw.items()}
+            return {}
+
+    class Meta:
+        def __init__(self, client):
+            self.client = client
+
+    class FakeTableWithoutTransact:
+        def __init__(self):
+            self.items = {}
+            self.name = "users"
+            self.client = FakeDynamoClient(self.items)
+            self.meta = Meta(self.client)
+
+        def get_item(self, Key):
+            item = self.items.get((Key["pk"], Key["sk"]))
+            return {"Item": dict(item)} if item is not None else {}
+
+    table = FakeTableWithoutTransact()
+    store = users.UsersStore(table)
+
+    table.items[("USER#u-client", "DELETED")] = {
+        "pk": "USER#u-client",
+        "sk": "DELETED",
+        "expires_at": Decimal(int(time.time()) - 60),
+    }
+    store.put_item("u-client", "PROFILE", VALID_PROFILE)
+
+    assert len(table.client.last_calls) == 1
+    cc = table.client.last_calls[0][0]["ConditionCheck"]
+    assert cc["ConditionExpression"] == "attribute_not_exists(pk) OR expires_at < :now"
+    now_dict = cc["ExpressionAttributeValues"][":now"]
+    assert isinstance(now_dict, dict) and "N" in now_dict
+    assert now_dict["N"].isdigit()
+    assert store.get_item("u-client", "PROFILE") == VALID_PROFILE
+
+    table.items[("USER#u-active", "DELETED")] = {
+        "pk": "USER#u-active",
+        "sk": "DELETED",
+        "expires_at": Decimal(int(time.time()) + 3600),
+    }
+    with pytest.raises(users.UserDeletedError):
+        store.put_item("u-active", "PROFILE", VALID_PROFILE)
+
+
+def test_put_item_fallback_path_tombstone_ttl():
+    class SimpleTable:
+        def __init__(self):
+            self.items = {}
+            self.name = "users"
+
+        def get_item(self, Key):
+            item = self.items.get((Key["pk"], Key["sk"]))
+            return {"Item": dict(item)} if item is not None else {}
+
+        def put_item(self, Item):
+            self.items[(Item["pk"], Item["sk"])] = Item
+
+    table = SimpleTable()
+    store = users.UsersStore(table)
+
+    table.items[("USER#u-fallback", "DELETED")] = {
+        "pk": "USER#u-fallback",
+        "sk": "DELETED",
+        "expires_at": Decimal(int(time.time()) - 60),
+    }
+    store.put_item("u-fallback", "PROFILE", VALID_PROFILE)
+    assert store.get_item("u-fallback", "PROFILE") == VALID_PROFILE
+
+    table.items[("USER#u-active", "DELETED")] = {
+        "pk": "USER#u-active",
+        "sk": "DELETED",
+        "expires_at": Decimal(int(time.time()) + 3600),
+    }
+    with pytest.raises(users.UserDeletedError):
+        store.put_item("u-active", "PROFILE", VALID_PROFILE)
+
+
+def test_api_put_profile_expired_vs_active_tombstone(env):
+    table = env["table"]
+    client = env["client"]
+
+    table.items[("USER#user-1", "DELETED")] = {
+        "pk": "USER#user-1",
+        "sk": "DELETED",
+        "expires_at": Decimal(int(time.time()) + 3600),
+    }
+    resp = client.put("/api/me/profile", json=VALID_PROFILE, headers=bearer(make_token()))
+    assert resp.status_code == 403
+    assert resp.json()["detail"]["code"] == "account_deleted"
+
+    table.items[("USER#user-1", "DELETED")] = {
+        "pk": "USER#user-1",
+        "sk": "DELETED",
+        "expires_at": Decimal(int(time.time()) - 60),
+    }
+    resp = client.put("/api/me/profile", json=VALID_PROFILE, headers=bearer(make_token()))
+    assert resp.status_code == 200
+    assert resp.json()["role"] == VALID_PROFILE["role"]

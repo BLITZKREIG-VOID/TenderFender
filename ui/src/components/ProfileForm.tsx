@@ -1,5 +1,7 @@
 import { useState, type FormEvent } from "react";
+import { useNavigate } from "react-router-dom";
 import { Loader2, Save } from "lucide-react";
+import { useAuth } from "../auth/AuthContext";
 import { api, apiError, describeError, type Profile, type ProfileInput } from "../api/client";
 import {
   EXPERIENCE_OPTIONS,
@@ -65,6 +67,9 @@ export default function ProfileForm({ initial, submitLabel, onSaved }: Props) {
   const [consent, setConsent] = useState(Boolean(initial?.consent));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const { forgetAccountLocally } = useAuth();
   const complete = Boolean(d.role && d.org_type && d.state && d.purpose && d.experience && consent);
 
   const submit = async (e: FormEvent) => {
@@ -72,6 +77,7 @@ export default function ProfileForm({ initial, submitLabel, onSaved }: Props) {
     if (!d.role || !d.org_type || !d.state || !d.purpose || !d.experience || !consent) return;
     setBusy(true);
     setError(null);
+    setErrorCode(null);
     try {
       const r = await api.putProfile({
         role: d.role,
@@ -83,7 +89,9 @@ export default function ProfileForm({ initial, submitLabel, onSaved }: Props) {
       });
       onSaved(r.data);
     } catch (err) {
-      setError(describeError(apiError(err, "Could not save your profile")));
+      const parsed = apiError(err, "Could not save your profile");
+      setError(describeError(parsed));
+      setErrorCode(parsed.code ?? null);
     } finally {
       setBusy(false);
     }
@@ -155,7 +163,22 @@ export default function ProfileForm({ initial, submitLabel, onSaved }: Props) {
 
       {error && (
         <div role="alert" className={errorBox}>
-          {error}
+          <div>{error}</div>
+          {errorCode === "account_deleted" && (
+            <button
+              type="button"
+              className={`${btnPrimary} mt-3`}
+              onClick={() => {
+                forgetAccountLocally();
+                navigate("/login", {
+                  replace: true,
+                  state: { notice: "Your previous account was deleted. Sign in with an active account." },
+                });
+              }}
+            >
+              Sign in again
+            </button>
+          )}
         </div>
       )}
 
