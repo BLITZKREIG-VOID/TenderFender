@@ -1,10 +1,11 @@
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { Link, useLocation, useNavigate, useSearchParams, Navigate } from "react-router-dom";
 import { Loader2, Eye, EyeOff, AlertCircle, CheckCircle2, ArrowRight } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { sanitizeNext } from "../auth/passwordPolicy";
 import { GoogleButton } from "../components/GoogleButton";
 import { panel, panelTitle, btnPrimary, input, label, errorBox, link } from "../components/styles";
+import { ACCOUNT_DELETED_STORAGE_KEY } from "../api/client";
 
 export default function Login() {
   const { config, signedIn, signInWithSrp, loginWithGoogle } = useAuth();
@@ -28,6 +29,13 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
   const [isNotVerified, setIsNotVerified] = useState(false);
   const [notice] = useState<string | null>(initialNotice || null);
+  useEffect(() => {
+    try {
+      sessionStorage.removeItem(ACCOUNT_DELETED_STORAGE_KEY);
+    } catch {
+      // ignore
+    }
+  }, []);
 
   if (signedIn) {
     return <Navigate to={nextTarget} replace />;

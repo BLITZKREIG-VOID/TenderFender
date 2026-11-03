@@ -31,11 +31,25 @@ async function cachedGet<T>(key: string, url: string): Promise<{ data: T }> {
   return { data };
 }
 
+export const ACCOUNT_DELETED_STORAGE_KEY = "tf-account-deleted";
+export const ACCOUNT_DELETED_EVENT = "tf-account-deleted";
+
 // A 401 means the token is expired or revoked: drop it so the UI falls back to signed-out prompts.
 client.interceptors.response.use(undefined, (err) => {
   if (err?.response?.status === 401 && getIdToken()) {
     clearTokens();
     clearApiCache();
+    window.dispatchEvent(new Event("tf-auth-changed"));
+  }
+  if (err?.response?.status === 403 && err?.response?.data?.detail?.code === "account_deleted") {
+    clearTokens();
+    clearApiCache();
+    try {
+      sessionStorage.setItem(ACCOUNT_DELETED_STORAGE_KEY, "1");
+    } catch {
+      // ignore
+    }
+    window.dispatchEvent(new Event(ACCOUNT_DELETED_EVENT));
     window.dispatchEvent(new Event("tf-auth-changed"));
   }
   return Promise.reject(err);
@@ -429,6 +443,9 @@ export function apiError(err: unknown, fallback = "Request failed"): ApiErrorInf
 }
 
 export function describeError(e: ApiErrorInfo): string {
+  if (e.code === "account_deleted") {
+    return "This account was deleted. Sign in again with an active account.";
+  }
   if (e.code === "global_daily_limit" || (e.status === 429 && e.code === "global_daily_limit")) {
     return "The investigation bureau has hit its daily case quota. Please try again tomorrow.";
   }
