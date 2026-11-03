@@ -108,6 +108,10 @@ fi
 PARAM_FILE="$(mktemp /tmp/tf-params-XXXXXX.json)"
 chmod 0600 "$PARAM_FILE"
 trap 'rm -f "$PARAM_FILE"' EXIT INT TERM
+PARAM_FILE_URI="file://$PARAM_FILE"
+if command -v cygpath >/dev/null 2>&1; then
+  PARAM_FILE_URI="file://$(cygpath -m "$PARAM_FILE")"
+fi
 
 write_params() {
   local current_site_url="$1"
@@ -140,7 +144,7 @@ aws cloudformation deploy \
   --s3-bucket "$DEPLOY_BUCKET" --s3-prefix cfn \
   --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
   --no-fail-on-empty-changeset \
-  --parameter-overrides "file://$PARAM_FILE"
+  --parameter-overrides "$PARAM_FILE_URI"
 out() {
   aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
     --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" --output text
@@ -157,7 +161,7 @@ if [ -z "$SITE_URL" ] && [ -n "$URL" ]; then
     --s3-bucket "$DEPLOY_BUCKET" --s3-prefix cfn \
     --capabilities CAPABILITY_IAM \
     --no-fail-on-empty-changeset \
-    --parameter-overrides "file://$PARAM_FILE"
+    --parameter-overrides "$PARAM_FILE_URI"
 fi
 # ── 7. Smoke test ─────────────────────────────────────────────────────────────
 log "Smoke test"
