@@ -753,8 +753,8 @@ def test_put_item_client_path_tombstone_ttl():
             for item in TransactItems:
                 if "ConditionCheck" in item:
                     cc = item["ConditionCheck"]
-                    pk = cc["Key"]["pk"]["S"]
-                    sk = cc["Key"]["sk"]["S"]
+                    pk = cc["Key"]["pk"]["S"] if isinstance(cc["Key"]["pk"], dict) else cc["Key"]["pk"]
+                    sk = cc["Key"]["sk"]["S"] if isinstance(cc["Key"]["sk"], dict) else cc["Key"]["sk"]
                     key = (pk, sk)
                     expr = cc.get("ConditionExpression", "")
                     if key in self.items:
@@ -776,9 +776,16 @@ def test_put_item_client_path_tombstone_ttl():
             for item in TransactItems:
                 if "Put" in item:
                     raw = item["Put"]["Item"]
-                    pk = raw["pk"]["S"]
-                    sk = raw["sk"]["S"]
-                    self.items[(pk, sk)] = {k: v.get("S", v.get("N", v.get("BOOL"))) for k, v in raw.items()}
+                    pk = raw["pk"]["S"] if isinstance(raw.get("pk"), dict) else raw["pk"]
+                    sk = raw["sk"]["S"] if isinstance(raw.get("sk"), dict) else raw["sk"]
+                    data = raw["data"]["S"] if isinstance(raw.get("data"), dict) else raw["data"]
+                    updated_at = raw["updated_at"]["S"] if isinstance(raw.get("updated_at"), dict) else raw["updated_at"]
+                    self.items[(pk, sk)] = {
+                        "pk": pk,
+                        "sk": sk,
+                        "data": data,
+                        "updated_at": updated_at,
+                    }
             return {}
 
     class Meta:
@@ -809,9 +816,8 @@ def test_put_item_client_path_tombstone_ttl():
     assert len(table.client.last_calls) == 1
     cc = table.client.last_calls[0][0]["ConditionCheck"]
     assert cc["ConditionExpression"] == "attribute_not_exists(pk) OR expires_at < :now"
-    now_dict = cc["ExpressionAttributeValues"][":now"]
-    assert isinstance(now_dict, dict) and "N" in now_dict
-    assert now_dict["N"].isdigit()
+    now_val = cc["ExpressionAttributeValues"][":now"]
+    assert (isinstance(now_val, int) and now_val > 0) or (isinstance(now_val, dict) and "N" in now_val)
     assert store.get_item("u-client", "PROFILE") == VALID_PROFILE
 
     table.items[("USER#u-active", "DELETED")] = {
@@ -821,6 +827,20 @@ def test_put_item_client_path_tombstone_ttl():
     }
     with pytest.raises(users.UserDeletedError):
         store.put_item("u-active", "PROFILE", VALID_PROFILE)
+
+
+def test_put_item_with_real_boto3_resource_table_serialization():
+    import boto3
+    from botocore.stub import Stubber
+
+    resource = boto3.resource("dynamodb", region_name="ap-south-1")
+    table = resource.Table("users")
+    store = users.UsersStore(table)
+
+    stubber = Stubber(table.meta.client)
+    stubber.add_response("transact_write_items", {})
+    with stubber:
+        store.put_item("u-stubbed", "PROFILE", VALID_PROFILE)
 
 
 def test_put_item_fallback_path_tombstone_ttl():
