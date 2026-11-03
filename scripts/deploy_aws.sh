@@ -3,6 +3,7 @@
 #
 # Env: AWS_REGION (default ap-south-1), STACK_NAME (default tenderfender), BUDGET_EMAIL (optional email alerts),
 #      AUTH_DOMAIN_PREFIX (default ${STACK_NAME}-${ACCOUNT}), GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
+#      (Google vars unset = keep the stack's current Google settings),
 #      KEEP_WARM (default true), SKIP_GATES=1 (skip artifact/acceptance/demo-guard checks), LAMBDA_PYTHON (default 3.14).
 set -euo pipefail
 
@@ -113,6 +114,14 @@ if command -v cygpath >/dev/null 2>&1; then
   PARAM_FILE_URI="file://$(cygpath -m "$PARAM_FILE")"
 fi
 
+# Google credentials are sent only when set: if they're left out, `cloudformation deploy` keeps the
+# stack's previous values, so a plain `make deploy` no longer turns off an existing Google sign-in.
+GOOGLE_PARAMS=""
+if [ -n "$GOOGLE_CLIENT_ID" ]; then
+  GOOGLE_PARAMS="\"GoogleClientId=$GOOGLE_CLIENT_ID\",
+  \"GoogleClientSecret=$GOOGLE_CLIENT_SECRET\","
+fi
+
 write_params() {
   local current_site_url="$1"
   cat > "$PARAM_FILE" <<EOF
@@ -125,8 +134,7 @@ write_params() {
   "SiteUrl=$current_site_url",
   "DevCallbackUrl=$DEV_CALLBACK_URL",
   "VercelUrl=$VERCEL_URL",
-  "GoogleClientId=$GOOGLE_CLIENT_ID",
-  "GoogleClientSecret=$GOOGLE_CLIENT_SECRET",
+  $GOOGLE_PARAMS
   "LlmFeaturesEnabled=$LLM_FEATURES_ENABLED",
   "SiteAiEnabled=$SITE_AI_ENABLED",
   "SiteAiMonthlyCapUsd=$SITE_AI_MONTHLY_CAP_USD",
