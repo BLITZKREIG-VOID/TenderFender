@@ -1,6 +1,11 @@
 # TenderFender pipeline (SoT section 10). Override any variable on the command line, e.g.
 #   make pipeline-mock DECISION_MODE=template RETRIEVER=keyword
+# Windows venvs (incl. under Git Bash) put the interpreter in Scripts/, not bin/.
+ifeq ($(OS),Windows_NT)
+PY            ?= .venv/Scripts/python.exe
+else
 PY            ?= .venv/bin/python
+endif
 # Default `auto` (SoT 13 D29): uses the saved decision in `artifacts/decisions/` when its input_hash matches; tenders with no evidence always use the template writer. `template` is explicit opt-in.
 # Modes: template | llm | cache | auto. `auto` fails loudly if there is neither a matching cache entry nor OPENROUTER_API_KEY.
 # LLM mode reads OPENROUTER_API_KEY from the shell only; the model comes from DECISION_MODEL (default in decision/write.py).
