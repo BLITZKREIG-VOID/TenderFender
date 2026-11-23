@@ -489,7 +489,7 @@ def detect(key: str, hint: str | None = None, deadline: Deadline | None = None) 
 
 # ---------------------------------------------------------------- chat
 def complete(provider_id: str, key: str, model: str, system: str, messages: list[dict[str, str]], *,
-             max_tokens: int, deadline: Deadline) -> Completion:
+             max_tokens: int, deadline: Deadline, openrouter_reasoning: bool | None = None) -> Completion:
     """One chat completion. `messages` are {role: user|assistant, content}; the system prompt is separate."""
     check_model(provider_id, model)
     if provider_id == "bedrock":
@@ -575,6 +575,8 @@ def complete(provider_id: str, key: str, model: str, system: str, messages: list
                p.max_tokens_field: max_tokens}
     if p.send_temperature:
         payload["temperature"] = 0
+    if p.id == "openrouter" and openrouter_reasoning is not None:
+        payload["reasoning"] = {"enabled": openrouter_reasoning}
     _, data = _call(p, key, "POST", p.base_url + p.chat_path, payload, deadline, "chat")
     if isinstance(data, dict) and data.get("error"):
         # OpenRouter can answer 200 with an error object carrying the upstream status code.

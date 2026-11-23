@@ -46,6 +46,10 @@ router = APIRouter()
 PUBLIC_ID_RE = re.compile(r"R?T-\d{3}")
 USER_TENDER_RE = re.compile(r"U-[0-9a-f]{8}")
 COMPILE_BATCH_CLAUSES = 30   # clauses per batched compile request (keeps each reply under MAX_TOKENS)
+NEMOTRON_SUPER_VL_MODELS = frozenset({
+    "nvidia/nemotron-3.5-super-vl",
+    "nvidia/nemotron-3.5-super-vl-20261015",
+})
 CHAT_MAX_ATTEMPTS = 2        # unknown refs / wording violations get exactly one retry
 VENDOR_CHECK_SKIPPED = {"status": "skipped",
                         "reason": "no vendor data for user-compiled tenders; synthetic vendors are never used"}
@@ -329,10 +333,14 @@ def compile_tender(body: CompileBody, request: Request, user: dict = Depends(req
     consume(user["user_id"], "compile", store)
     deadline = providers.Deadline()
     total_usage = {"inputTokens": 0, "outputTokens": 0}
+    # Super VL reasons by default. Extract clause atoms directly to reduce latency and reserve
+    # the output budget for the JSON that the compiler validates.
+    disable_reasoning = pid == "openrouter" and model.split(":", 1)[0] in NEMOTRON_SUPER_VL_MODELS
 
     def call(system: str, messages: list[dict[str, Any]]) -> str:
         from rules.compile_llm import MAX_TOKENS, InvalidModelOutput
-        out = providers.complete(pid, key or "", model, system, messages, max_tokens=MAX_TOKENS, deadline=deadline)
+        out = providers.complete(pid, key or "", model, system, messages, max_tokens=MAX_TOKENS,
+                                 deadline=deadline, openrouter_reasoning=False if disable_reasoning else None)
         if out.usage:
             total_usage["inputTokens"] += out.usage.get("inputTokens", 0)
             total_usage["outputTokens"] += out.usage.get("outputTokens", 0)
@@ -348,6 +356,9 @@ def compile_tender(body: CompileBody, request: Request, user: dict = Depends(req
             batch = [{"clause_id": c["clause_id"], "text": c["text"]} for c in clauses[i:i + COMPILE_BATCH_CLAUSES]]
             atoms.extend(compile_tender_batched({"tender_id": tender_id, "clauses": batch}, call=call))
     except providers.ProviderError as exc:
+        if exc.code == "provider_timeout" and pid == "openrouter":
+            raise _error(504, "OpenRouter took too long to compile this tender. Retry or choose another model.",
+                         exc.code, provider=pid) from None
         raise _provider_http(exc) from None
     except CompileError as exc:
         raise _error(422, "The model's reply could not be validated as IR atoms after retries.",

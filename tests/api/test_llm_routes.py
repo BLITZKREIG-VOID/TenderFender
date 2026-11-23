@@ -293,10 +293,14 @@ def test_compile_limit_reached(client, store):
     assert res.status_code == 409
     assert res.json()["detail"]["code"] == "tender_limit"
 
-def test_compile_success(client, http, store, consumed, caplog):
+@pytest.mark.parametrize("model, reasoning", [
+    ("llama-3", None),
+    ("nvidia/nemotron-3.5-super-vl:free", {"enabled": False}),
+    ("nvidia/nemotron-3.5-super-vl-20261015:free", {"enabled": False}),
+])
+def test_compile_success(client, http, store, consumed, caplog, model, reasoning):
     caplog.set_level(logging.DEBUG)
     key = fake_key("openrouter")
-    model = "llama-3"
 
     # Response for batched compile
     atoms_reply = json.dumps({
@@ -326,6 +330,9 @@ def test_compile_success(client, http, store, consumed, caplog):
     }, headers={"X-LLM-Key": key})
 
     assert res.status_code == 200
+    [request_body] = http.bodies(chat_url("openrouter"))
+    assert request_body["model"] == model
+    assert request_body.get("reasoning") == reasoning
     data = res.json()
     assert data["tender_id"].startswith("U-")
     assert data["title"] == "Sample Works Tender"
@@ -339,6 +346,24 @@ def test_compile_success(client, http, store, consumed, caplog):
     stored = store.get_item("test-user-001", f"TENDER#{data['tender_id']}")
     assert stored is not None
     assert stored["title"] == "Sample Works Tender"
+
+
+def test_compile_timeout_allows_retry_or_model_change(client, http, store):
+    http.add("POST", chat_url("openrouter"), TimeoutError("timed out"))
+
+    res = client.post("/api/compile", json={
+        "title": "Sample Works Tender",
+        "text": SAMPLE_ELIGIBILITY_TEXT,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+    }, headers={"X-LLM-Key": fake_key("openrouter")})
+
+    assert res.status_code == 504
+    assert res.json()["detail"] == {
+        "code": "provider_timeout",
+        "error": "OpenRouter took too long to compile this tender. Retry or choose another model.",
+        "provider": "openrouter",
+    }
+    assert store.list_tender_summaries(TEST_USER["user_id"]) == []
 
 
 # ── My-tenders CRUD ──────────────────────────────────────────────────────────
